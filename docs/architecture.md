@@ -44,7 +44,7 @@ apps/gallery/              design system page (/), example app (/examples/storef
 
 Every chart and data-display component follows the same contract:
 
-1. Accept `data: DataInput` (rows, or `dataset(rows, fields)` with a schema) and field names as strings.
+1. Accept `data: DataInput` (rows, or `dataset(rows, fields)` with a schema) and field names as strings. Row generics extend `Row` (`Record<string, unknown>`), so callers describe row shapes with `type` aliases; a TypeScript `interface` lacks an index signature and is rejected.
 2. `resolveData(data)` gives rows and a schema; `fieldOf(schema, name, rows)` gives a field with its type, label and format.
 3. `useLinkedRows(rows, { selection, source })` returns rows filtered by every predicate in the nearest `<Selection>` except the ones this component published. `source` comes from `useSourceId(props.id)`.
 4. Publish with `selection.set(field, value, { op, source })` (brush: `op: 'between'`; click: `selection.toggle(field, value, { source })`). Clear with `selection.clear(field)`.

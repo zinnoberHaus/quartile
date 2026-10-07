@@ -185,7 +185,7 @@ button.q-sidebar-brand:focus-visible {
 }
 
 .q-sidebar-item[aria-current="page"] {
-  background: var(--q-surface);
+  background: var(--q-raised);
   box-shadow: var(--q-shadow-0);
   color: var(--q-text);
   font-weight: 500;

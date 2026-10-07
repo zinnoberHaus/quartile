@@ -95,6 +95,7 @@ export function ChartsTrends() {
       <Demo
         className="g-wide"
         title="Revenue by channel"
+        style={{ order: 0 }}
         code={'<LineChart x="month" y="revenue" color="channel" />'}
       >
         <LineChart
@@ -110,7 +111,7 @@ export function ChartsTrends() {
         />
       </Demo>
 
-      <Demo title="Stacked area" aside="<AreaChart stack />">
+      <Demo title="Stacked area" style={{ order: 1 }} aside="<AreaChart stack />">
         <AreaChart
           data={monthlyByChannel}
           x="month"
@@ -124,7 +125,7 @@ export function ChartsTrends() {
         />
       </Demo>
 
-      <Demo title="Grouped bars" aside={'<BarChart group="year" select />'}>
+      <Demo title="Grouped bars" style={{ order: 2 }} aside={'<BarChart group="year" select />'}>
         <Selection>
           <BarChart
             data={monthsByYear}
@@ -140,7 +141,11 @@ export function ChartsTrends() {
         </Selection>
       </Demo>
 
-      <Demo title="Bar list" aside={'<BarList variant="fill" delta="change" select />'}>
+      <Demo
+        title="Bar list"
+        style={{ order: 3 }}
+        aside={'<BarList variant="fill" delta="change" select />'}
+      >
         <Selection>
           <BarList
             data={regionRevenue}
@@ -155,7 +160,7 @@ export function ChartsTrends() {
         <div style={note}>Last 15 days · change vs the 15 days before</div>
       </Demo>
 
-      <Demo title="Donut" aside={'<DonutChart category="channel" select />'}>
+      <Demo title="Donut" style={{ order: 4 }} aside={'<DonutChart category="channel" select />'}>
         <Selection>
           <DonutChart
             data={paidOrders}
@@ -168,11 +173,11 @@ export function ChartsTrends() {
         </Selection>
       </Demo>
 
-      <Demo title="Sparklines" aside="<Sparkline area />">
+      <Demo title="Sparklines" style={{ order: 11 }} aside="<Sparkline area />">
         <SparklineList />
       </Demo>
 
-      <Demo title="Funnel" aside={'<Funnel align="center" />'}>
+      <Demo title="Funnel" style={{ order: 9 }} aside={'<Funnel align="center" />'}>
         <Funnel
           data={funnel}
           step="step"

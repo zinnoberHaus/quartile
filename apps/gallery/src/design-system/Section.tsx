@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 
 /** A design-system section: mono eyebrow, display title, lead paragraph, then content. */
 export function Section({
@@ -31,6 +31,7 @@ export function Demo({
   aside,
   children,
   className,
+  style,
   pad = true,
 }: {
   title?: ReactNode;
@@ -38,10 +39,11 @@ export function Demo({
   aside?: ReactNode;
   children?: ReactNode;
   className?: string;
+  style?: CSSProperties;
   pad?: boolean;
 }) {
   return (
-    <div className={`g-demo ${className ?? ''}`}>
+    <div className={`g-demo ${className ?? ''}`} style={style}>
       {(title || code || aside) && (
         <div className="g-demo-head">
           {title && <span className="g-demo-title">{title}</span>}

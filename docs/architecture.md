@@ -50,7 +50,7 @@ Every chart and data-display component follows the same contract:
 4. Publish with `selection.set(field, value, { op, source })` (brush: `op: 'between'`; click: `selection.toggle(field, value, { source })`). Clear with `selection.clear(field)`.
 5. Format values with `makeFormatter(field.format, { currency, locale })` and axis ticks with `tickFormatter(field)`.
 6. Built-in states: accept `ChartStateProps` (`loading`, `error`, `errorCode`, `onRetry`, `empty`) and render through `ChartFrame`, which keeps the size so layouts never jump.
-7. Accessibility: `useChartKeyboard` for arrow-key navigation, an `aria-live` announcement for the focused point, and an auto-written summary via `summarizeSeries` or an equivalent.
+7. Accessibility: `useChartKeyboard` for arrow-key navigation, an `aria-live` announcement for the focused point, an auto-written summary via `summarizeSeries` or an equivalent, and a formatted `ChartTable` passed to `ChartFrame` as `table`. Screen readers always get the table; `view="table"` shows it at the chart's size.
 
 `LineChart` is the reference implementation of this contract.
 

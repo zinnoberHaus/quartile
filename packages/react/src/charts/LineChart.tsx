@@ -8,7 +8,7 @@ import type { DataInput, FieldDef, Formatter, Row } from '../data/types';
 import { useQuartile } from '../provider/QuartileProvider';
 import { useLinkedRows, useSourceId } from '../selection/Selection';
 import { summarizeSeries, useChartKeyboard } from './core/a11y';
-import { type ChartBaseProps, ChartFrame, statusOf } from './core/ChartFrame';
+import { type ChartBaseProps, ChartFrame, type ChartTable, statusOf } from './core/ChartFrame';
 import {
   AxisBottom,
   AxisLeft,
@@ -221,12 +221,21 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
     [series, xsRaw, fmtX, fmtY],
   );
 
+  const table = useMemo<ChartTable>(() => {
+    const cols = [...series, ...(compareSeries ? [compareSeries] : [])];
+    return {
+      columns: [xField.label, ...cols.map((s) => s.label)],
+      rows: xsRaw.map((xv, i) => [fmtXLong(xv), ...cols.map((s) => fmtY(s.values[i]))]),
+    };
+  }, [series, compareSeries, xField, xsRaw, fmtXLong, fmtY]);
+
   return (
     <ChartFrame
       kind="Line chart"
       status={statusOf(frame, xsRaw.length)}
       height={height}
       summary={summary}
+      table={table}
       {...frame}
     >
       {({ width }) => {

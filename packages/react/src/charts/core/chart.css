@@ -305,3 +305,43 @@ button.q-legend-item:focus-visible {
   font: 500 11px var(--q-font-mono);
   fill: var(--q-text-2);
 }
+
+/* Table fallback, same formats as the chart */
+.q-chart-table {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  border: 1px solid var(--q-line);
+  border-radius: var(--q-radius-md);
+}
+
+.q-chart-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.q-chart-table th,
+.q-chart-table td {
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--q-grid);
+  text-align: left;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.q-chart-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--q-muted);
+  font: 500 10.5px var(--q-font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--q-text-3);
+}
+
+.q-chart-table [data-numeric] {
+  text-align: right;
+  font-family: var(--q-font-mono);
+  font-variant-numeric: tabular-nums;
+}

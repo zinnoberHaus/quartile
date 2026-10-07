@@ -19,7 +19,7 @@
   --q-line-strong: #d3cdc0;
   --q-line-input: #cfc9bc;
   --q-text-4: #b3aea3;
-  --q-text-3: #76726a;
+  --q-text-3: #6d6962;
   --q-text-2: #58554c;
   --q-text: #16150f;
 
@@ -50,13 +50,13 @@
   --q-positive-ink: #0e7a5a;
   --q-negative: #e4572e;
   --q-negative-soft: #fbe9e3;
-  --q-negative-ink: #c83e22;
+  --q-negative-ink: #be3b20;
   --q-danger: #c83e22;
   --q-danger-hover: #b0341b;
   --q-danger-pressed: #962b15;
   --q-warning: #e9a923;
   --q-warning-soft: #fbf0dc;
-  --q-warning-ink: #a86a12;
+  --q-warning-ink: #996010;
 
   /* Data: categorical, assigned in order, never skipped. Past eight, group as "Other". */
   --q-cat-1: #2f45e8;

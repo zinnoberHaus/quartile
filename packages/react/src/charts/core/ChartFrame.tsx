@@ -24,6 +24,19 @@ export interface ChartBaseProps extends ChartStateProps {
   style?: CSSProperties;
   /** Accessible name. A summary of the data is generated and appended automatically. */
   'aria-label'?: string;
+  /**
+   * `table` renders the same data as a table, with the same formats, at the chart's size.
+   * Screen readers always get the table; this makes it visible.
+   */
+  view?: 'chart' | 'table';
+}
+
+/** The data behind a chart, already formatted. Every chart provides one as its table fallback. */
+export interface ChartTable {
+  columns: string[];
+  rows: (string | number)[][];
+  /** Index of columns that hold numbers, right-aligned in mono. Defaults to every column but the first. */
+  numeric?: number[];
 }
 
 export function statusOf(p: ChartStateProps, rowCount: number): ChartStatus {
@@ -41,6 +54,8 @@ interface ChartFrameProps extends ChartBaseProps {
   summary?: string;
   /** Chart kind, used in the default accessible name. */
   kind: string;
+  /** The data as a table: hidden for screen readers, visible when `view="table"`. */
+  table?: ChartTable;
 }
 
 /** Sizing, states and accessible naming shared by every chart. */
@@ -52,6 +67,8 @@ export function ChartFrame({
   style,
   summary,
   kind,
+  table,
+  view = 'chart',
   'aria-label': ariaLabel,
   ...state
 }: ChartFrameProps) {
@@ -67,9 +84,58 @@ export function ChartFrame({
       aria-label={ariaLabel ?? kind}
       aria-busy={status === 'loading' || undefined}
     >
-      {status === 'ready' && width > 0 ? children({ width, height }) : null}
+      {status === 'ready' && view === 'chart' && width > 0 ? children({ width, height }) : null}
       {status !== 'ready' && <ChartState status={status} {...state} />}
       {summary && status === 'ready' ? <p className="q-visually-hidden">{summary}</p> : null}
+      {table && status === 'ready' ? (
+        <ChartDataTable table={table} caption={ariaLabel ?? kind} visible={view === 'table'} />
+      ) : null}
+    </div>
+  );
+}
+
+/** The table fallback. Visually hidden unless `visible`. */
+export function ChartDataTable({
+  table,
+  caption,
+  visible,
+}: {
+  table: ChartTable;
+  caption?: string;
+  visible?: boolean;
+}) {
+  const numeric = new Set(table.numeric ?? table.columns.map((_, i) => i).slice(1));
+  return (
+    <div className={visible ? 'q-chart-table' : 'q-visually-hidden'}>
+      <table>
+        {caption && <caption className="q-visually-hidden">{caption}</caption>}
+        <thead>
+          <tr>
+            {table.columns.map((c, i) => (
+              <th key={c} scope="col" data-numeric={numeric.has(i) || undefined}>
+                {c}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {table.rows.map((r, ri) => (
+            <tr key={ri}>
+              {r.map((v, ci) =>
+                ci === 0 ? (
+                  <th key={ci} scope="row">
+                    {v}
+                  </th>
+                ) : (
+                  <td key={ci} data-numeric={numeric.has(ci) || undefined}>
+                    {v}
+                  </td>
+                ),
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

@@ -421,3 +421,40 @@
   color: var(--q-text-3);
   white-space: nowrap;
 }
+
+/* Dark theme stage */
+.f-dark-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 14px;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--q-bg);
+}
+
+.f-dark-stage > * {
+  min-width: 0;
+}
+
+.f-dark-card {
+  padding: 16px;
+  border: 1px solid var(--q-line);
+  border-radius: 12px;
+  background: var(--q-surface);
+}
+
+.f-dark-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+@media (max-width: 1100px) {
+  .f-dark-stage {
+    grid-template-columns: 1fr;
+  }
+}

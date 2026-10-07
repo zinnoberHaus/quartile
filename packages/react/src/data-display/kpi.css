@@ -1,0 +1,223 @@
+/* KPI: label, unit tag, mono value, delta pill, sparkline or target, comparison. */
+.q-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: calc(var(--q-card-pad) - 6px) calc(var(--q-card-pad) - 4px) calc(var(--q-card-pad) - 8px);
+  border: 1px solid var(--q-line);
+  border-radius: var(--q-radius-lg);
+  background: var(--q-surface);
+  color: var(--q-text);
+}
+
+.q-kpi[data-variant="compare"] {
+  gap: 10px;
+}
+
+.q-kpi-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--q-text-2);
+}
+
+.q-kpi-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.q-kpi-unit {
+  flex: none;
+  font: 500 10px / 1 var(--q-font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--q-text-3);
+}
+
+.q-kpi-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  min-width: 0;
+}
+
+.q-kpi-value {
+  font: 500 28px / 1.05 var(--q-font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+}
+
+.q-kpi-of {
+  font: 400 13px var(--q-font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--q-text-3);
+  white-space: nowrap;
+}
+
+.q-kpi-trend {
+  height: 34px;
+  color: var(--q-text);
+}
+
+.q-kpi-note {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--q-text-3);
+}
+
+/* Target */
+.q-kpi-target-bar {
+  position: relative;
+  height: 10px;
+  margin-top: 6px;
+  border-radius: 3px;
+  background: var(--q-subtle);
+}
+
+.q-kpi-target-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 3px;
+  background: var(--q-signal);
+  transition: width var(--q-duration) var(--q-ease);
+}
+
+.q-kpi-target-marker {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--q-ink);
+}
+
+.q-kpi-target-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px 12px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--q-text-3);
+}
+
+.q-kpi-target-foot [data-tone="positive"] {
+  color: var(--q-positive-ink);
+}
+
+.q-kpi-target-foot [data-tone="warning"] {
+  color: var(--q-warning-ink);
+}
+
+/* Compare */
+.q-kpi-compare-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--q-text-2);
+}
+
+.q-kpi-compare-label {
+  flex: none;
+  min-width: 64px;
+  white-space: nowrap;
+}
+
+.q-kpi-compare-track {
+  flex: 1;
+  min-width: 24px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--q-subtle);
+}
+
+.q-kpi-compare-fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--q-signal);
+  transition: width var(--q-duration) var(--q-ease);
+}
+
+.q-kpi-compare-row[data-previous] .q-kpi-compare-fill {
+  background: var(--q-line-input);
+}
+
+.q-kpi-compare-value {
+  flex: none;
+  min-width: 44px;
+  text-align: right;
+  font: 500 13px var(--q-font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--q-text);
+}
+
+.q-kpi-compare-row[data-previous] .q-kpi-compare-value {
+  font-weight: 400;
+  color: var(--q-text-2);
+}
+
+.q-kpi-compare-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+/* Loading */
+.q-kpi-skel-value {
+  width: 58%;
+  height: 29px;
+}
+
+.q-kpi-skel-trend {
+  height: 34px;
+}
+
+.q-kpi-skel-note {
+  width: 44%;
+  height: 12px;
+  margin-top: 2px;
+}
+
+/* Group */
+.q-kpi-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: 12px;
+}
+
+.q-kpi-group[data-variant="strip"] {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--q-line);
+  border-radius: var(--q-radius-lg);
+  background: var(--q-surface);
+}
+
+/* Hairlines on the right and bottom of every cell; the group clips the outer edges. */
+.q-kpi-group[data-variant="strip"] > .q-kpi {
+  gap: 6px;
+  border: 0;
+  border-radius: 0;
+  padding: 14px 16px;
+  box-shadow:
+    1px 0 0 var(--q-line),
+    0 1px 0 var(--q-line);
+}
+
+.q-kpi-group[data-variant="strip"] .q-kpi-value {
+  font-size: 22px;
+}

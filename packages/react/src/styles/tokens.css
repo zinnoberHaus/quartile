@@ -1,0 +1,230 @@
+/*
+ * Quartile design tokens.
+ * Warm paper neutrals carry structure; ultramarine is the one signal color.
+ * Every component reads these variables, so a theme is just a remap.
+ */
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* Neutrals */
+  --q-bg: #f5f3ee;
+  --q-surface: #ffffff;
+  --q-subtle: #f0ede6;
+  --q-muted: #faf9f6;
+  --q-hover: #eae7df;
+  --q-pressed: #e3dfd5;
+  --q-grid: #efece5;
+  --q-line: #e5e1d8;
+  --q-line-strong: #d3cdc0;
+  --q-line-input: #cfc9bc;
+  --q-text-4: #b3aea3;
+  --q-text-3: #76726a;
+  --q-text-2: #58554c;
+  --q-text: #16150f;
+
+  /* Ink: the one primary action per view */
+  --q-ink: #16150f;
+  --q-ink-hover: #2e2c25;
+  --q-ink-pressed: #000000;
+  --q-on-ink: #ffffff;
+
+  /* Inverse surfaces: tooltips, toasts, code. Dark in both themes. */
+  --q-inverse: #16150f;
+  --q-inverse-2: #2b2a26;
+  --q-inverse-line: #2b2a26;
+  --q-inverse-text: #f2f0e9;
+  --q-inverse-text-2: #b9b5aa;
+  --q-code-bg: #11110f;
+
+  /* Signal and semantic colors. Text pairs pass 4.5:1 on their soft fill. */
+  --q-signal: #2f45e8;
+  --q-signal-hover: #2236d0;
+  --q-signal-pressed: #1b2cb0;
+  --q-signal-soft: #eef0fd;
+  --q-signal-soft-2: #d3d9fb;
+  --q-signal-ink: #1e2da8;
+  --q-on-signal: #ffffff;
+  --q-positive: #14a06f;
+  --q-positive-soft: #e2f3ec;
+  --q-positive-ink: #0e7a5a;
+  --q-negative: #e4572e;
+  --q-negative-soft: #fbe9e3;
+  --q-negative-ink: #c83e22;
+  --q-danger: #c83e22;
+  --q-danger-hover: #b0341b;
+  --q-danger-pressed: #962b15;
+  --q-warning: #e9a923;
+  --q-warning-soft: #fbf0dc;
+  --q-warning-ink: #a86a12;
+
+  /* Data: categorical, assigned in order, never skipped. Past eight, group as "Other". */
+  --q-cat-1: #2f45e8;
+  --q-cat-2: #f26b3a;
+  --q-cat-3: #10a296;
+  --q-cat-4: #e9a923;
+  --q-cat-5: #8e4fd0;
+  --q-cat-6: #5ab0e8;
+  --q-cat-7: #e0628a;
+  --q-cat-8: #6e9f3c;
+  --q-series-muted: #a6a194;
+
+  /* Data: sequential (0 = least) and diverging (-3 … +3) */
+  --q-seq-0: #eef0fd;
+  --q-seq-1: #d3d9fb;
+  --q-seq-2: #aab5f7;
+  --q-seq-3: #7b8bf1;
+  --q-seq-4: #4f63eb;
+  --q-seq-5: #2f45e8;
+  --q-seq-6: #1f2fb0;
+  --q-seq-7: #141f78;
+  --q-div-n3: #c8502a;
+  --q-div-n2: #ee8a63;
+  --q-div-n1: #f7c7b3;
+  --q-div-0: #efece6;
+  --q-div-p1: #bfc8f8;
+  --q-div-p2: #7d8df0;
+  --q-div-p3: #2f45e8;
+
+  /* Elevation: hairlines before shadows; shadows only for things that float */
+  --q-shadow-0: 0 0 0 1px var(--q-line), 0 1px 2px rgba(22, 21, 15, 0.06);
+  --q-shadow-1: 0 1px 2px rgba(22, 21, 15, 0.06), 0 18px 40px -12px rgba(22, 21, 15, 0.22);
+  --q-shadow-2: 0 2px 4px rgba(22, 21, 15, 0.06), 0 40px 80px -24px rgba(22, 21, 15, 0.35);
+  --q-shadow-tooltip: 0 14px 34px -10px rgba(22, 21, 15, 0.45);
+  --q-shadow-thumb: 0 1px 2px rgba(22, 21, 15, 0.3);
+  --q-shadow-segment: 0 1px 2px rgba(22, 21, 15, 0.12);
+  --q-focus-ring: 0 0 0 2px var(--q-surface), 0 0 0 4px var(--q-signal);
+  --q-input-ring: 0 0 0 3px var(--q-signal-soft-2);
+
+  /* Typography */
+  --q-font-sans:
+    "Schibsted Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --q-font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  /* Space: 4px grid */
+  --q-space-1: 4px;
+  --q-space-2: 8px;
+  --q-space-3: 12px;
+  --q-space-4: 16px;
+  --q-space-5: 20px;
+  --q-space-6: 24px;
+  --q-space-8: 32px;
+  --q-space-10: 40px;
+  --q-space-14: 56px;
+  --q-space-20: 80px;
+
+  /* Radius */
+  --q-radius-xs: 4px;
+  --q-radius-sm: 6px;
+  --q-radius-md: 8px;
+  --q-radius-lg: 12px;
+  --q-radius-xl: 16px;
+  --q-radius-pill: 999px;
+
+  /* Motion */
+  --q-ease: cubic-bezier(0.2, 0, 0, 1);
+  --q-duration-fast: 120ms;
+  --q-duration: 180ms;
+
+  /* Density: comfortable (products) */
+  --q-control-h: 36px;
+  --q-control-h-sm: 28px;
+  --q-control-h-lg: 44px;
+  --q-control-px: 14px;
+  --q-control-font: 14px;
+  --q-row-h: 44px;
+  --q-card-pad: 20px;
+}
+
+[data-density="compact"] {
+  --q-control-h: 28px;
+  --q-control-h-sm: 24px;
+  --q-control-h-lg: 36px;
+  --q-control-px: 10px;
+  --q-control-font: 13px;
+  --q-row-h: 32px;
+  --q-card-pad: 14px;
+}
+
+/* Dark: same tokens, remapped. Signal and data colors lift in lightness to keep contrast. */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --q-bg: #11110f;
+  --q-surface: #191916;
+  --q-subtle: #22221e;
+  --q-muted: #161613;
+  --q-hover: #26261f;
+  --q-pressed: #2e2d28;
+  --q-grid: #23231f;
+  --q-line: #2b2a26;
+  --q-line-strong: #3b3a35;
+  --q-line-input: #4a4842;
+  --q-text-4: #5e5b53;
+  --q-text-3: #8f8b80;
+  --q-text-2: #b9b5aa;
+  --q-text: #f2f0e9;
+
+  --q-ink: #f2f0e9;
+  --q-ink-hover: #dcd7cc;
+  --q-ink-pressed: #c9c4b8;
+  --q-on-ink: #11110f;
+
+  --q-inverse: #0b0b0a;
+  --q-inverse-2: #22221e;
+  --q-inverse-line: #3b3a35;
+  --q-code-bg: #0b0b0a;
+
+  --q-signal: #7383ff;
+  --q-signal-hover: #8593ff;
+  --q-signal-pressed: #9aa6ff;
+  --q-signal-soft: rgba(115, 131, 255, 0.14);
+  --q-signal-soft-2: rgba(115, 131, 255, 0.28);
+  --q-signal-ink: #c9d0ff;
+  --q-on-signal: #0b0b0a;
+  --q-positive: #3dc492;
+  --q-positive-soft: rgba(61, 196, 146, 0.14);
+  --q-positive-ink: #5fd3a5;
+  --q-negative: #ff7d5c;
+  --q-negative-soft: rgba(255, 125, 92, 0.14);
+  --q-negative-ink: #ff9373;
+  --q-danger: #e4572e;
+  --q-danger-hover: #ee6a43;
+  --q-danger-pressed: #f27d58;
+  --q-warning: #f5c04a;
+  --q-warning-soft: rgba(245, 192, 74, 0.14);
+  --q-warning-ink: #f5c04a;
+
+  --q-cat-1: #7383ff;
+  --q-cat-2: #ff8b5e;
+  --q-cat-3: #2dc8b9;
+  --q-cat-4: #f5c04a;
+  --q-cat-5: #b07ef2;
+  --q-cat-6: #7fc8f5;
+  --q-cat-7: #f283a7;
+  --q-cat-8: #92c45c;
+  --q-series-muted: #6f6b61;
+
+  --q-seq-0: #1d1f33;
+  --q-seq-1: #252b5a;
+  --q-seq-2: #2f3a8a;
+  --q-seq-3: #3d4dbf;
+  --q-seq-4: #5568e8;
+  --q-seq-5: #7383ff;
+  --q-seq-6: #a3aeff;
+  --q-seq-7: #d0d6ff;
+  --q-div-n3: #ff7d5c;
+  --q-div-n2: #c8603f;
+  --q-div-n1: #6b3a2b;
+  --q-div-0: #2b2a26;
+  --q-div-p1: #2e3870;
+  --q-div-p2: #4f5fd0;
+  --q-div-p3: #7383ff;
+
+  --q-shadow-0: 0 0 0 1px var(--q-line);
+  --q-shadow-1: 0 0 0 1px var(--q-line-strong), 0 18px 40px -12px rgba(0, 0, 0, 0.6);
+  --q-shadow-2: 0 0 0 1px var(--q-line-strong), 0 40px 80px -24px rgba(0, 0, 0, 0.7);
+  --q-shadow-tooltip: 0 0 0 1px var(--q-inverse-line), 0 14px 34px -10px rgba(0, 0, 0, 0.6);
+  --q-shadow-thumb: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --q-shadow-segment: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --q-input-ring: 0 0 0 3px rgba(115, 131, 255, 0.22);
+}

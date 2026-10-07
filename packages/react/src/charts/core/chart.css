@@ -1,0 +1,307 @@
+/* Shared chart grammar: hairline gridlines, mono axes, one dark tooltip surface. */
+.q-chart {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  font-family: var(--q-font-sans);
+  color: var(--q-text);
+}
+
+.q-chart svg {
+  display: block;
+  overflow: visible;
+}
+
+.q-chart-plot {
+  position: absolute;
+  inset: 0;
+  outline: none;
+  border-radius: var(--q-radius-sm);
+}
+
+.q-chart-plot:focus-visible {
+  box-shadow: var(--q-focus-ring);
+}
+
+.q-chart-grid line {
+  stroke: var(--q-grid);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.q-chart-axis text {
+  font-family: var(--q-font-mono);
+  font-size: 11px;
+  fill: var(--q-text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.q-chart-baseline {
+  stroke: var(--q-line-strong);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.q-chart-crosshair {
+  stroke: color-mix(in srgb, var(--q-text) 22%, transparent);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+  pointer-events: none;
+}
+
+.q-chart-brush {
+  fill: var(--q-signal);
+  fill-opacity: 0.1;
+  stroke: var(--q-signal);
+  stroke-opacity: 0.5;
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.q-chart-dot {
+  fill: var(--q-surface);
+  stroke-width: 1.5;
+}
+
+.q-chart-dot-active {
+  stroke: var(--q-surface);
+  stroke-width: 2;
+  pointer-events: none;
+}
+
+/* Tooltip */
+.q-chart-tooltip {
+  position: absolute;
+  z-index: 3;
+  min-width: 170px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--q-inverse);
+  color: var(--q-inverse-text);
+  font-size: 12px;
+  line-height: 1.4;
+  box-shadow: var(--q-shadow-tooltip);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.q-chart-tooltip-title {
+  margin-bottom: 6px;
+  font: 500 11px var(--q-font-mono);
+  color: var(--q-inverse-text-2);
+}
+
+.q-chart-tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.q-chart-tooltip-row + .q-chart-tooltip-row {
+  margin-top: 4px;
+}
+
+.q-chart-tooltip-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.q-chart-tooltip-row[data-tone="muted"] {
+  color: var(--q-inverse-text-2);
+}
+
+.q-chart-tooltip-value {
+  font: 500 12px var(--q-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.q-chart-tooltip-row[data-tone="positive"] .q-chart-tooltip-value {
+  color: #5fd3a5;
+}
+
+.q-chart-tooltip-row[data-tone="negative"] .q-chart-tooltip-value {
+  color: #ff9373;
+}
+
+.q-chart-tooltip-footer {
+  margin-top: 6px !important;
+  padding-top: 6px;
+  border-top: 1px solid var(--q-inverse-line);
+}
+
+.q-chart-tooltip-footer .q-chart-tooltip-label {
+  color: var(--q-inverse-text-2);
+}
+
+.q-chart-tooltip-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.q-chart-tooltip-swatch[data-dashed] {
+  width: 12px;
+  height: 0;
+  border-radius: 0;
+  border-top: 2px dashed;
+}
+
+/* Legend */
+.q-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 12px;
+  color: var(--q-text-2);
+}
+
+.q-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  transition: opacity var(--q-duration-fast) var(--q-ease);
+}
+
+button.q-legend-item {
+  cursor: pointer;
+  border-radius: var(--q-radius-xs);
+}
+
+button.q-legend-item:focus-visible {
+  outline: none;
+  box-shadow: var(--q-focus-ring);
+}
+
+.q-legend-item[data-inactive] {
+  opacity: 0.4;
+}
+
+.q-legend-swatch {
+  width: 14px;
+  height: 2px;
+  border-radius: 2px;
+}
+
+.q-legend-swatch[data-dashed] {
+  height: 0;
+  border-top: 2px dashed;
+  background: none;
+}
+
+.q-legend-value {
+  font: 500 12px var(--q-font-mono);
+  color: var(--q-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* States: keep the chart's size, always offer the next action */
+.q-chart-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px;
+  text-align: center;
+  border-radius: var(--q-radius-md);
+}
+
+.q-chart-state[data-kind="loading"] {
+  justify-content: flex-end;
+  align-items: stretch;
+}
+
+.q-chart-skeleton {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding-bottom: 8px;
+}
+
+.q-chart-skeleton span {
+  flex: 1;
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(90deg, var(--q-subtle) 0, var(--q-grid) 120px, var(--q-subtle) 240px);
+  background-size: 480px 100%;
+  animation: q-shimmer 1.4s linear infinite;
+}
+
+.q-chart-state-caption {
+  font: 400 12px var(--q-font-mono);
+  color: var(--q-text-3);
+}
+
+.q-chart-state-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin-bottom: 4px;
+  border-radius: 50%;
+  background: var(--q-subtle);
+  color: var(--q-text-3);
+}
+
+.q-chart-state[data-kind="error"] .q-chart-state-icon {
+  background: var(--q-negative-soft);
+  color: var(--q-negative-ink);
+}
+
+.q-chart-state-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.q-chart-state-desc {
+  max-width: 320px;
+  font-size: 12.5px;
+  color: var(--q-text-3);
+  user-select: all;
+}
+
+.q-chart-state-action {
+  margin-top: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--q-line-strong);
+  border-radius: var(--q-radius-sm);
+  background: var(--q-surface);
+  color: var(--q-text);
+  font: 500 13px var(--q-font-sans);
+  cursor: pointer;
+}
+
+.q-chart-state-action:hover {
+  background: var(--q-bg);
+}
+
+.q-chart-state-action:focus-visible {
+  outline: none;
+  box-shadow: var(--q-focus-ring);
+}
+
+.q-chart-legend-top {
+  height: 28px;
+  align-content: flex-start;
+}
+
+.q-chart-annotation line {
+  stroke: var(--q-text-3);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+  shape-rendering: crispEdges;
+}
+
+.q-chart-annotation text {
+  font: 500 11px var(--q-font-mono);
+  fill: var(--q-text-2);
+}

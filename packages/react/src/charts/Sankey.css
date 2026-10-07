@@ -1,0 +1,52 @@
+/* Sankey: category-colored sources, ink targets, translucent ribbons that light on hover. */
+.q-sankey-plot {
+  --q-sankey-link: 0.26;
+  position: relative;
+  outline: none;
+  border-radius: var(--q-radius-sm);
+}
+
+.q-sankey-plot:focus-visible {
+  box-shadow: var(--q-focus-ring);
+}
+
+[data-theme="dark"] .q-sankey-plot {
+  --q-sankey-link: 0.36;
+}
+
+.q-sankey-link {
+  stroke-opacity: var(--q-sankey-link);
+  transition: stroke-opacity var(--q-duration-fast) var(--q-ease);
+}
+
+.q-sankey-link[data-state="lit"] {
+  stroke-opacity: 0.55;
+}
+
+.q-sankey-link[data-state="dim"] {
+  stroke-opacity: 0.1;
+}
+
+.q-sankey-node {
+  transition: opacity var(--q-duration-fast) var(--q-ease);
+}
+
+.q-sankey-node[data-state="dim"] {
+  opacity: 0.35;
+}
+
+.q-sankey-labels text {
+  font: 400 12px var(--q-font-sans);
+  fill: var(--q-text);
+  pointer-events: none;
+}
+
+.q-sankey-labels text[data-state="dim"] {
+  fill: var(--q-text-3);
+}
+
+.q-sankey-value {
+  font: 500 11px var(--q-font-mono);
+  fill: var(--q-text-2);
+  font-variant-numeric: tabular-nums;
+}

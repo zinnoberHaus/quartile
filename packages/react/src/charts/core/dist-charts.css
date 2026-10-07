@@ -1,0 +1,61 @@
+/* Shared by the distribution and flow charts: soft bar fill, muted context, ramp legend. */
+.q-chart {
+  --q-dist-fill: var(--q-seq-3);
+  --q-dist-muted: color-mix(in srgb, var(--q-line) 55%, var(--q-line-strong));
+}
+
+[data-theme="dark"] .q-chart,
+.q-chart[data-theme="dark"] {
+  --q-dist-fill: var(--q-seq-5);
+}
+
+.q-dist-axis-title {
+  font: 400 11px var(--q-font-mono);
+  fill: var(--q-text-3);
+  color: var(--q-text-3);
+}
+
+.q-dist-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  font: 400 11px var(--q-font-mono);
+  color: var(--q-text-3);
+}
+
+.q-dist-foot > :only-child {
+  margin-left: auto;
+}
+
+.q-ramp-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 400 11px var(--q-font-sans);
+  color: var(--q-text-3);
+  white-space: nowrap;
+}
+
+.q-ramp-legend-swatches {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.q-ramp-legend-swatches span {
+  width: 12px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.q-dist-cell {
+  transition: opacity var(--q-duration-fast) var(--q-ease);
+}
+
+.q-dist-cell-active {
+  fill: none;
+  stroke: var(--q-text);
+  stroke-width: 1.5;
+  pointer-events: none;
+}

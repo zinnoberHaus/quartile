@@ -1,0 +1,40 @@
+/* Box plot: ink whiskers, a signal box split at the median, hollow muted outliers. */
+.q-boxplot-group {
+  transition: opacity var(--q-duration-fast) var(--q-ease);
+}
+
+.q-boxplot-group[data-muted] {
+  opacity: 0.3;
+}
+
+.q-boxplot-label {
+  font: 400 12px var(--q-font-sans);
+  fill: var(--q-text-2);
+}
+
+.q-boxplot-whisker {
+  stroke: var(--q-text);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.q-boxplot-box {
+  fill: var(--q-signal-soft);
+  stroke: var(--q-signal);
+  stroke-width: 1.5;
+}
+
+.q-boxplot-median {
+  fill: var(--q-signal-ink);
+}
+
+.q-boxplot-outlier {
+  fill: none;
+  stroke: var(--q-series-muted);
+  stroke-width: 1.5;
+}
+
+.q-boxplot-hover {
+  fill: color-mix(in srgb, var(--q-text) 4%, transparent);
+  pointer-events: none;
+}

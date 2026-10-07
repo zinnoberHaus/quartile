@@ -1,0 +1,30 @@
+/* Histogram: soft bars, a signal brush with edge rules, an ink median rule. */
+.q-histogram-hover {
+  fill: color-mix(in srgb, var(--q-text) 3.5%, transparent);
+  pointer-events: none;
+}
+
+.q-histogram-brush rect {
+  fill: var(--q-signal);
+  fill-opacity: 0.12;
+  pointer-events: none;
+}
+
+.q-histogram-brush line {
+  stroke: var(--q-signal);
+  stroke-opacity: 0.7;
+  stroke-width: 1.5;
+  pointer-events: none;
+}
+
+.q-histogram-median line {
+  stroke: var(--q-text);
+  stroke-width: 1.5;
+  pointer-events: none;
+}
+
+.q-histogram-median text {
+  font: 500 11px var(--q-font-mono);
+  fill: var(--q-text);
+  font-variant-numeric: tabular-nums;
+}

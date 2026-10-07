@@ -1,0 +1,14 @@
+/* Matrix heatmap: mono row and column labels, peak note beside the ramp legend. */
+.q-heatmap-labels text {
+  font: 400 10px var(--q-font-mono);
+  fill: var(--q-text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.q-heatmap-peak {
+  font: 400 11px var(--q-font-mono);
+  color: var(--q-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

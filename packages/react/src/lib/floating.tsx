@@ -120,12 +120,31 @@ export function useFloating(
 
   useIsoLayoutEffect(() => {
     if (!open) return;
-    update();
-    const raf = requestAnimationFrame(update);
+    // A <Portal> mounts its content a render after the caller, so the floating element may not
+    // exist yet. Retry each frame until both elements are present, then track their sizes.
+    let raf = 0;
+    let tries = 0;
+    let ro: ResizeObserver | null = null;
+    const attach = () => {
+      const a = anchor.current;
+      const f = floating.current;
+      if (!a || !f) {
+        if (tries++ < 60) raf = requestAnimationFrame(attach);
+        return;
+      }
+      update();
+      if (typeof ResizeObserver !== 'undefined') {
+        ro = new ResizeObserver(update);
+        ro.observe(f);
+        ro.observe(a);
+      }
+    };
+    attach();
     window.addEventListener('scroll', update, true);
     window.addEventListener('resize', update);
     return () => {
       cancelAnimationFrame(raf);
+      ro?.disconnect();
       window.removeEventListener('scroll', update, true);
       window.removeEventListener('resize', update);
     };

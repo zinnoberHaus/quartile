@@ -1,0 +1,86 @@
+/* Checkbox and Radio share the label layout. */
+.q-checkbox,
+.q-radio {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  max-width: 100%;
+  color: var(--q-text);
+  font-size: 14px;
+  line-height: 1.3;
+  cursor: pointer;
+  user-select: none;
+}
+
+.q-checkbox[data-has-description],
+.q-radio[data-has-description],
+.q-switch:has(.q-check-description) {
+  align-items: flex-start;
+}
+
+.q-checkbox[data-has-description] .q-checkbox-box,
+.q-radio[data-has-description] .q-radio-dot {
+  margin-top: 1px;
+}
+
+.q-switch:has(.q-check-description) .q-switch-track {
+  margin-top: 0;
+}
+
+.q-checkbox[data-disabled],
+.q-radio[data-disabled] {
+  color: var(--q-text-4);
+  cursor: not-allowed;
+}
+
+.q-checkbox-input,
+.q-radio-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+
+.q-checkbox-box {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--q-line-input);
+  border-radius: 4px;
+  background: var(--q-surface);
+  color: var(--q-on-ink);
+  transition:
+    background-color var(--q-duration-fast) var(--q-ease),
+    border-color var(--q-duration-fast) var(--q-ease);
+}
+
+.q-checkbox:hover .q-checkbox-input:not(:disabled) + .q-checkbox-box[data-state="unchecked"] {
+  border-color: var(--q-text-3);
+}
+
+.q-checkbox-box[data-state="checked"],
+.q-checkbox-box[data-state="mixed"] {
+  border-color: var(--q-ink);
+  background: var(--q-ink);
+}
+
+.q-checkbox-input:focus-visible + .q-checkbox-box {
+  box-shadow: var(--q-focus-ring);
+}
+
+.q-checkbox-input:disabled + .q-checkbox-box {
+  border-color: var(--q-line);
+  background: var(--q-bg);
+}
+
+.q-checkbox-input:disabled + .q-checkbox-box:not([data-state="unchecked"]) {
+  border-color: var(--q-line-strong);
+  background: var(--q-line-strong);
+}

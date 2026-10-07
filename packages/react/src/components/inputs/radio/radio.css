@@ -1,0 +1,45 @@
+/* Label layout is shared with Checkbox (checkbox.css). */
+.q-radio-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+
+.q-radio-group[data-orientation="vertical"] {
+  flex-direction: column;
+  gap: 10px;
+}
+
+.q-radio-dot {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--q-line-input);
+  border-radius: 50%;
+  background: var(--q-surface);
+  transition:
+    border-width var(--q-duration-fast) var(--q-ease),
+    border-color var(--q-duration-fast) var(--q-ease);
+}
+
+.q-radio:hover .q-radio-input:not(:checked):not(:disabled) + .q-radio-dot {
+  border-color: var(--q-text-3);
+}
+
+.q-radio-input:checked + .q-radio-dot {
+  border-width: 5px;
+  border-color: var(--q-signal);
+}
+
+.q-radio-input:focus-visible + .q-radio-dot {
+  box-shadow: var(--q-focus-ring);
+}
+
+.q-radio-input:disabled + .q-radio-dot {
+  border-color: var(--q-line);
+  background: var(--q-bg);
+}
+
+.q-radio-input:disabled:checked + .q-radio-dot {
+  border-color: var(--q-line-strong);
+}

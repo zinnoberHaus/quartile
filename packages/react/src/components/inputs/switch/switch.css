@@ -1,0 +1,104 @@
+.q-switch {
+  --q-switch-w: 32px;
+  --q-switch-h: 18px;
+  --q-switch-thumb: 14px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: fit-content;
+  max-width: 100%;
+  color: var(--q-text);
+  font-size: 14px;
+  line-height: 1.3;
+  cursor: pointer;
+  user-select: none;
+}
+
+.q-switch[data-size="sm"] {
+  --q-switch-w: 28px;
+  --q-switch-h: 16px;
+  --q-switch-thumb: 12px;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.q-switch-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+
+.q-switch-track {
+  position: relative;
+  flex: none;
+  width: var(--q-switch-w);
+  height: var(--q-switch-h);
+  border-radius: var(--q-radius-pill);
+  background: var(--q-line-strong);
+  transition: background-color var(--q-duration) var(--q-ease);
+}
+
+.q-switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: var(--q-switch-thumb);
+  height: var(--q-switch-thumb);
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: var(--q-shadow-thumb);
+  transition: transform var(--q-duration) var(--q-ease);
+}
+
+.q-switch-input:checked + .q-switch-track {
+  background: var(--q-signal);
+}
+
+.q-switch-input:checked + .q-switch-track .q-switch-thumb {
+  transform: translateX(calc(var(--q-switch-w) - var(--q-switch-thumb) - 4px));
+}
+
+.q-switch:hover .q-switch-input:not(:checked):not(:disabled) + .q-switch-track {
+  background: color-mix(in srgb, var(--q-line-strong) 75%, var(--q-text-3));
+}
+
+.q-switch-input:focus-visible + .q-switch-track {
+  box-shadow: var(--q-focus-ring);
+}
+
+.q-switch[data-disabled] {
+  cursor: not-allowed;
+  color: var(--q-text-4);
+}
+
+.q-switch-input:disabled + .q-switch-track {
+  opacity: 0.5;
+}
+
+.q-switch-state {
+  font: 400 11px var(--q-font-mono);
+  color: var(--q-text-3);
+}
+
+/* Label + description text shared by Switch, Checkbox and Radio. */
+.q-check-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.q-check-label {
+  color: inherit;
+}
+
+.q-check-description {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--q-text-3);
+}

@@ -1,0 +1,30 @@
+/* The label · control · message column shared by every input. */
+.q-field {
+  --q-field-muted: color-mix(in srgb, var(--q-text-3) 70%, var(--q-text-4));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.q-field-label {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--q-text);
+}
+
+.q-field[data-disabled] .q-field-label {
+  color: var(--q-field-muted);
+}
+
+.q-field-hint,
+.q-field-error {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--q-text-3);
+}
+
+.q-field-error {
+  color: var(--q-danger);
+}

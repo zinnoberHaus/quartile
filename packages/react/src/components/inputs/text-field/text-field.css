@@ -1,0 +1,157 @@
+/* Bordered control box shared by TextField, NumberField and the Select trigger. */
+.q-input {
+  --q-input-h: var(--q-control-h);
+  --q-input-pad: 12px;
+  --q-input-muted: color-mix(in srgb, var(--q-text-3) 70%, var(--q-text-4));
+  display: flex;
+  align-items: center;
+  height: var(--q-input-h);
+  min-width: 0;
+  border: 1px solid var(--q-line-strong);
+  border-radius: var(--q-radius-md);
+  background: var(--q-surface);
+  color: var(--q-text);
+  font-size: var(--q-control-font);
+  overflow: hidden;
+  cursor: text;
+  transition:
+    border-color var(--q-duration-fast) var(--q-ease),
+    box-shadow var(--q-duration-fast) var(--q-ease);
+}
+
+.q-input:hover:not([data-disabled]):not(:focus-within) {
+  border-color: color-mix(in srgb, var(--q-line-strong) 60%, var(--q-text-3));
+}
+
+/* `data-state="focus"` on the input forces the focus look, for documentation and visual tests. */
+.q-input:focus-within,
+.q-input:has(> .q-input-native[data-state="focus"]) {
+  border-color: var(--q-signal);
+  box-shadow: var(--q-input-ring);
+}
+
+.q-input[data-size="sm"] {
+  --q-input-h: var(--q-control-h-sm);
+  --q-input-pad: 9px;
+  border-radius: 7px;
+  font-size: calc(var(--q-control-font) - 1px);
+}
+
+.q-input[data-size="lg"] {
+  --q-input-h: var(--q-control-h-lg);
+  --q-input-pad: 14px;
+  border-radius: 10px;
+  font-size: calc(var(--q-control-font) + 1px);
+}
+
+.q-input[data-invalid] {
+  border-color: var(--q-danger);
+}
+
+.q-input[data-invalid]:focus-within {
+  box-shadow: 0 0 0 3px var(--q-negative-soft);
+}
+
+.q-input[data-disabled] {
+  border-color: var(--q-line);
+  background: var(--q-bg);
+  color: var(--q-input-muted);
+  cursor: not-allowed;
+}
+
+.q-input-native {
+  flex: 1;
+  align-self: stretch;
+  min-width: 0;
+  margin: 0;
+  padding: 0 var(--q-input-pad);
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+.q-input-native::placeholder {
+  color: var(--q-input-muted);
+  opacity: 1;
+}
+
+.q-input-native[data-mono] {
+  font-family: var(--q-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.q-input-native:disabled {
+  cursor: not-allowed;
+  -webkit-text-fill-color: currentColor;
+}
+
+.q-input[data-has-prefix] .q-input-native {
+  padding-left: 10px;
+}
+
+.q-input[data-has-icon] .q-input-native {
+  padding-left: 8px;
+}
+
+.q-input[data-has-end] .q-input-native {
+  padding-right: 8px;
+}
+
+.q-input-prefix {
+  display: flex;
+  flex: none;
+  align-items: center;
+  align-self: stretch;
+  padding: 0 10px;
+  border-right: 1px solid var(--q-line);
+  background: var(--q-muted);
+  color: var(--q-text-3);
+  font-family: var(--q-font-mono);
+}
+
+.q-input[data-invalid] .q-input-prefix {
+  border-right-color: transparent;
+  background: var(--q-negative-soft);
+  color: var(--q-danger);
+}
+
+.q-input-icon {
+  display: inline-flex;
+  flex: none;
+  margin-left: 10px;
+  color: var(--q-text-3);
+}
+
+.q-input-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.q-input-suffix {
+  flex: none;
+  padding-right: 10px;
+  font: 400 11px var(--q-font-mono);
+  color: var(--q-text-3);
+  white-space: nowrap;
+}
+
+.q-input[data-disabled] .q-input-suffix {
+  color: var(--q-input-muted);
+}
+
+.q-input-kbd {
+  flex: none;
+  margin-right: 8px;
+  padding: 1px 5px;
+  border: 1px solid var(--q-line);
+  border-radius: 5px;
+  font: 500 11px / 1.4 var(--q-font-mono);
+  color: var(--q-text-2);
+}
+
+.q-input-suffix + .q-input-kbd {
+  margin-left: -2px;
+}

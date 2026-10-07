@@ -12,6 +12,8 @@
   --q-surface: #ffffff;
   --q-subtle: #f0ede6;
   --q-muted: #faf9f6;
+  /* Selected segment, raised chip: one step above its track */
+  --q-raised: #ffffff;
   --q-hover: #eae7df;
   --q-pressed: #e3dfd5;
   --q-grid: #efece5;
@@ -153,6 +155,7 @@
   --q-surface: #191916;
   --q-subtle: #22221e;
   --q-muted: #161613;
+  --q-raised: #3b3a35;
   --q-hover: #26261f;
   --q-pressed: #2e2d28;
   --q-grid: #23231f;

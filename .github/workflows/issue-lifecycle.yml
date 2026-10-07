@@ -1,0 +1,26 @@
+name: Issue lifecycle
+on:
+  issues:
+    types: [opened, reopened, closed]
+permissions:
+  contents: read
+  issues: write
+jobs:
+  lifecycle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const { data: issue } = await github.rest.issues.get({ owner, repo, issue_number });
+            const statuses = issue.labels.map(l => typeof l === 'string' ? l : l.name).filter(n => n.startsWith('status:'));
+            if (issue.state === 'closed') {
+              for (const name of statuses) {
+                try { await github.rest.issues.removeLabel({ owner, repo, issue_number, name }); }
+                catch (e) { if (e.status !== 404) throw e; }
+              }
+            } else if (statuses.length === 0) {
+              await github.rest.issues.addLabels({ owner, repo, issue_number, labels: ['status:triage'] });
+            }

@@ -140,39 +140,6 @@ export function ChartDataTable({
   );
 }
 
-const statusIcon = {
-  empty: (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      aria-hidden="true"
-    >
-      <circle cx="7" cy="7" r="4.5" />
-      <path d="M10.5 10.5L14 14" />
-    </svg>
-  ),
-  error: (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      aria-hidden="true"
-    >
-      <circle cx="8" cy="8" r="6.25" />
-      <path d="M8 4.75v3.75M8 11.1v.15" />
-    </svg>
-  ),
-};
-
 /** The loading, empty and error states. Exported for custom charts. */
 export function ChartState({
   status,
@@ -186,7 +153,7 @@ export function ChartState({
     return (
       <div className="q-chart-state" data-kind="loading">
         <div className="q-chart-skeleton" aria-hidden="true">
-          {[0.55, 0.8, 0.4, 0.95, 0.7, 0.6, 0.85, 0.5, 0.75, 0.65].map((h, i) => (
+          {[0.42, 0.62, 0.48, 0.75, 0.66, 0.9, 0.72].map((h, i) => (
             <span key={i} style={{ height: `${h * 100}%` }} />
           ))}
         </div>
@@ -201,29 +168,31 @@ export function ChartState({
       error instanceof Error ? error.message : typeof error === 'string' ? error : null;
     return (
       <div className="q-chart-state" data-kind="error" role="alert">
-        <span className="q-chart-state-icon">{statusIcon.error}</span>
-        <span className="q-chart-state-title">Couldn’t load this chart</span>
-        {(message || errorCode) && (
-          <span className="q-chart-state-desc q-num">
-            {message}
-            {message && errorCode ? ' · ' : ''}
-            {errorCode}
-          </span>
-        )}
-        {onRetry && (
-          <button type="button" className="q-chart-state-action" onClick={onRetry}>
-            Retry
-          </button>
-        )}
+        <div className="q-chart-state-panel">
+          <span className="q-chart-state-title">Couldn’t load this chart</span>
+          {(message || errorCode) && (
+            <span className="q-chart-state-code">
+              {message}
+              {message && errorCode ? ' · ' : ''}
+              {errorCode}
+            </span>
+          )}
+          {onRetry && (
+            <button type="button" className="q-chart-state-retry" onClick={onRetry}>
+              Retry
+            </button>
+          )}
+        </div>
       </div>
     );
   }
   return (
     <div className="q-chart-state" data-kind="empty">
-      <span className="q-chart-state-icon">{statusIcon.empty}</span>
-      <span className="q-chart-state-title">{empty?.title ?? 'No data to show'}</span>
-      {empty?.description && <span className="q-chart-state-desc">{empty.description}</span>}
-      {empty?.action}
+      <div className="q-chart-state-panel">
+        <span className="q-chart-state-title">{empty?.title ?? 'No data to show'}</span>
+        {empty?.description && <span className="q-chart-state-desc">{empty.description}</span>}
+        {empty?.action}
+      </div>
     </div>
   );
 }

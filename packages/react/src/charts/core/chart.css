@@ -206,17 +206,10 @@ button.q-legend-item:focus-visible {
   inset: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 16px;
-  text-align: center;
-  border-radius: var(--q-radius-md);
 }
 
 .q-chart-state[data-kind="loading"] {
-  justify-content: flex-end;
-  align-items: stretch;
+  gap: 10px;
 }
 
 .q-chart-skeleton {
@@ -224,74 +217,112 @@ button.q-legend-item:focus-visible {
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  padding-bottom: 8px;
 }
 
 .q-chart-skeleton span {
   flex: 1;
   border-radius: 4px 4px 0 0;
-  background: linear-gradient(90deg, var(--q-subtle) 0, var(--q-grid) 120px, var(--q-subtle) 240px);
-  background-size: 480px 100%;
-  animation: q-shimmer 1.4s linear infinite;
+  background: linear-gradient(
+    180deg,
+    var(--q-subtle) 0%,
+    color-mix(in srgb, var(--q-subtle) 45%, transparent) 100%
+  );
+  animation: q-skeleton-pulse 1.6s var(--q-ease) infinite alternate;
+}
+
+@keyframes q-skeleton-pulse {
+  to {
+    opacity: 0.55;
+  }
 }
 
 .q-chart-state-caption {
-  font: 400 12px var(--q-font-mono);
+  font: 400 11.5px var(--q-font-mono);
   color: var(--q-text-3);
 }
 
-.q-chart-state-icon {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  margin-bottom: 4px;
-  border-radius: 50%;
-  background: var(--q-subtle);
-  color: var(--q-text-3);
+.q-chart-state-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  border-radius: var(--q-radius-lg);
+  text-align: center;
 }
 
-.q-chart-state[data-kind="error"] .q-chart-state-icon {
-  background: var(--q-negative-soft);
-  color: var(--q-negative-ink);
+.q-chart-state[data-kind="empty"] .q-chart-state-panel {
+  border: 1px dashed var(--q-line-strong);
+}
+
+.q-chart-state[data-kind="error"] .q-chart-state-panel {
+  background: color-mix(in srgb, var(--q-negative-soft) 60%, var(--q-surface));
 }
 
 .q-chart-state-title {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--q-text);
+}
+
+.q-chart-state[data-kind="error"] .q-chart-state-title {
+  color: var(--q-negative-ink);
 }
 
 .q-chart-state-desc {
   max-width: 320px;
-  font-size: 12.5px;
+  font-size: 13px;
+  line-height: 1.5;
   color: var(--q-text-3);
+}
+
+.q-chart-state-code {
+  padding: 3px 8px;
+  border-radius: var(--q-radius-sm);
+  background: var(--q-surface);
+  font: 400 11.5px var(--q-font-mono);
+  color: var(--q-text-2);
   user-select: all;
 }
 
-.q-chart-state-action {
-  margin-top: 6px;
+.q-chart-state-retry {
   height: 28px;
-  padding: 0 12px;
-  border: 1px solid var(--q-line-strong);
+  margin-top: 2px;
+  padding: 0 14px;
+  border: 0;
   border-radius: var(--q-radius-sm);
-  background: var(--q-surface);
-  color: var(--q-text);
+  background: var(--q-ink);
+  color: var(--q-on-ink);
   font: 500 13px var(--q-font-sans);
   cursor: pointer;
 }
 
-.q-chart-state-action:hover {
-  background: var(--q-bg);
+.q-chart-state-retry:hover {
+  background: var(--q-ink-hover);
 }
 
-.q-chart-state-action:focus-visible {
+.q-chart-state-retry:focus-visible {
   outline: none;
   box-shadow: var(--q-focus-ring);
 }
 
 .q-chart-legend-top {
   height: 28px;
-  align-content: flex-start;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  white-space: nowrap;
+}
+
+.q-chart-legend-top::-webkit-scrollbar {
+  display: none;
+}
+
+.q-chart-legend-top .q-legend-item {
+  flex: none;
 }
 
 .q-chart-annotation line {

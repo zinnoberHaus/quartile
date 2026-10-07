@@ -428,7 +428,11 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
                   return (
                     <g key={a.label} className="q-chart-annotation">
                       <line x1={ax} x2={ax} y1={MARGIN.top} y2={plotHeight - MARGIN.bottom} />
-                      <text x={ax + 6} y={MARGIN.top + 10}>
+                      <text
+                        x={ax > x0 + (x1 - x0) * 0.6 ? ax - 6 : ax + 6}
+                        y={MARGIN.top + 10}
+                        textAnchor={ax > x0 + (x1 - x0) * 0.6 ? 'end' : 'start'}
+                      >
                         {a.label}
                       </text>
                     </g>

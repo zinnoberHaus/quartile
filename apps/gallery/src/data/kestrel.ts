@@ -76,7 +76,7 @@ export function dateAt(i: number) {
   return new Date(START.getFullYear(), START.getMonth(), START.getDate() + i);
 }
 
-export interface Order {
+export type Order = {
   id: string;
   date: string;
   hour: number;
@@ -87,7 +87,7 @@ export interface Order {
   sku: string;
   amount: number;
   status: 'Paid' | 'Pending' | 'Refunded';
-}
+};
 
 const REGION_W = [0.41, 0.27, 0.17, 0.09, 0.06];
 const CHANNEL_W = [0.32, 0.3, 0.23, 0.15];

@@ -1,0 +1,59 @@
+/* Tooltip: the dark inverse surface, shared with toasts and chart tooltips. */
+.q-tooltip {
+  position: relative;
+  width: max-content;
+  max-width: min(280px, calc(100vw - 16px));
+  padding: 6px 9px;
+  border-radius: 7px;
+  background: var(--q-inverse);
+  color: var(--q-inverse-text);
+  font: 400 12px / 1.4 var(--q-font-sans);
+  box-shadow: var(--q-shadow-tooltip);
+  overflow-wrap: break-word;
+}
+
+.q-tooltip[data-rich] {
+  min-width: 160px;
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+
+.q-tooltip-floating {
+  z-index: 70;
+  pointer-events: none;
+  animation: q-tooltip-in var(--q-duration-fast) var(--q-ease);
+}
+
+.q-tooltip-arrow {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: inherit;
+  transform: translate(-50%, 0) rotate(45deg);
+}
+
+.q-tooltip[data-side="top"] > .q-tooltip-arrow {
+  bottom: -4px;
+  left: 50%;
+}
+
+.q-tooltip[data-side="bottom"] > .q-tooltip-arrow {
+  top: -4px;
+  left: 50%;
+}
+
+.q-tooltip[data-side="right"] > .q-tooltip-arrow {
+  top: 12px;
+  left: 0;
+}
+
+.q-tooltip[data-side="left"] > .q-tooltip-arrow {
+  top: 12px;
+  left: 100%;
+}
+
+@keyframes q-tooltip-in {
+  from {
+    opacity: 0;
+  }
+}

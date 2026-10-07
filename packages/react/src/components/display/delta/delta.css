@@ -1,0 +1,37 @@
+/* Delta: a signed change in mono with tabular figures. */
+.q-delta {
+  --q-delta-bg: var(--q-subtle);
+  --q-delta-fg: var(--q-text-2);
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: var(--q-radius-sm);
+  background: var(--q-delta-bg);
+  color: var(--q-delta-fg);
+  font: 500 12px / 1.35 var(--q-font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.q-delta[data-variant="plain"],
+.q-delta[data-variant="arrow"] {
+  padding: 0;
+  background: transparent;
+}
+
+.q-delta[data-tone="positive"] {
+  --q-delta-bg: var(--q-positive-soft);
+  --q-delta-fg: var(--q-positive-ink);
+}
+
+.q-delta[data-tone="negative"] {
+  --q-delta-bg: var(--q-negative-soft);
+  --q-delta-fg: var(--q-negative-ink);
+}
+
+.q-delta[data-tone="signal"] {
+  --q-delta-bg: var(--q-signal-soft);
+  --q-delta-fg: var(--q-signal-ink);
+}

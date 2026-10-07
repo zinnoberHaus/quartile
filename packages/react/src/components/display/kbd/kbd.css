@@ -1,0 +1,23 @@
+.q-kbd {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  padding: 1px 6px;
+  border: 1px solid var(--q-line);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--q-surface);
+  color: var(--q-text);
+  font: 500 11px / 1.45 var(--q-font-mono);
+  white-space: nowrap;
+}
+
+.q-kbd[data-variant="flat"] {
+  min-width: 0;
+  padding: 1px 5px;
+  border-bottom-width: 1px;
+  background: var(--q-bg);
+  color: var(--q-text-2);
+}

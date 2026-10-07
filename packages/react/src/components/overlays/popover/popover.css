@@ -1,0 +1,71 @@
+/* Popover: the shared floating surface (hairline + --q-shadow-1). */
+.q-popover {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: min(320px, calc(100vw - 16px));
+  padding: 14px;
+  border: 1px solid var(--q-line);
+  border-radius: var(--q-radius-lg);
+  background: var(--q-surface);
+  box-shadow: var(--q-shadow-1);
+  color: var(--q-text);
+}
+
+.q-popover-floating {
+  z-index: 60;
+  animation: q-pop-in var(--q-duration) var(--q-ease);
+}
+
+.q-popover:focus {
+  outline: none;
+}
+
+.q-popover-title {
+  font-size: 14px;
+  line-height: 1.35;
+  font-weight: 600;
+}
+
+.q-popover-body {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--q-text-2);
+}
+
+.q-popover-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* Text actions inside the popover: first is the signal action, the rest are quiet. */
+.q-popover-action {
+  padding: 0;
+  border: 0;
+  border-radius: var(--q-radius-xs);
+  background: none;
+  color: var(--q-text-2);
+  font: inherit;
+  cursor: pointer;
+}
+
+.q-popover-action:hover {
+  color: var(--q-text);
+}
+
+.q-popover-action[data-variant="signal"] {
+  color: var(--q-signal);
+}
+
+.q-popover-action[data-variant="signal"]:hover {
+  color: var(--q-signal-hover);
+}
+
+.q-popover-action:focus-visible {
+  outline: none;
+  box-shadow: var(--q-focus-ring);
+}

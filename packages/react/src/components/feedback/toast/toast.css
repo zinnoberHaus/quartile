@@ -1,0 +1,173 @@
+/* Toast: the dark inverse surface. Tone colors are the lifted (dark-surface) variants. */
+.q-toast {
+  --q-toast-success: #3dc492;
+  --q-toast-info: #9da9ff;
+  --q-toast-warning: #f5c04a;
+  --q-toast-error: #ff7d5c;
+  --q-toast-accent: #9da9ff;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--q-radius-lg);
+  background: var(--q-inverse);
+  color: var(--q-inverse-text);
+  box-shadow: var(--q-shadow-tooltip);
+  font-family: var(--q-font-sans);
+  pointer-events: auto;
+}
+
+.q-toast-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: var(--q-toast-tone, var(--q-toast-info));
+  color: #11110f;
+}
+
+.q-toast[data-tone="success"] {
+  --q-toast-tone: var(--q-toast-success);
+}
+
+.q-toast[data-tone="info"] {
+  --q-toast-tone: var(--q-toast-info);
+}
+
+.q-toast[data-tone="warning"] {
+  --q-toast-tone: var(--q-toast-warning);
+}
+
+.q-toast[data-tone="error"] {
+  --q-toast-tone: var(--q-toast-error);
+}
+
+.q-toast-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.q-toast-title {
+  font-size: 14px;
+  line-height: 1.4;
+  font-weight: 500;
+}
+
+.q-toast-description {
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--q-inverse-text-2);
+}
+
+.q-toast-action {
+  flex: none;
+  padding: 1px 0;
+  border: 0;
+  border-radius: var(--q-radius-xs);
+  background: none;
+  color: var(--q-toast-accent);
+  font: 500 13px / 1.4 var(--q-font-sans);
+  cursor: pointer;
+}
+
+.q-toast-action:hover {
+  color: #c3caff;
+}
+
+.q-toast-close {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin: 0 -6px 0 -4px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--q-radius-xs);
+  background: none;
+  color: var(--q-inverse-text-2);
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity var(--q-duration-fast) var(--q-ease);
+}
+
+.q-toast:hover .q-toast-close,
+.q-toast-close:focus-visible {
+  opacity: 1;
+}
+
+.q-toast-close:hover {
+  background: var(--q-inverse-2);
+  color: var(--q-inverse-text);
+}
+
+.q-toast-action:focus-visible,
+.q-toast-close:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--q-toast-accent);
+}
+
+/* Toaster: a fixed stack in one corner. */
+.q-toaster {
+  position: fixed;
+  z-index: 80;
+  width: min(380px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.q-toaster[data-placement^="bottom"] {
+  bottom: 16px;
+}
+
+.q-toaster[data-placement^="top"] {
+  top: 16px;
+}
+
+.q-toaster[data-placement$="right"] {
+  right: 16px;
+}
+
+.q-toaster[data-placement$="left"] {
+  left: 16px;
+}
+
+.q-toaster[data-placement="bottom"],
+.q-toaster[data-placement="top"] {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.q-toaster-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.q-toaster[data-placement^="top"] .q-toaster-list {
+  flex-direction: column-reverse;
+}
+
+.q-toaster-item {
+  pointer-events: auto;
+  animation: q-pop-in var(--q-duration) var(--q-ease);
+}
+
+.q-toaster-item[data-state="closed"] {
+  animation: q-toast-out 180ms var(--q-ease) forwards;
+  pointer-events: none;
+}
+
+@keyframes q-toast-out {
+  to {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+}

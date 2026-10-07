@@ -1,0 +1,65 @@
+/* Card: white surface, hairline border, 12px radius. Padding follows density (16/18 comfortable). */
+.q-card {
+  --q-card-py: calc(var(--q-card-pad) - 4px);
+  --q-card-px: calc(var(--q-card-pad) - 2px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: var(--q-card-py) var(--q-card-px);
+  border: 1px solid var(--q-line);
+  border-radius: var(--q-radius-lg);
+  background: var(--q-surface);
+  color: var(--q-text);
+}
+
+.q-card[data-padded="false"] {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.q-card-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px 12px;
+}
+
+.q-card[data-padded="false"] > .q-card-header {
+  padding: calc(var(--q-card-py) - 2px) var(--q-card-px);
+}
+
+.q-card-heading {
+  min-width: 0;
+}
+
+.q-card-title {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.35;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--q-text);
+}
+
+.q-card-subtitle {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--q-text-3);
+}
+
+.q-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-left: auto;
+}
+
+.q-card-body {
+  flex: 1;
+  min-width: 0;
+}

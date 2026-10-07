@@ -1,0 +1,118 @@
+/* Progress and Meter: label row on top, mono value at the end. */
+.q-progress,
+.q-meter {
+  --q-progress-c: var(--q-signal);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.q-progress[data-tone="positive"] {
+  --q-progress-c: var(--q-positive);
+}
+
+.q-progress[data-tone="warning"],
+.q-meter[data-tone="warning"] {
+  --q-progress-c: var(--q-warning);
+}
+
+.q-progress[data-tone="negative"],
+.q-meter[data-tone="negative"] {
+  --q-progress-c: var(--q-negative);
+}
+
+.q-progress[data-tone="ink"] {
+  --q-progress-c: var(--q-ink);
+}
+
+.q-progress-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.q-progress-label {
+  min-width: 0;
+  color: var(--q-text);
+}
+
+.q-progress-value,
+.q-meter-value {
+  margin-left: auto;
+  font-family: var(--q-font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--q-text-2);
+  white-space: nowrap;
+}
+
+.q-meter[data-tone="warning"] .q-meter-value {
+  color: var(--q-warning-ink);
+}
+
+.q-meter[data-tone="negative"] .q-meter-value {
+  color: var(--q-negative-ink);
+}
+
+.q-progress-track {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--q-subtle);
+  overflow: hidden;
+}
+
+.q-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--q-progress-c);
+  transition: width var(--q-duration) var(--q-ease);
+}
+
+.q-progress-track[data-indeterminate] .q-progress-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 35%;
+  animation: q-progress-slide 1.3s var(--q-ease) infinite;
+}
+
+@keyframes q-progress-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(290%);
+  }
+}
+
+/* Meter: two segments with a 2px gap, so the remainder reads as capacity. */
+.q-meter-track {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+}
+
+.q-meter-fill,
+.q-meter-rest {
+  flex-basis: 0;
+  min-width: 0;
+}
+
+.q-meter-fill {
+  border-radius: 2px 0 0 2px;
+  background: var(--q-progress-c);
+}
+
+.q-meter-rest {
+  border-radius: 0 2px 2px 0;
+  background: var(--q-subtle);
+}
+
+.q-meter-fill:last-child,
+.q-meter-rest:first-child {
+  border-radius: 2px;
+}

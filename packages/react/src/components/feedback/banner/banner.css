@@ -1,0 +1,96 @@
+/* Banner: soft tone fill, text darkened past the -ink token so body copy stays readable. */
+.q-banner {
+  --q-banner-bg: var(--q-signal-soft);
+  --q-banner-fg: var(--q-signal-ink);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--q-banner-bg);
+  color: var(--q-banner-fg);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.q-banner[data-tone="warning"] {
+  --q-banner-bg: var(--q-warning-soft);
+  --q-banner-fg: color-mix(in srgb, var(--q-warning-ink) 72%, var(--q-text));
+}
+
+.q-banner[data-tone="error"] {
+  --q-banner-bg: var(--q-negative-soft);
+  --q-banner-fg: color-mix(in srgb, var(--q-negative-ink) 82%, var(--q-text));
+}
+
+.q-banner[data-tone="success"] {
+  --q-banner-bg: var(--q-positive-soft);
+  --q-banner-fg: var(--q-positive-ink);
+}
+
+.q-banner-icon {
+  flex: none;
+  min-width: 8px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.q-banner-message {
+  flex: 1;
+  min-width: 0;
+}
+
+.q-banner-title {
+  font-weight: 600;
+}
+
+.q-banner-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 12px;
+}
+
+.q-banner-action {
+  padding: 0;
+  border: 0;
+  border-radius: var(--q-radius-xs);
+  background: none;
+  color: inherit;
+  font: 600 13px / 1.45 var(--q-font-sans);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.q-banner-action:hover {
+  text-decoration-thickness: 2px;
+}
+
+.q-banner-dismiss {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin: -1px -4px -1px 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--q-radius-xs);
+  background: none;
+  color: inherit;
+  opacity: 0.7;
+  cursor: pointer;
+}
+
+.q-banner-dismiss:hover {
+  opacity: 1;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.q-banner-action:focus-visible,
+.q-banner-dismiss:focus-visible {
+  outline: none;
+  box-shadow: var(--q-focus-ring);
+}

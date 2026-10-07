@@ -1,0 +1,108 @@
+/* Dialog: white panel on a dimmed backdrop, --q-shadow-2. */
+.q-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  overflow-y: auto;
+  background: color-mix(in srgb, var(--q-inverse) 42%, transparent);
+  animation: q-dialog-fade var(--q-duration) var(--q-ease);
+}
+
+.q-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  max-width: 400px;
+  padding: 22px;
+  border-radius: 14px;
+  background: var(--q-surface);
+  box-shadow: var(--q-shadow-2);
+  color: var(--q-text);
+}
+
+.q-dialog[data-size="md"] {
+  max-width: 520px;
+}
+
+.q-dialog[data-size="lg"] {
+  max-width: 720px;
+}
+
+.q-dialog-floating {
+  animation: q-pop-in var(--q-duration) var(--q-ease);
+}
+
+.q-dialog:focus {
+  outline: none;
+}
+
+.q-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.q-dialog-title {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.3;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.q-dialog-close {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin: -4px -6px 0 0;
+  border: 0;
+  border-radius: var(--q-radius-sm);
+  background: transparent;
+  color: var(--q-text-3);
+  cursor: pointer;
+}
+
+.q-dialog-close:hover {
+  background: var(--q-subtle);
+  color: var(--q-text);
+}
+
+.q-dialog-close:focus-visible {
+  outline: none;
+  box-shadow: var(--q-focus-ring);
+}
+
+.q-dialog-description {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--q-text-2);
+  text-wrap: pretty;
+}
+
+.q-dialog-body {
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.q-dialog-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+@keyframes q-dialog-fade {
+  from {
+    opacity: 0;
+  }
+}

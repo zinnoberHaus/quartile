@@ -75,15 +75,21 @@ export interface StorefrontExampleProps {
   embedded?: boolean;
   /** Initial theme. The sidebar toggle overrides it. */
   theme?: ThemeSetting;
+  /** Link that Share offers when embedded, e.g. the standalone example. Defaults to this page. */
+  shareUrl?: string;
 }
 
-export function StorefrontExample({ embedded = false, theme = 'system' }: StorefrontExampleProps) {
+export function StorefrontExample({
+  embedded = false,
+  theme = 'system',
+  shareUrl,
+}: StorefrontExampleProps) {
   const [themeSetting, setThemeSetting] = useState<ThemeSetting>(theme);
   useEffect(() => setThemeSetting(theme), [theme]);
   return (
     <QuartileProvider theme={themeSetting} className={cx('sf-app', embedded && 'sf-embedded')}>
       <Selection>
-        <Dashboard embedded={embedded} onTheme={setThemeSetting} />
+        <Dashboard embedded={embedded} shareUrl={shareUrl} onTheme={setThemeSetting} />
       </Selection>
     </QuartileProvider>
   );
@@ -96,9 +102,11 @@ const summary = (rows: Fact[]) =>
 
 function Dashboard({
   embedded,
+  shareUrl,
   onTheme,
 }: {
   embedded: boolean;
+  shareUrl?: string;
   onTheme: (t: ThemeSetting) => void;
 }) {
   const store = useSelectionStore();
@@ -203,10 +211,12 @@ function Dashboard({
     });
   };
   const share = () => {
-    const url = window.location.href;
+    // Embedded, the page URL belongs to the host page and does not encode this view.
+    const embeddedLink = embedded && shareUrl;
+    const url = embeddedLink ? shareUrl : window.location.href;
     toast({
       id: 'sf-share',
-      title: 'Link to this view',
+      title: embeddedLink ? 'Link to this example' : 'Link to this view',
       description: <span className="sf-toast-url">{url}</span>,
       duration: 10000,
       action: {

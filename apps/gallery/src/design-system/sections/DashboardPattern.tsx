@@ -43,8 +43,8 @@ export function DashboardPatternSection() {
       lead={
         <>
           A reading order that works for most analytics screens: context, filters, headline numbers,
-          the main trend, then detail. The <Link to="/examples/storefront">example app</Link> is
-          designed in this order.
+          the main trend, then detail. The <Link to="/examples/storefront">example app</Link>{' '}
+          follows it exactly.
         </>
       }
     >

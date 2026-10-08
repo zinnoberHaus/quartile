@@ -1,0 +1,359 @@
+/* Storefront example: layout only. Every component styles itself from @quartile/react tokens. */
+.sf-app {
+  position: relative;
+  min-height: 100vh;
+  background: var(--q-bg);
+  color: var(--q-text);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.sf-app.sf-embedded {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sf-layout {
+  display: flex;
+  align-items: stretch;
+  min-height: 100vh;
+}
+
+.sf-embedded .sf-layout {
+  height: 100%;
+  min-height: 0;
+}
+
+/* Sidebar: sticky on a page, full height in a frame. */
+.sf-side.q-sidebar {
+  flex: none;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.sf-embedded .sf-side.q-sidebar {
+  position: relative;
+  height: 100%;
+}
+
+.sf-scroll {
+  flex: 1;
+  min-width: 0;
+}
+
+.sf-embedded .sf-scroll {
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.sf-main {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding: 18px 24px 32px;
+}
+
+/* Header */
+.sf-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.sf-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.sf-title {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.15;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.sf-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sf-compare {
+  display: inline-flex;
+  align-items: center;
+  height: var(--q-control-h);
+  padding: 0 12px 0 10px;
+  border: 1px solid var(--q-line-strong);
+  border-radius: var(--q-radius-md);
+  background: var(--q-surface);
+}
+
+.sf-range {
+  min-width: 0;
+}
+
+/* Rows of cards */
+.sf-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-width: 0;
+}
+
+.sf-row > * {
+  min-width: 0;
+}
+
+.sf-trend {
+  flex: 2 1 540px;
+}
+
+.sf-region {
+  flex: 1 1 280px;
+}
+
+.sf-channel {
+  flex: 1 1 320px;
+}
+
+.sf-hours {
+  flex: 1.3 1 380px;
+}
+
+.sf-funnel {
+  flex: 1 1 300px;
+}
+
+.sf-hint {
+  font: 400 11px / 1.4 var(--q-font-mono);
+  color: var(--q-text-3);
+  white-space: nowrap;
+}
+
+.sf-legend {
+  font-size: 12px;
+}
+
+/* The library's 2px rounded dashed swatch paints solid in Chromium; square ends keep the dashes. */
+.sf-legend .q-legend-swatch[data-dashed] {
+  border-radius: 0;
+}
+
+.sf-card-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.sf-rank {
+  font: 400 12px var(--q-font-mono);
+  color: var(--q-text-3);
+}
+
+.sf-columns {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 2px 0;
+}
+
+.sf-toast-url {
+  font: 400 12px / 1.5 var(--q-font-mono);
+  overflow-wrap: anywhere;
+}
+
+.sf-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  font: 400 11px / 1.5 var(--q-font-mono);
+  color: var(--q-text-3);
+}
+
+/* Sidebar footer */
+.sf-eyebrow {
+  font: 500 11px / 1.4 var(--q-font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--q-text-3);
+}
+
+.sf-source {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--q-line);
+  border-radius: 10px;
+  background: var(--q-surface);
+}
+
+.sf-source-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.sf-source-name {
+  font: 500 13px / 1.4 var(--q-font-mono);
+}
+
+.sf-source-meta {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--q-text-3);
+}
+
+.sf-theme {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 4px 0 8px;
+}
+
+.sf-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 8px;
+}
+
+.sf-user-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sf-user-name {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.sf-user-role {
+  font-size: 12px;
+  color: var(--q-text-3);
+}
+
+.sf-topbar,
+.sf-scrim {
+  display: none;
+}
+
+/* Narrow (under 900px of app width, measured): the sidebar becomes a drawer. */
+.sf-layout[data-narrow] .sf-side.q-sidebar {
+  position: fixed;
+  z-index: 40;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(280px, 86vw);
+  height: auto;
+  box-shadow: var(--q-shadow-2);
+  transform: translateX(-105%);
+  visibility: hidden;
+  transition:
+    transform var(--q-duration) var(--q-ease),
+    visibility 0s linear var(--q-duration);
+}
+
+.sf-embedded .sf-layout[data-narrow] .sf-side.q-sidebar {
+  position: absolute;
+  height: auto;
+}
+
+.sf-layout[data-narrow] .sf-side.q-sidebar[data-open] {
+  transform: none;
+  visibility: visible;
+  transition: transform var(--q-duration) var(--q-ease);
+}
+
+.sf-layout[data-narrow] .sf-scrim {
+  display: block;
+  position: fixed;
+  z-index: 39;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: rgba(22, 21, 15, 0.32);
+  cursor: default;
+}
+
+.sf-embedded .sf-layout[data-narrow] .sf-scrim {
+  position: absolute;
+}
+
+.sf-layout[data-narrow] .sf-topbar {
+  position: sticky;
+  z-index: 30;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 52px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--q-line);
+  background: color-mix(in srgb, var(--q-bg) 92%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.sf-layout[data-narrow] .sf-topbar-logo {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: var(--q-ink);
+  color: var(--q-on-ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sf-layout[data-narrow] .sf-topbar-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sf-layout[data-narrow] .sf-topbar-title svg {
+  color: var(--q-text-4);
+}
+
+.sf-layout[data-narrow] .sf-main {
+  padding: 16px 16px 28px;
+}
+
+/* Compact (under 560px): period control takes its own line. */
+.sf-layout[data-compact] .sf-actions {
+  width: 100%;
+}
+
+.sf-layout[data-compact] .sf-actions > .q-segmented {
+  flex: 1 1 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sf-side.q-sidebar {
+    transition: none !important;
+  }
+}

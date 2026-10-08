@@ -191,6 +191,8 @@ button.q-legend-item:focus-visible {
 .q-legend-swatch[data-dashed] {
   height: 0;
   border-top: 2px dashed;
+  /* A radius on a zero-height box makes Chromium paint the dashes solid. */
+  border-radius: 0;
   background: none;
 }
 

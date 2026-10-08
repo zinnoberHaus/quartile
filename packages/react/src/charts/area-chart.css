@@ -1,0 +1,24 @@
+/* Area chart: stacked bands separated by a hairline in the surface color. */
+.q-area-band {
+  fill-opacity: 0.88;
+}
+
+.q-area-edge {
+  fill: none;
+  stroke: var(--q-surface);
+  stroke-width: 1;
+  stroke-linejoin: round;
+}
+
+/* Legend under the plot with square swatches; shared by AreaChart and BarChart. */
+.q-trends-legend {
+  height: 28px;
+  align-content: flex-end;
+  gap: 4px 12px;
+}
+
+.q-trends-legend .q-legend-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}

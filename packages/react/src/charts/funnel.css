@@ -1,0 +1,132 @@
+/* Funnel: one row per step, conversion from the previous step, overall rate underneath. */
+.q-funnel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-radius: var(--q-radius-sm);
+  outline: none;
+}
+
+.q-funnel:focus-visible {
+  box-shadow: var(--q-focus-ring);
+}
+
+.q-funnel-step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+/* Tooltips open below steps in the top half and above steps in the bottom half. */
+.q-funnel-step[data-tip="up"] .q-chart-tooltip {
+  top: auto !important;
+  bottom: calc(100% + 4px);
+}
+
+.q-funnel-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.q-funnel-label {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--q-text);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.q-funnel-figures {
+  flex: none;
+  font: 400 12px var(--q-font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--q-text-2);
+  white-space: nowrap;
+}
+
+.q-funnel-conv {
+  font-family: var(--q-font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--q-text-3);
+}
+
+.q-funnel-track {
+  position: relative;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--q-bg);
+}
+
+.q-funnel-bar {
+  background: var(--q-signal);
+  transition:
+    width 350ms var(--q-ease),
+    opacity var(--q-duration) var(--q-ease);
+}
+
+.q-funnel-ghost,
+.q-funnel-track .q-funnel-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 2px;
+}
+
+.q-funnel-ghost {
+  background: color-mix(in srgb, var(--q-signal-soft-2) 60%, var(--q-signal-soft));
+}
+
+/* Centered variant */
+.q-funnel[data-align="center"] {
+  gap: 6px;
+}
+
+.q-funnel[data-align="center"] .q-funnel-step {
+  align-items: center;
+  gap: 3px;
+}
+
+.q-funnel-lane {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.q-funnel-lane .q-funnel-bar {
+  display: block;
+  height: 22px;
+  min-width: 6px;
+  border-radius: 4px;
+}
+
+.q-funnel-step[data-active] .q-funnel-bar {
+  background: var(--q-signal-hover);
+}
+
+.q-funnel-caption {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0 8px;
+  font-size: 12px;
+  text-align: center;
+}
+
+.q-funnel-overall {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--q-line);
+  font-size: 12px;
+  color: var(--q-text-3);
+}
+
+.q-funnel-overall-value {
+  font: 500 12px var(--q-font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--q-text);
+}

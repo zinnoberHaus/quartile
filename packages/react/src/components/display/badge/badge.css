@@ -1,0 +1,91 @@
+/* Badge: status pills (with a dot) and label tags (without). */
+.q-badge {
+  --q-badge-bg: var(--q-subtle);
+  --q-badge-fg: var(--q-text-2);
+  --q-badge-dot: var(--q-text-3);
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: var(--q-radius-sm);
+  background: var(--q-badge-bg);
+  color: var(--q-badge-fg);
+  font: 400 12px / 1 var(--q-font-sans);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.q-badge[data-dot] {
+  padding: 0 9px;
+  border-radius: var(--q-radius-pill);
+}
+
+.q-badge[data-size="sm"] {
+  gap: 5px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 5px;
+  font: 500 11px / 1 var(--q-font-mono);
+}
+
+.q-badge[data-size="sm"][data-dot] {
+  padding: 0 7px 0 6px;
+  border-radius: var(--q-radius-pill);
+}
+
+.q-badge-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--q-badge-dot);
+}
+
+.q-badge[data-pulse] .q-badge-dot {
+  animation: q-badge-pulse 2s var(--q-ease) infinite;
+}
+
+@keyframes q-badge-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--q-badge-dot) 55%, transparent);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--q-badge-dot) 0%, transparent);
+  }
+}
+
+.q-badge[data-tone="live"],
+.q-badge[data-tone="positive"] {
+  --q-badge-bg: var(--q-positive-soft);
+  --q-badge-fg: var(--q-positive-ink);
+  --q-badge-dot: var(--q-positive);
+}
+
+.q-badge[data-tone="stale"],
+.q-badge[data-tone="warning"] {
+  --q-badge-bg: var(--q-warning-soft);
+  --q-badge-fg: var(--q-warning-ink);
+  --q-badge-dot: var(--q-warning);
+}
+
+.q-badge[data-tone="failed"],
+.q-badge[data-tone="negative"] {
+  --q-badge-bg: var(--q-negative-soft);
+  --q-badge-fg: var(--q-negative-ink);
+  --q-badge-dot: var(--q-negative);
+}
+
+.q-badge[data-tone="signal"] {
+  --q-badge-bg: var(--q-signal-soft);
+  --q-badge-fg: var(--q-signal-ink);
+  --q-badge-dot: var(--q-signal);
+}
+
+.q-badge[data-tone="beta"] {
+  --q-badge-bg: var(--q-inverse);
+  --q-badge-fg: var(--q-inverse-text);
+  --q-badge-dot: var(--q-inverse-text-2);
+}

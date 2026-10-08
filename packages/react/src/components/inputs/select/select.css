@@ -1,0 +1,52 @@
+.q-select-anchor {
+  position: relative;
+}
+
+.q-select-trigger {
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 0 10px 0 var(--q-input-pad);
+  font-family: var(--q-font-sans);
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+}
+
+.q-select-trigger:focus-visible,
+.q-select-trigger[data-open] {
+  border-color: var(--q-signal);
+  box-shadow: var(--q-input-ring);
+}
+
+.q-select-trigger[data-invalid]:focus-visible,
+.q-select-trigger[data-invalid][data-open] {
+  border-color: var(--q-danger);
+  box-shadow: 0 0 0 3px var(--q-negative-soft);
+}
+
+.q-select-trigger:disabled {
+  cursor: not-allowed;
+}
+
+.q-select-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.q-select-placeholder {
+  color: var(--q-input-muted);
+}
+
+.q-select-chevron {
+  flex: none;
+  color: var(--q-text-2);
+  transition: transform var(--q-duration-fast) var(--q-ease);
+}
+
+.q-select-trigger[data-open] .q-select-chevron {
+  transform: rotate(180deg);
+}

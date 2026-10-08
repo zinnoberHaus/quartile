@@ -1,0 +1,32 @@
+/* Bar chart: hover band, dimmed marks outside the selection, direct labels for horizontal bars. */
+.q-bar-hover {
+  fill: var(--q-subtle);
+  pointer-events: none;
+}
+
+.q-bar-marks path {
+  transition: opacity var(--q-duration) var(--q-ease);
+}
+
+.q-bar-marks path[data-dim] {
+  opacity: 0.28;
+}
+
+.q-bar-labels g {
+  transition: opacity var(--q-duration) var(--q-ease);
+}
+
+.q-bar-labels g[data-dim] {
+  opacity: 0.45;
+}
+
+.q-bar-category {
+  font: 400 12px var(--q-font-sans);
+  fill: var(--q-text-2);
+}
+
+.q-bar-value {
+  font: 500 11px var(--q-font-mono);
+  fill: var(--q-text);
+  font-variant-numeric: tabular-nums;
+}

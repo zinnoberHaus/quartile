@@ -1,0 +1,123 @@
+.q-pagination {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.q-pagination-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.q-page,
+.q-page-arrow {
+  display: grid;
+  place-items: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 4px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--q-text-2);
+  font: 500 12px / 1 var(--q-font-mono);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition:
+    background-color var(--q-duration-fast) var(--q-ease),
+    border-color var(--q-duration-fast) var(--q-ease),
+    color var(--q-duration-fast) var(--q-ease);
+}
+
+.q-page-arrow {
+  border-color: var(--q-line);
+}
+
+.q-page:hover:not([aria-current]),
+.q-page-arrow:hover:not(:disabled) {
+  background: var(--q-hover);
+  color: var(--q-text);
+}
+
+.q-page-arrow:hover:not(:disabled) {
+  border-color: var(--q-line-strong);
+  background: var(--q-bg);
+}
+
+.q-page[aria-current="page"] {
+  background: var(--q-ink);
+  color: var(--q-on-ink);
+  cursor: default;
+}
+
+.q-page:focus-visible,
+.q-page-arrow:focus-visible,
+.q-page-step:focus-visible {
+  outline: none;
+  box-shadow: var(--q-focus-ring);
+}
+
+.q-page-arrow:disabled {
+  color: var(--q-text-4);
+  cursor: not-allowed;
+}
+
+.q-page-ellipsis {
+  padding: 0 4px;
+  color: var(--q-text-3);
+  font: 500 12px / 1 var(--q-font-mono);
+  user-select: none;
+}
+
+/* Compact: Previous · Page 2 of 24 · Next */
+.q-pagination[data-variant="compact"] {
+  gap: 12px;
+}
+
+.q-page-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--q-line);
+  border-radius: 7px;
+  background: var(--q-surface);
+  color: var(--q-text);
+  font: 500 13px / 1 var(--q-font-sans);
+  cursor: pointer;
+  transition:
+    background-color var(--q-duration-fast) var(--q-ease),
+    border-color var(--q-duration-fast) var(--q-ease);
+}
+
+.q-page-step:hover:not(:disabled) {
+  border-color: var(--q-line-strong);
+  background: var(--q-bg);
+}
+
+.q-page-step:disabled {
+  color: var(--q-text-4);
+  cursor: not-allowed;
+}
+
+.q-page-step svg {
+  color: var(--q-text-3);
+}
+
+.q-page-step:disabled svg {
+  color: inherit;
+}
+
+.q-page-status {
+  font: 400 12px / 1 var(--q-font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--q-text-3);
+  white-space: nowrap;
+}

@@ -1,0 +1,73 @@
+/* Tabs: ink underline on the active tab, hairline under the list. */
+.q-tabs {
+  min-width: 0;
+}
+
+.q-tabs-list {
+  display: flex;
+  gap: 22px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  box-shadow: inset 0 -1px 0 var(--q-line);
+}
+
+.q-tabs-list::-webkit-scrollbar {
+  display: none;
+}
+
+.q-tab {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding: 0 0 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--q-text-3);
+  font: 500 14px / 1.4 var(--q-font-sans);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color var(--q-duration-fast) var(--q-ease),
+    border-color var(--q-duration-fast) var(--q-ease);
+}
+
+.q-tab:hover:not(:disabled) {
+  color: var(--q-text-2);
+}
+
+.q-tab[aria-selected="true"] {
+  border-bottom-color: var(--q-ink);
+  color: var(--q-text);
+}
+
+.q-tab:focus-visible {
+  outline: none;
+  border-radius: var(--q-radius-xs);
+  box-shadow: inset 0 0 0 2px var(--q-signal);
+}
+
+.q-tab:disabled {
+  color: var(--q-text-4);
+  cursor: not-allowed;
+}
+
+.q-tab-count {
+  padding: 0 5px;
+  border-radius: var(--q-radius-pill);
+  background: var(--q-subtle);
+  color: var(--q-text-3);
+  font: 500 11px / 16px var(--q-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.q-tab[aria-selected="true"] .q-tab-count {
+  background: var(--q-hover);
+  color: var(--q-text-2);
+}
+
+.q-tab-panel {
+  min-width: 0;
+}

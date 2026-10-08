@@ -1,0 +1,79 @@
+/* Pieces shared by KPI, FilterBar and DataTable. */
+.q-dd-trend {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+
+.q-dd-trend-line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.25;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.q-dd-trend-area {
+  fill: currentColor;
+  fill-opacity: 0.05;
+  stroke: none;
+}
+
+.q-dd-delta {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  padding: 2px 6px;
+  border-radius: var(--q-radius-sm);
+  font: 500 12px / 1.35 var(--q-font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  background: var(--q-subtle);
+  color: var(--q-text-2);
+}
+
+.q-dd-delta[data-tone="positive"] {
+  background: var(--q-positive-soft);
+  color: var(--q-positive-ink);
+}
+
+.q-dd-delta[data-tone="negative"] {
+  background: var(--q-negative-soft);
+  color: var(--q-negative-ink);
+}
+
+/* Checkbox glyph for selectable rows; the row itself carries the state. */
+.q-dd-check {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1.5px solid var(--q-line-input);
+  border-radius: var(--q-radius-xs);
+  background: var(--q-surface);
+  color: var(--q-on-signal);
+  transition:
+    background-color var(--q-duration-fast) var(--q-ease),
+    border-color var(--q-duration-fast) var(--q-ease);
+}
+
+.q-dd-check[data-state="checked"],
+.q-dd-check[data-state="mixed"] {
+  border-color: var(--q-signal);
+  background: var(--q-signal);
+}
+
+.q-dd-check svg {
+  width: 11px;
+  height: 11px;
+}
+
+.q-dd-skeleton {
+  display: block;
+  border-radius: var(--q-radius-xs);
+  background: linear-gradient(90deg, var(--q-subtle) 0, var(--q-grid) 120px, var(--q-subtle) 240px);
+  background-size: 480px 100%;
+  animation: q-shimmer 1.4s linear infinite;
+}

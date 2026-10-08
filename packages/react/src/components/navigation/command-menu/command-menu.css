@@ -1,0 +1,158 @@
+/* Command palette: search row, grouped options; the highlighted option is ink-filled. */
+.q-command {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--q-line);
+  border-radius: var(--q-radius-lg);
+  background: var(--q-surface);
+  color: var(--q-text);
+  overflow: hidden;
+}
+
+.q-command-search {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--q-grid);
+  color: var(--q-text-3);
+}
+
+.q-command-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--q-text);
+  font: 400 14px / 1 var(--q-font-sans);
+}
+
+.q-command-input::placeholder {
+  color: var(--q-text-4);
+}
+
+.q-command-esc.q-kbd {
+  background: transparent;
+  color: var(--q-text-3);
+}
+
+.q-command-list {
+  max-height: min(340px, 60vh);
+  padding: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.q-command-group-label {
+  padding: 6px 8px 4px;
+  font: 500 10px / 1.4 var(--q-font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--q-text-3);
+}
+
+.q-command-group + .q-command-group .q-command-group-label {
+  padding-top: 8px;
+}
+
+.q-command-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  padding: 0 8px;
+  border-radius: 7px;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.q-command-item[aria-selected="true"] {
+  background: var(--q-ink);
+  color: var(--q-on-ink);
+}
+
+.q-command-item[aria-disabled="true"] {
+  color: var(--q-text-4);
+  cursor: not-allowed;
+}
+
+.q-command-item-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  color: var(--q-text-2);
+}
+
+.q-command-item-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.q-command-item[aria-selected="true"] .q-command-item-icon {
+  color: color-mix(in srgb, var(--q-signal) 50%, var(--q-on-ink));
+}
+
+.q-command-item-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.q-command-item-hint {
+  font: 400 11px / 1 var(--q-font-mono);
+  color: var(--q-text-3);
+}
+
+.q-command-item[aria-selected="true"] .q-command-item-hint {
+  color: color-mix(in srgb, var(--q-on-ink) 68%, transparent);
+}
+
+.q-command-empty {
+  padding: 22px 8px;
+  font-size: 13px;
+  color: var(--q-text-3);
+  text-align: center;
+}
+
+/* Dialog wrapper */
+.q-command-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: max(16px, 14vh) 16px 16px;
+  background: color-mix(in srgb, var(--q-inverse) 32%, transparent);
+  animation: q-command-fade var(--q-duration) var(--q-ease);
+}
+
+.q-command-dialog {
+  width: min(560px, 100%);
+  border-radius: var(--q-radius-lg);
+  box-shadow: var(--q-shadow-2);
+  animation: q-pop-in var(--q-duration) var(--q-ease);
+}
+
+.q-command-dialog:focus {
+  outline: none;
+}
+
+.q-command-dialog .q-command {
+  border-color: var(--q-line);
+}
+
+@keyframes q-command-fade {
+  from {
+    opacity: 0;
+  }
+}

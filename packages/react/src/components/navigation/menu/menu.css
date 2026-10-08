@@ -1,0 +1,91 @@
+/* Menu: the shared floating surface (hairline + --q-shadow-1). */
+.q-menu {
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  max-width: min(320px, calc(100vw - 16px));
+  padding: 4px;
+  border: 1px solid var(--q-line);
+  border-radius: 10px;
+  background: var(--q-surface);
+  box-shadow: var(--q-shadow-1);
+  color: var(--q-text);
+  font: 400 13px / 1.3 var(--q-font-sans);
+  animation: q-pop-in var(--q-duration) var(--q-ease);
+}
+
+.q-menu:focus {
+  outline: none;
+}
+
+.q-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  padding: 0 8px;
+  border-radius: 7px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.q-menu-item:focus {
+  outline: none;
+  background: var(--q-bg);
+}
+
+.q-menu-item:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--q-line-strong);
+}
+
+.q-menu-item[data-danger] {
+  color: var(--q-danger);
+}
+
+.q-menu-item[data-danger]:focus {
+  background: var(--q-negative-soft);
+}
+
+.q-menu-item[aria-disabled="true"] {
+  color: var(--q-text-4);
+  cursor: not-allowed;
+}
+
+.q-menu-item-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  color: var(--q-text-3);
+}
+
+.q-menu-item[data-danger] .q-menu-item-icon {
+  color: inherit;
+}
+
+.q-menu-item-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.q-menu-item-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.q-menu-item-shortcut {
+  margin-left: auto;
+  padding-left: 12px;
+  font: 400 11px / 1 var(--q-font-mono);
+  color: var(--q-text-3);
+}
+
+.q-menu-separator {
+  flex: none;
+  height: 1px;
+  margin: 4px 0;
+  background: var(--q-subtle);
+}

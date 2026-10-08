@@ -1,0 +1,17 @@
+/* Scatter: soft bubbles with a surface ring, an L-shaped hairline frame. */
+.q-scatter-frame {
+  fill: none;
+  stroke: var(--q-line);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.q-scatter-point {
+  fill-opacity: 0.72;
+  stroke-width: 1;
+  transition: opacity var(--q-duration-fast) var(--q-ease);
+}
+
+.q-scatter-point[data-muted] {
+  opacity: 0.18;
+}

@@ -1,0 +1,371 @@
+/* Five variants, three sizes, six states. */
+.q-btn {
+  --q-btn-h: var(--q-control-h);
+  --q-btn-bg: var(--q-surface);
+  --q-btn-fg: var(--q-text);
+  --q-btn-bd: var(--q-line-strong);
+  /* Between surface and hover, so hover then pressed step the same way in light and dark. */
+  --q-btn-bg-hover: color-mix(in srgb, var(--q-surface) 55%, var(--q-hover));
+  --q-btn-bg-pressed: var(--q-hover);
+  --q-btn-radius: var(--q-radius-md);
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: var(--q-btn-h);
+  padding: 0 var(--q-control-px);
+  border: 1px solid var(--q-btn-bd);
+  border-radius: var(--q-btn-radius);
+  background: var(--q-btn-bg);
+  color: var(--q-btn-fg);
+  font: 500 var(--q-control-font) / 1 var(--q-font-sans);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color var(--q-duration-fast) var(--q-ease),
+    border-color var(--q-duration-fast) var(--q-ease),
+    color var(--q-duration-fast) var(--q-ease),
+    box-shadow var(--q-duration-fast) var(--q-ease);
+}
+
+/* `data-state` forces a visual state, for documentation and visual tests. */
+.q-btn:hover:not(:disabled),
+.q-btn[data-state="hover"] {
+  background: var(--q-btn-bg-hover);
+}
+
+.q-btn:active:not(:disabled),
+.q-btn[data-state="pressed"] {
+  background: var(--q-btn-bg-pressed);
+}
+
+.q-btn:focus-visible,
+.q-btn[data-state="focus"] {
+  outline: none;
+  box-shadow: var(--q-focus-ring);
+}
+
+.q-btn:disabled {
+  cursor: not-allowed;
+}
+
+.q-btn[data-loading] {
+  cursor: progress;
+}
+
+.q-btn[data-size="sm"] {
+  --q-btn-h: var(--q-control-h-sm);
+  --q-btn-radius: 7px;
+  gap: 6px;
+  padding: 0 calc(var(--q-control-px) - 4px);
+  font-size: calc(var(--q-control-font) - 1px);
+}
+
+.q-btn[data-size="lg"] {
+  --q-btn-h: var(--q-control-h-lg);
+  --q-btn-radius: 10px;
+  padding: 0 calc(var(--q-control-px) + 4px);
+  font-size: calc(var(--q-control-font) + 1px);
+}
+
+.q-btn[data-variant="primary"] {
+  --q-btn-bg: var(--q-ink);
+  --q-btn-fg: var(--q-on-ink);
+  --q-btn-bd: var(--q-ink);
+  --q-btn-bg-hover: var(--q-ink-hover);
+  --q-btn-bg-pressed: var(--q-ink-pressed);
+}
+
+.q-btn[data-variant="signal"] {
+  --q-btn-bg: var(--q-signal);
+  --q-btn-fg: var(--q-on-signal);
+  --q-btn-bd: var(--q-signal);
+  --q-btn-bg-hover: var(--q-signal-hover);
+  --q-btn-bg-pressed: var(--q-signal-pressed);
+}
+
+.q-btn[data-variant="destructive"] {
+  --q-btn-bg: var(--q-danger);
+  --q-btn-fg: #ffffff;
+  --q-btn-bd: var(--q-danger);
+  --q-btn-bg-hover: var(--q-danger-hover);
+  --q-btn-bg-pressed: var(--q-danger-pressed);
+}
+
+.q-btn[data-variant="ghost"] {
+  --q-btn-bg: transparent;
+  --q-btn-fg: var(--q-text-2);
+  --q-btn-bd: transparent;
+  --q-btn-bg-hover: var(--q-subtle);
+  --q-btn-bg-pressed: var(--q-hover);
+}
+
+.q-btn[data-variant="ghost"]:hover:not(:disabled),
+.q-btn[data-variant="ghost"]:active:not(:disabled),
+.q-btn[data-variant="ghost"][data-state="hover"],
+.q-btn[data-variant="ghost"][data-state="pressed"] {
+  color: var(--q-text);
+}
+
+/* Solid variants: the border follows the fill. */
+.q-btn:is([data-variant="primary"], [data-variant="signal"], [data-variant="destructive"]):is(
+  :hover:not(:disabled),
+  [data-state="hover"]
+) {
+  border-color: var(--q-btn-bg-hover);
+}
+
+.q-btn:is([data-variant="primary"], [data-variant="signal"], [data-variant="destructive"]):is(
+  :active:not(:disabled),
+  [data-state="pressed"]
+) {
+  border-color: var(--q-btn-bg-pressed);
+}
+
+/* Disabled: muted, never just faded, so labels stay legible. Loading keeps the variant's look. */
+.q-btn[data-variant="primary"]:disabled:not([data-loading]) {
+  --q-btn-bg: var(--q-line);
+  --q-btn-fg: color-mix(in srgb, var(--q-text-3) 70%, var(--q-text-4));
+  --q-btn-bd: var(--q-line);
+}
+
+.q-btn[data-variant="signal"]:disabled:not([data-loading]) {
+  --q-btn-bg: var(--q-signal-soft-2);
+  --q-btn-fg: color-mix(in srgb, var(--q-signal) 70%, var(--q-surface));
+  --q-btn-bd: var(--q-signal-soft-2);
+}
+
+.q-btn[data-variant="destructive"]:disabled:not([data-loading]) {
+  --q-btn-bg: color-mix(in srgb, var(--q-danger) 22%, var(--q-surface));
+  --q-btn-fg: color-mix(in srgb, var(--q-danger) 62%, var(--q-surface));
+  --q-btn-bd: transparent;
+}
+
+.q-btn[data-variant="secondary"]:disabled:not([data-loading]) {
+  --q-btn-fg: var(--q-text-4);
+  --q-btn-bd: var(--q-line);
+}
+
+.q-btn[data-variant="ghost"]:disabled:not([data-loading]) {
+  --q-btn-fg: var(--q-text-4);
+}
+
+.q-btn-label {
+  display: inline-flex;
+  align-items: center;
+}
+
+.q-btn-icon {
+  display: inline-flex;
+  margin: 0 -1px;
+}
+
+.q-btn-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.q-btn-spinner {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border: 2px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: q-spin 0.7s linear infinite;
+}
+
+/* IconButton: square. */
+.q-icon-btn {
+  width: var(--q-btn-h);
+  padding: 0;
+}
+
+.q-icon-btn .q-btn-icon {
+  margin: 0;
+}
+
+.q-icon-btn[data-size="sm"] .q-btn-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.q-icon-btn[data-size="lg"] .q-btn-icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+/* ButtonGroup */
+.q-btn-group {
+  display: inline-flex;
+  flex: none;
+  width: fit-content;
+  align-items: center;
+  gap: 8px;
+  isolation: isolate;
+}
+
+.q-btn-group[data-attached] {
+  gap: 0;
+}
+
+.q-btn-group[data-attached] > .q-btn {
+  position: relative;
+  border-radius: 0;
+}
+
+.q-btn-group[data-attached][data-size="md"] > .q-btn {
+  padding: 0 12px;
+  font-size: calc(var(--q-control-font) - 1px);
+}
+
+.q-btn-group[data-attached] > .q-btn + .q-btn {
+  margin-left: -1px;
+}
+
+.q-btn-group[data-attached] > .q-btn:first-child {
+  border-top-left-radius: var(--q-btn-radius);
+  border-bottom-left-radius: var(--q-btn-radius);
+}
+
+.q-btn-group[data-attached] > .q-btn:last-child {
+  border-top-right-radius: var(--q-btn-radius);
+  border-bottom-right-radius: var(--q-btn-radius);
+}
+
+.q-btn-group[data-attached] > .q-btn:hover,
+.q-btn-group[data-attached] > .q-btn[aria-pressed="true"] {
+  z-index: 1;
+}
+
+.q-btn-group[data-attached] > .q-btn:focus-visible {
+  z-index: 2;
+}
+
+.q-btn-group > .q-btn[aria-pressed="true"] {
+  --q-btn-bg: var(--q-ink);
+  --q-btn-fg: var(--q-on-ink);
+  --q-btn-bd: var(--q-ink);
+  --q-btn-bg-hover: var(--q-ink-hover);
+  --q-btn-bg-pressed: var(--q-ink-pressed);
+}
+
+/* SplitButton */
+.q-split {
+  display: inline-flex;
+  flex: none;
+  width: fit-content;
+  isolation: isolate;
+}
+
+.q-split > .q-btn {
+  position: relative;
+}
+
+.q-split > .q-split-main {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.q-split > .q-split-trigger {
+  width: 32px;
+  padding: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  margin-left: -1px;
+}
+
+.q-split[data-size="sm"] > .q-split-trigger {
+  width: 26px;
+}
+
+.q-split[data-size="lg"] > .q-split-trigger {
+  width: 38px;
+}
+
+.q-split > .q-btn:hover,
+.q-split > .q-split-trigger[aria-expanded="true"] {
+  z-index: 1;
+}
+
+.q-split > .q-btn:focus-visible {
+  z-index: 2;
+}
+
+.q-split-trigger[aria-expanded="true"] {
+  background: var(--q-btn-bg-pressed);
+}
+
+/* Solid variants: a hairline in the label color separates the halves. */
+.q-split[data-solid] > .q-split-trigger {
+  margin-left: 0;
+  border-left-color: color-mix(in srgb, var(--q-btn-fg) 24%, var(--q-btn-bg));
+}
+
+.q-split-menu {
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  padding: 4px;
+  border: 1px solid var(--q-line);
+  border-radius: 10px;
+  background: var(--q-surface);
+  color: var(--q-text);
+  box-shadow: var(--q-shadow-1);
+  outline: none;
+  animation: q-pop-in var(--q-duration-fast) var(--q-ease);
+}
+
+.q-split-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--q-text);
+  font: 400 13px / 1 var(--q-font-sans);
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+}
+
+.q-split-menu-item:hover,
+.q-split-menu-item:focus-visible,
+.q-split-menu-item:focus {
+  background: var(--q-subtle);
+}
+
+.q-split-menu-item[aria-disabled="true"] {
+  color: color-mix(in srgb, var(--q-text-3) 70%, var(--q-text-4));
+  cursor: not-allowed;
+}
+
+.q-split-menu-item[aria-disabled="true"]:hover {
+  background: transparent;
+}
+
+.q-split-menu-icon {
+  display: inline-flex;
+  color: var(--q-text-2);
+}
+
+.q-split-menu-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.q-split-menu-label {
+  flex: 1;
+  white-space: nowrap;
+}
+
+.q-split-menu-meta {
+  font: 400 11px var(--q-font-mono);
+  color: var(--q-text-3);
+}

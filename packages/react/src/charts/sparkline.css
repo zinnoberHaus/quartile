@@ -1,0 +1,56 @@
+/* Sparkline: inline, axis-free, any width. The stroke keeps its weight when stretched. */
+.q-sparkline {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: middle;
+  line-height: 0;
+}
+
+.q-sparkline svg {
+  display: block;
+  overflow: visible;
+}
+
+.q-sparkline-line {
+  fill: none;
+  stroke-width: 1.25;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.q-sparkline-area {
+  fill-opacity: 0.06;
+  stroke: none;
+}
+
+.q-sparkline-compare {
+  fill: none;
+  stroke: var(--q-series-muted);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.q-sparkline-skeleton {
+  position: absolute;
+  inset: 20% 0;
+  border-radius: var(--q-radius-xs);
+  background: linear-gradient(90deg, var(--q-subtle) 0, var(--q-grid) 60px, var(--q-subtle) 120px);
+  background-size: 240px 100%;
+  animation: q-shimmer 1.4s linear infinite;
+}
+
+.q-sparkline-dash {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  font: 400 12px / 1 var(--q-font-mono);
+  color: var(--q-text-4);
+}
+
+.q-sparkline[data-status="error"] .q-sparkline-dash {
+  color: var(--q-negative-ink);
+}

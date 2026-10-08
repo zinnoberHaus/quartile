@@ -1,0 +1,59 @@
+{
+  "name": "@quartile/react",
+  "version": "0.1.0",
+  "description": "Charts, tables and controls for data apps, on one theme, one data model and one selection state.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zinnoberHaus/quartile.git",
+    "directory": "packages/react"
+  },
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./styles.css": "./dist/styles.css",
+    "./schema.json": "./dist/schema.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup && node scripts/build-css.mjs && node scripts/build-schema.mjs",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": ">=18.2",
+    "react-dom": ">=18.2"
+  },
+  "dependencies": {
+    "d3-array": "^3.2.4",
+    "d3-sankey": "^0.12.3",
+    "d3-scale": "^4.0.2",
+    "d3-shape": "^3.2.0"
+  },
+  "devDependencies": {
+    "@testing-library/react": "16.3.3",
+    "@types/d3-array": "3.2.2",
+    "@types/d3-sankey": "0.12.5",
+    "@types/d3-scale": "4.0.9",
+    "@types/d3-shape": "3.2.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "jsdom": "30.1.2",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3",
+    "vitest": "5.0.3"
+  }
+}

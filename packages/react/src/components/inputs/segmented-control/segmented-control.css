@@ -1,0 +1,90 @@
+/* Sunken track, raised selected segment. */
+.q-segmented {
+  --q-segment-on: var(--q-raised);
+  --q-segment-h: 28px;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  width: fit-content;
+  padding: 3px;
+  border-radius: 9px;
+  background: var(--q-subtle);
+}
+
+.q-segmented[data-full] {
+  display: flex;
+  width: 100%;
+}
+
+.q-segmented[data-full] > .q-segment {
+  flex: 1;
+}
+
+.q-segment {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: var(--q-segment-h);
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--q-text-2);
+  font: 400 13px / 1 var(--q-font-sans);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--q-duration-fast) var(--q-ease),
+    color var(--q-duration-fast) var(--q-ease),
+    box-shadow var(--q-duration-fast) var(--q-ease);
+}
+
+.q-segment:hover:not(:disabled) {
+  color: var(--q-text);
+}
+
+.q-segment[aria-checked="true"] {
+  background: var(--q-segment-on);
+  color: var(--q-text);
+  box-shadow:
+    var(--q-shadow-segment),
+    0 0 0 1px rgba(22, 21, 15, 0.04);
+}
+
+.q-segment:focus-visible {
+  outline: none;
+  box-shadow: var(--q-focus-ring);
+}
+
+.q-segment:disabled {
+  color: var(--q-text-4);
+  cursor: not-allowed;
+}
+
+.q-segmented[data-size="sm"] {
+  --q-segment-h: 24px;
+  padding: 2px;
+  border-radius: 7px;
+}
+
+.q-segmented[data-size="sm"] > .q-segment {
+  padding: 0 8px;
+  border-radius: 5px;
+  font-size: 12px;
+}
+
+.q-segmented[data-mono] > .q-segment {
+  padding: 0 10px;
+  font: 500 12px / 1 var(--q-font-mono);
+}
+
+.q-segment-icon {
+  display: inline-flex;
+}
+
+.q-segment-icon svg {
+  width: 14px;
+  height: 14px;
+}

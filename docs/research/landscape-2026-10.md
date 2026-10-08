@@ -1,6 +1,6 @@
 # Landscape: open-source data visualization for React (October 2026)
 
-This note compares Quartile's planned design with the open-source libraries and frameworks it will be measured against. All facts were checked on 2026-10-07. Versions and publish dates come from the npm registry (or PyPI for Streamlit). Star counts come from the GitHub API and are rounded to show order of magnitude only. Behaviour claims link to each project's own docs, source or release notes. Sentences marked **Opinion** are our judgement, not sourced facts. Quartile has not shipped any code yet. Everything this note says about Quartile describes what the design intends to build, not what exists today.
+This note compares Quartile's planned design with the open-source libraries and frameworks it will be measured against. All facts were checked on 2026-10-07. Versions and publish dates come from the npm registry (or PyPI for Streamlit). Star counts come from the GitHub API and are rounded to show order of magnitude only. Behaviour claims link to each project's own docs, source or release notes. Sentences marked **Opinion** are our judgement, not sourced facts. When this note was written, Quartile had not shipped code. Later the same day the 0.1 preview implemented the package, one theme, schema inference, the shared selection store, chart table fallbacks and the JSON spec layer described below; it is not yet published to npm, and its accessibility has not been tested with screen readers. Statements about Quartile describe that preview, not a stable release.
 
 ## The libraries in the design's comparison
 
@@ -56,9 +56,9 @@ These gaps cover only the libraries reviewed above. We did not survey every libr
 
 ## How Quartile differs from shadcn/ui
 
-shadcn/ui is the most likely starting point for a React team that wants dashboards, so this comparison matters most. The Quartile column describes the design's intent.
+shadcn/ui is the most likely starting point for a React team that wants dashboards, so this comparison matters most. The Quartile column describes the 0.1 preview.
 
-| Dimension | shadcn/ui (verified) | Quartile (intended) |
+| Dimension | shadcn/ui (verified) | Quartile (0.1 preview) |
 |---|---|---|
 | Distribution | The CLI copies component source into your project (`components/ui/`): "You own the code" ([docs](https://ui.shadcn.com/docs)). Fixes reach you through the headless dependencies (Radix, Base UI or React Aria); the styled layer is yours to maintain. | Versioned npm package (`@quartile/react`). Fixes and accessibility improvements arrive with an upgrade. Customisation goes through tokens, props and composition rather than edited source. |
 | Styling | Tailwind CSS. `components.json` configures Tailwind, and theming uses CSS variables consumed through Tailwind ([docs](https://ui.shadcn.com/docs/components-json)). | Plain CSS custom properties with no Tailwind dependency. It should still sit inside a Tailwind app. |
@@ -89,7 +89,7 @@ shadcn/ui is the most likely starting point for a React team that wants dashboar
 - **Commercial incumbents ship integration today.** MUI X Premium and AG Grid Enterprise already link grids and charts, with paid support. Quartile's open-source license is an advantage only if its integration is at least as dependable.
 - **Generative UI is moving fast.** json-render and A2UI are both active and widely used. If Quartile's JSON Schemas cannot be used as a catalog by those tools, its LLM story will look isolated.
 - **Sustainability.** Tremor shows that even a popular dashboard kit can stop releasing after a change of ownership. Quartile is new and maintained by a small organisation. Its governance and release cadence need to be visible from the start.
-- **Nothing is shipped yet.** Every Quartile row above is a design commitment. None of it should be marketed until it is implemented and tested.
+- **It is a preview.** The 0.1 preview implements every Quartile row above, but it is unpublished, has no measured scale limits and has not been tested with screen readers. Marketing should say exactly that.
 
 ## Sources
 

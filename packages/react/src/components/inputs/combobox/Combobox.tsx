@@ -316,7 +316,6 @@ export function Combobox(props: ComboboxProps) {
                     type="button"
                     className="q-combobox-chip-remove"
                     aria-label={`Remove ${text}`}
-                    tabIndex={-1}
                     disabled={disabled}
                     onClick={() => remove(v)}
                   >

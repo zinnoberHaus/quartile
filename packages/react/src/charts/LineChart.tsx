@@ -133,9 +133,10 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
       for (const r of sorted) {
         const g = String(r[color]);
         if (!groups.has(g)) groups.set(g, blank());
-        groups.get(g)![indexOf.get(toComparable(r[x]) as number | string)!] = Number(
-          r[y as string],
-        );
+        const vals = groups.get(g)!;
+        const at = indexOf.get(toComparable(r[x]) as number | string)!;
+        // Rows that share an x value are summed, like AreaChart and BarChart.
+        vals[at] = (vals[at] ?? 0) + Number(r[y as string]);
       }
       let i = 0;
       for (const [g, values] of groups) {
@@ -144,8 +145,10 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
     } else {
       yFields.forEach((f, i) => {
         const values = blank();
-        for (const r of sorted)
-          values[indexOf.get(toComparable(r[x]) as number | string)!] = Number(r[f.name]);
+        for (const r of sorted) {
+          const at = indexOf.get(toComparable(r[x]) as number | string)!;
+          values[at] = (values[at] ?? 0) + Number(r[f.name]);
+        }
         series.push({ key: f.name, label: f.label, color: seriesColor(i), field: f, values });
       });
     }
@@ -154,7 +157,9 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
       const values = blank();
       for (const r of sorted) {
         const v = r[compare];
-        if (v != null) values[indexOf.get(toComparable(r[x]) as number | string)!] = Number(v);
+        if (v == null) continue;
+        const at = indexOf.get(toComparable(r[x]) as number | string)!;
+        values[at] = (values[at] ?? 0) + Number(v);
       }
       compareSeries = {
         key: compare,
@@ -511,7 +516,12 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
                 aria-label={`${frame['aria-label'] ?? 'Line chart'}. Use arrow keys to move between points${brush ? ', Enter to select' : ''}.`}
                 role="application"
                 {...keyboardProps}
-                onFocus={() => setActive((a) => a ?? xsRaw.length - 1)}
+                onFocus={(e) => {
+                  // Start the keyboard cursor only for keyboard focus, not a pointer click.
+                  if (e.currentTarget.matches(':focus-visible')) {
+                    setActive((a) => a ?? xsRaw.length - 1);
+                  }
+                }}
                 onPointerMove={onPointerMove}
                 onPointerLeave={() => setHover(null)}
                 onPointerDown={onPointerDown}

@@ -221,7 +221,14 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
   const derived: Row[] = useMemo(() => {
     if (transform) return transform(linked);
     if (groupBy) return groupRows(linked, groupBy, columns);
-    return linked;
+    // A column whose key differs from its field reads the field into its key.
+    const aliased = columns.filter((c) => columnKey(c) !== c.field);
+    if (aliased.length === 0) return linked;
+    return linked.map((r) => {
+      const row: Row = { ...r };
+      for (const c of aliased) row[columnKey(c)] = r[c.field];
+      return row;
+    });
   }, [linked, transform, groupBy, columns]);
 
   const sorted = useMemo(() => sortRows(derived, parseSort(sortValue)), [derived, sortValue]);

@@ -220,7 +220,7 @@ export function Heatmap<R extends Row = Row>(props: HeatmapProps<R>) {
                     y={yOf(r)}
                     width={Math.max(1, colW)}
                     height={cellHeight}
-                    rx={Math.min(3, colW / 3)}
+                    rx={Math.max(0, Math.min(3, colW / 3))}
                     style={{ fill: RAMP[rampLevel(v, lo, hi)] }}
                   />
                 )),

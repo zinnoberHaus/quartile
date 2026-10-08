@@ -16,7 +16,7 @@ export interface CheckboxProps
   > {
   checked?: boolean;
   defaultChecked?: boolean;
-  /** Mixed state, e.g. a "select all" when some rows are selected. Shows a dash. */
+  /** Mixed state, e.g. a "select all" when some rows are selected. Shows a dash. Controlled: clear it in `onChange`. */
   indeterminate?: boolean;
   onChange?: (checked: boolean) => void;
   label?: ReactNode;

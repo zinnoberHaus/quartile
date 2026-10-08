@@ -320,7 +320,7 @@ export function CalendarHeatmap<R extends Row = Row>(props: CalendarHeatmapProps
                     y={yOf(c.row)}
                     width={cell}
                     height={cell}
-                    rx={Math.min(2, cell / 4)}
+                    rx={Math.max(0, Math.min(2, cell / 4))}
                     style={{ fill: RAMP[rampLevel(values[i], lo, hi)] }}
                     opacity={inRange(i) ? 1 : 0.3}
                   />
@@ -332,7 +332,7 @@ export function CalendarHeatmap<R extends Row = Row>(props: CalendarHeatmapProps
                     y={yOf(fc.row) - 1.5}
                     width={cell + 3}
                     height={cell + 3}
-                    rx={Math.min(4, cell / 3)}
+                    rx={Math.max(0, Math.min(4, cell / 3))}
                   />
                 )}
                 <g className="q-chart-axis">

@@ -22,7 +22,7 @@ export interface ChartBaseProps extends ChartStateProps {
   height?: number;
   className?: string;
   style?: CSSProperties;
-  /** Accessible name. A summary of the data is generated and appended automatically. */
+  /** Accessible name. A summary of the data is generated and rendered as hidden text inside the figure. */
   'aria-label'?: string;
   /**
    * `table` renders the same data as a table, with the same formats, at the chart's size.

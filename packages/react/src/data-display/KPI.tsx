@@ -353,7 +353,7 @@ export function KPIGroup<R extends Row = Row>({
     >
       {items.map((item, i) => (
         <KPIBase<R>
-          key={textOf(item.label) ?? i}
+          key={`${i}:${textOf(item.label) ?? ''}`}
           {...item}
           data={item.data ?? data}
           selection={item.selection ?? selection}

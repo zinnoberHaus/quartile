@@ -161,7 +161,7 @@ export function SplitButton({
           aria-haspopup={isMenu ? 'menu' : 'dialog'}
           aria-expanded={open}
           aria-controls={open ? menuId : undefined}
-          disabled={disabled}
+          disabled={disabled || loading}
           onClick={() => {
             focusOnOpen.current = open ? null : 'first';
             setOpen(!open);

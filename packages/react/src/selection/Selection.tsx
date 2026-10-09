@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { applyPredicates, type Predicate, type Primitive } from '../data/predicates';
 import type { Row } from '../data/types';
+import { AppliedPredicatesContext } from './appliedPredicates';
 import {
   getRegistryVersion,
   getStore,
@@ -125,10 +126,17 @@ export function useLinkedRows<R extends Row>(
   { selection, source }: LinkedDataOptions,
 ) {
   const api = useSelection(selection === false ? '__none__' : selection);
+  const applied = useContext(AppliedPredicatesContext);
   const active = selection !== false && api.id !== null;
   const filtered = useMemo(
-    () => (active ? api.filter(rows, source) : (rows as R[])),
-    [active, api, rows, source],
+    () =>
+      active
+        ? applyPredicates(
+            rows,
+            api.predicates.filter((p) => p.source !== source && !applied.has(p)),
+          )
+        : (rows as R[]),
+    [active, api, rows, source, applied],
   );
   return { rows: filtered, selection: active ? api : null };
 }

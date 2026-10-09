@@ -138,7 +138,9 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
     () => makeFormatter(xFormat ?? xField.format, { locale }),
     [xFormat, xField, locale],
   );
-  const visible = series.filter((s) => !hidden.has(s.key));
+  const shown = series.filter((s) => !hidden.has(s.key));
+  // A linked filter may remove every visible group. Keep surviving groups discoverable.
+  const visible = shown.length ? shown : series;
   const showLegend = legend ?? series.length > 1;
   const plotHeight = showLegend ? height - LEGEND_H : height;
 
@@ -219,12 +221,7 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
             Math.ceil(Math.max(...labels.map((l) => l.length * 6.6), 24)) + 12,
           );
           const valueLabelW =
-            Math.ceil(
-              Math.max(
-                ...(stacks ? stacks.at(-1)!.y1 : values).map((v) => monoTextWidth(fmtTick(v))),
-                16,
-              ),
-            ) + 10;
+            Math.ceil(Math.max(...values.map((v) => monoTextWidth(fmtTick(v))), 16)) + 10;
           catRange = [4, plotHeight - 4];
           valRange = [labelW, Math.max(labelW + 10, width - valueLabelW)];
         } else {
@@ -261,8 +258,13 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
             const a = vScale(v0);
             const b = vScale(v1);
             const negative = v1 < v0;
-            // Only the outermost segment of a stack gets rounded corners.
-            const outer = !stacks || k === visible.length - 1;
+            // Each side of a diverging stack has its own outermost segment.
+            const outer =
+              !stacks ||
+              !visible.slice(k + 1).some((next) => {
+                const value = next.values[i] ?? 0;
+                return value !== 0 && value < 0 === negative;
+              });
             const r = outer ? 2 : 0;
             const d = horizontal
               ? barPath(Math.min(a, b), c0, Math.abs(b - a), bw, r, true, negative)
@@ -317,7 +319,7 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
             : horizontal
               ? vScale(
                   stacks
-                    ? stacks.at(-1)!.y1[tip]
+                    ? Math.max(0, ...stacks.map((s) => s.y1[tip]))
                     : Math.max(0, ...visible.map((s) => s.values[tip] ?? 0)),
                 )
               : (band(String(tip)) ?? 0) + band.bandwidth() / 2;
@@ -380,15 +382,23 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
                     {xsRaw.map((v, i) => {
                       const cy = (band(String(i)) ?? 0) + band.bandwidth() / 2;
                       const total = stacks
-                        ? stacks.at(-1)!.y1[i]
+                        ? visible.reduce((sum, s) => sum + (s.values[i] ?? 0), 0)
                         : Math.max(...visible.map((s) => s.values[i] ?? 0));
+                      const labelAt = stacks
+                        ? Math.max(0, ...stacks.map((s) => s.y1[i]))
+                        : Math.max(0, total);
                       return (
                         <g key={i} data-dim={!isSelected(i) || undefined}>
                           <text className="q-bar-category" x={0} y={cy} dy="0.32em">
                             {fmtX(v)}
                           </text>
-                          {(stacks || visible.length === 1) && (
-                            <text className="q-bar-value" x={vScale(total) + 6} y={cy} dy="0.32em">
+                          {visible.length > 0 && (stacks || visible.length === 1) && (
+                            <text
+                              className="q-bar-value"
+                              x={vScale(labelAt) + 6}
+                              y={cy}
+                              dy="0.32em"
+                            >
                               {fmtTick(total)}
                             </text>
                           )}
@@ -459,13 +469,17 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
                   key: s.key,
                   label: s.label,
                   color: s.color,
-                  inactive: hidden.has(s.key),
+                  inactive: shown.length > 0 && hidden.has(s.key),
                 }))}
                 onToggle={
                   series.length > 1
                     ? (key) =>
                         setHidden((h) => {
-                          const n = new Set(h);
+                          const n = new Set(
+                            shown.length
+                              ? series.filter((s) => h.has(s.key)).map((s) => s.key)
+                              : [],
+                          );
                           if (n.has(key)) n.delete(key);
                           else if (n.size < series.length - 1) n.add(key);
                           return n;

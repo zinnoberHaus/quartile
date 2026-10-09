@@ -1,0 +1,84 @@
+# @quartile/react
+
+**Build data apps, not just charts.** Charts, tables, controls and overlays share one theme,
+one data model and one selection state.
+
+This is the **0.1 preview**, built from the [Quartile repository](https://github.com/zinnoberHaus/quartile).
+The package is not published to npm. APIs may change before a public release.
+
+## Install from source
+
+Use Node 20.19+ and pnpm 10 to build a tarball from the repository:
+
+```sh
+pnpm install
+pnpm --dir packages/react pack --pack-destination ../..
+```
+
+Then install that tarball in your React 18.2+ or React 19 application:
+
+```sh
+npm install /path/to/quartile-react-0.1.0.tgz
+```
+
+Import the stylesheet once at your application's entry point. Quartile uses plain CSS custom
+properties, with no Tailwind or CSS-in-JS runtime requirement.
+
+```tsx
+import {
+  BarList,
+  DataTable,
+  KPI,
+  LineChart,
+  QuartileProvider,
+  Selection,
+  dataset,
+} from '@quartile/react';
+import '@quartile/react/styles.css';
+
+const orders = dataset([
+  { date: '2026-09-01', region: 'Europe', amount: 120 },
+  { date: '2026-09-01', region: 'Asia', amount: 80 },
+  { date: '2026-09-02', region: 'Europe', amount: 150 },
+]);
+
+export function OrdersExplorer() {
+  return (
+    <QuartileProvider theme="system">
+      <Selection>
+        <KPI data={orders} label="Revenue" value="amount" />
+        <LineChart data={orders} x="date" y="amount" brush />
+        <BarList data={orders} category="region" value="amount" select />
+        <DataTable
+          data={orders}
+          columns={[{ field: 'date' }, { field: 'region' }, { field: 'amount' }]}
+        />
+      </Selection>
+    </QuartileProvider>
+  );
+}
+```
+
+Click a region or brush a date range to filter the other views. The publishing view excludes its
+own predicate, so other categories remain available. Rows sharing an x value are summed by
+the trend charts. Use `dataset(rows, fields)` to override inferred field types, labels and formats.
+
+## Included
+
+- Charts for trends, comparisons, distributions, relationships, flows and activity.
+- KPIs, data tables, filter chips, inputs, navigation and overlays.
+- Light and dark themes, comfortable and compact density, and shared `--q-*` tokens.
+- Keyboard navigation, chart summaries and table fallbacks (`view="table"`).
+- `validateSpec`, `SpecView` and `@quartile/react/schema.json` for declarative dashboards.
+
+See the repository's [architecture guide](https://github.com/zinnoberHaus/quartile/blob/main/docs/architecture.md),
+[examples](https://github.com/zinnoberHaus/quartile/tree/main/apps/gallery), and
+[contributing guide](https://github.com/zinnoberHaus/quartile/blob/main/CONTRIBUTING.md).
+
+Charts currently render SVG and filter rows in memory. Canvas, WebGL, Arrow and DuckDB adapters
+are not included. No production scale limit is claimed; screen-reader testing with NVDA, JAWS
+and VoiceOver remains outstanding.
+
+## License
+
+Apache-2.0. The full license is included in this package.

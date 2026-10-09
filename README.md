@@ -4,8 +4,9 @@
 
 > **Status: 0.1 preview.** The library builds, is tested and renders the gallery and example app, but it is not yet published to npm and its API may change before 0.1.0 is released. See [what is not built yet](#what-is-not-built-yet).
 
-- **Design system and component gallery:** every component, rendered live from this repository (`apps/gallery`).
-- **Example app:** a storefront analytics dashboard built only from `@quartile/react` (`/examples/storefront` in the gallery).
+- **[Design system and component gallery](https://quartile-design.vercel.app):** components rendered live from this repository (`apps/gallery`).
+- **[Documentation](https://quartile-docs.vercel.app)** and **[public implementation guides](docs/guides/README.md)**: installation, data, selection, integration, accessibility, and performance.
+- **Runnable examples:** [storefront](https://quartile-design.vercel.app/examples/storefront), [SaaS analytics](https://quartile-design.vercel.app/examples/saas), [service health](https://quartile-design.vercel.app/examples/operations), and an [editable JSON dashboard](https://quartile-design.vercel.app/examples/ai-dashboard).
 
 ## Why another data-viz library
 
@@ -19,17 +20,20 @@ Chart libraries stop at the chart. UI kits stop at the form. Teams glue the two 
 
 How this compares with Recharts, ECharts, Observable Plot, Unovis, shadcn/ui charts, Tremor, MUI X, Mosaic and others, with sources: [docs/research/landscape-2026-10.md](docs/research/landscape-2026-10.md).
 
+The [product-direction follow-up](docs/research/product-direction-2026-10-09.md) connects primary-source research to the preview's use cases, integration choices, and remaining evidence gaps.
+
 ## Quick look
 
 ```tsx
-import { QuartileProvider, Selection, LineChart, BarList, DataTable } from '@quartile/react';
+import { QuartileProvider, Selection, KPI, Histogram, BarList, DataTable } from '@quartile/react';
 import '@quartile/react/styles.css';
 
-export function OrdersExplorer({ orders, daily }) {
+export function OrdersExplorer({ orders }) {
   return (
     <QuartileProvider theme="system">
       <Selection id="orders">
-        <LineChart data={daily} x="date" y="revenue" compare="previous" area brush />
+        <KPI data={orders} value="amount" label="Order value" format="currency" />
+        <Histogram data={orders} x="amount" brush />
         <BarList data={orders} category="region" value="amount" select />
         <DataTable data={orders} columns={[{ field: 'product' }, { field: 'amount' }]} sort="-amount" limit={5} />
       </Selection>
@@ -40,6 +44,8 @@ export function OrdersExplorer({ orders, daily }) {
 
 ## Develop
 
+To install the unpublished preview into another application, [build and pack it locally](docs/guides/installation.md). Do not use an npm registry install command until a release is announced.
+
 Requires Node 20.19+ and pnpm 10.
 
 ```sh
@@ -49,15 +55,18 @@ pnpm test         # library unit tests
 pnpm typecheck
 pnpm lint
 pnpm build        # library (dist/) and gallery
+pnpm benchmark    # filtering microbenchmark and artifact sizes; build the library first
 ```
 
 Read [docs/architecture.md](docs/architecture.md) before adding a component, and [docs/decisions](docs/decisions) for the decisions so far.
 
 ## What is not built yet
 
+The [design coverage audit](docs/design-coverage.md) maps the original design to implementation evidence and remaining gaps.
+
 - **npm release.** `@quartile/react` is not published. The name, npm scope and domain need clearance first.
 - **Renderers and data sources.** Charts render SVG. There is no Canvas or WebGL renderer, and no Arrow or DuckDB input; the selection store filters in-memory rows.
-- **Scale.** No row-count limits have been measured and published yet.
+- **Scale.** A [filtering microbenchmark](docs/guides/performance.md) is reproducible; browser rendering limits and end-to-end performance targets have not been established.
 - **Screen-reader testing.** The keyboard model, summaries and table fallbacks exist, but they have not been tested with NVDA, JAWS or VoiceOver yet.
 
 ## Contributing

@@ -48,6 +48,12 @@ importers:
 
   packages/react:
     dependencies:
+      '@types/d3-scale':
+        specifier: 4.0.9
+        version: 4.0.9
+      '@types/d3-shape':
+        specifier: 3.2.0
+        version: 3.2.0
       d3-array:
         specifier: ^3.2.4
         version: 3.2.4
@@ -70,12 +76,6 @@ importers:
       '@types/d3-sankey':
         specifier: 0.12.5
         version: 0.12.5
-      '@types/d3-scale':
-        specifier: 4.0.9
-        version: 4.0.9
-      '@types/d3-shape':
-        specifier: 3.2.0
-        version: 3.2.0
       '@types/react':
         specifier: 19.3.0
         version: 19.3.0

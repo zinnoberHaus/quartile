@@ -112,6 +112,10 @@ function validate(value: unknown, schema: Schema, path: string, errors: SpecErro
   }
 
   if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      errors.push({ path, message: 'Expected a finite number.' });
+      return;
+    }
     if (typeof s.minimum === 'number' && value < s.minimum) {
       errors.push({ path, message: `Expected a value ≥ ${s.minimum}, got ${value}.` });
     }
@@ -139,14 +143,14 @@ function validate(value: unknown, schema: Schema, path: string, errors: SpecErro
     const props = (s.properties ?? {}) as Record<string, Schema>;
     const owner = typeof s.title === 'string' ? ` for ${s.title}` : '';
     for (const key of (s.required ?? []) as string[]) {
-      if (!(key in obj) || obj[key] === undefined) {
+      if (!Object.hasOwn(obj, key) || obj[key] === undefined) {
         errors.push({ path, message: `Missing required property "${key}"${owner}.` });
       }
     }
     for (const [key, v] of Object.entries(obj)) {
       if (v === undefined) continue;
       const p = `${path}/${key.replace(/~/g, '~0').replace(/\//g, '~1')}`;
-      if (props[key]) validate(v, props[key], p, errors);
+      if (Object.hasOwn(props, key)) validate(v, props[key], p, errors);
       else if (s.additionalProperties === false) {
         errors.push({ path: p, message: `Unknown property "${key}"${owner}.` });
       } else if (s.additionalProperties && typeof s.additionalProperties === 'object') {

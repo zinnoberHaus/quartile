@@ -1,0 +1,64 @@
+{
+  "description": "Synchronous in-memory filtering only; excludes browser rendering, layout, network and React updates.",
+  "measuredAt": "2026-10-09T19:51:52.785Z",
+  "node": "v22.12.0",
+  "platform": "darwin",
+  "arch": "arm64",
+  "cpu": "Apple M3 Max",
+  "warmup": 20,
+  "samples": 50,
+  "predicates": [
+    {
+      "field": "region",
+      "op": "in",
+      "value": ["Europe", "Americas"]
+    },
+    {
+      "field": "amount",
+      "op": "between",
+      "value": [100, 600]
+    },
+    {
+      "field": "active",
+      "op": "eq",
+      "value": true
+    }
+  ],
+  "cases": [
+    {
+      "rows": 1000,
+      "matched": 267,
+      "medianMs": 0.061,
+      "p95Ms": 0.067
+    },
+    {
+      "rows": 10000,
+      "matched": 2667,
+      "medianMs": 0.623,
+      "p95Ms": 0.689
+    },
+    {
+      "rows": 100000,
+      "matched": 26667,
+      "medianMs": 6.152,
+      "p95Ms": 6.722
+    }
+  ],
+  "artifacts": [
+    {
+      "name": "index.js",
+      "bytes": 452917,
+      "gzipBytes": 99386
+    },
+    {
+      "name": "styles.css",
+      "bytes": 119142,
+      "gzipBytes": 20630
+    },
+    {
+      "name": "schema.json",
+      "bytes": 46592,
+      "gzipBytes": 5423
+    }
+  ]
+}

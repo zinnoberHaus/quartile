@@ -94,8 +94,11 @@ export function useScrollActiveIntoView(
     if (!enabled || !box || index < 0) return;
     const el = box.querySelector<HTMLElement>(`[data-index="${index}"]`);
     if (!el) return;
-    const top = el.offsetTop;
-    const bottom = top + el.offsetHeight;
+    // offsetTop may be relative to a positioned ancestor outside this scroll container.
+    const boxRect = box.getBoundingClientRect();
+    const itemRect = el.getBoundingClientRect();
+    const top = itemRect.top - boxRect.top - box.clientTop + box.scrollTop;
+    const bottom = top + itemRect.height;
     if (top < box.scrollTop) box.scrollTop = top - 4;
     else if (bottom > box.scrollTop + box.clientHeight)
       box.scrollTop = bottom - box.clientHeight + 4;

@@ -27,7 +27,7 @@ import {
   valueScale,
 } from './core/scales';
 import { isKeyboardFocus } from './core/trends-focus';
-import { pivotSeries, stackSeries } from './core/trends-series';
+import { pivotSeries, seriesTotals, stackSeries } from './core/trends-series';
 
 export interface AreaChartProps<R extends Row = Row> extends ChartBaseProps {
   /** Rows to plot, or a dataset with a schema attached. */
@@ -116,7 +116,9 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
   );
   const continuous = xField.type === 'temporal' || xField.type === 'quantitative';
   const canBrush = brush && continuous;
-  const visible = series.filter((s) => !hidden.has(s.key));
+  const shown = series.filter((s) => !hidden.has(s.key));
+  // A linked filter may remove every visible group. Keep surviving groups discoverable.
+  const visible = shown.length ? shown : series;
   const stacks = stack ? stackSeries(visible) : null;
   const showLegend = legend ?? series.length > 1;
   const plotHeight = showLegend ? height - LEGEND_H : height;
@@ -151,7 +153,7 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
       ),
     );
     if (stack && series.length > 1) {
-      const totals = stackSeries(series).at(-1)!.y1;
+      const totals = seriesTotals(series);
       parts.push(
         summarizeSeries(
           'Total',
@@ -165,7 +167,7 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
   }, [series, xsRaw, fmtX, fmtY, stack]);
 
   const table = useMemo<ChartTable>(() => {
-    const totals = stack && series.length > 1 ? stackSeries(series).at(-1)!.y1 : null;
+    const totals = stack && series.length > 1 ? seriesTotals(series) : null;
     return {
       columns: [xField.label, ...series.map((s) => s.label), ...(totals ? ['Total'] : [])],
       rows: xsRaw.map((xv, i) => [
@@ -187,7 +189,7 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
     >
       {({ width }) => {
         const tops = stacks
-          ? (stacks.at(-1)?.y1 ?? [0])
+          ? stacks.flatMap((s) => [...s.y0, ...s.y1])
           : visible.flatMap((s) => s.values.filter((v): v is number => v != null));
         const yScale = valueScale(tops.length ? tops : [0], [
           plotHeight - MARGIN.bottom,
@@ -289,7 +291,7 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
                 }));
         const tipFooter: TooltipRow | undefined =
           tip != null && stacks && visible.length > 1
-            ? { label: 'Total', value: fmtY(stacks.at(-1)!.y1[tip]) }
+            ? { label: 'Total', value: fmtY(seriesTotals(visible)[tip]) }
             : undefined;
 
         return (
@@ -444,13 +446,17 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
                   key: s.key,
                   label: s.label,
                   color: s.color,
-                  inactive: hidden.has(s.key),
+                  inactive: shown.length > 0 && hidden.has(s.key),
                 }))}
                 onToggle={
                   series.length > 1
                     ? (key) =>
                         setHidden((h) => {
-                          const n = new Set(h);
+                          const n = new Set(
+                            shown.length
+                              ? series.filter((s) => h.has(s.key)).map((s) => s.key)
+                              : [],
+                          );
                           if (n.has(key)) n.delete(key);
                           else if (n.size < series.length - 1) n.add(key);
                           return n;

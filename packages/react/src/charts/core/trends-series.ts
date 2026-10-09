@@ -102,16 +102,30 @@ export function pivotSeries(
   return { xsRaw, series };
 }
 
-/** Cumulative stack tops per series (bottom series first). Missing values stack as zero. */
+/** Diverging stacks: positive and negative values accumulate on separate sides of zero. */
 export function stackSeries(
   series: { values: (number | null)[] }[],
 ): { y0: number[]; y1: number[] }[] {
   const n = series[0]?.values.length ?? 0;
-  const base = new Array<number>(n).fill(0);
+  const positive = new Array<number>(n).fill(0);
+  const negative = new Array<number>(n).fill(0);
   return series.map((s) => {
-    const y0 = [...base];
-    const y1 = base.map((b, i) => b + (s.values[i] ?? 0));
-    for (let i = 0; i < n; i++) base[i] = y1[i];
+    const y0: number[] = [];
+    const y1: number[] = [];
+    for (let i = 0; i < n; i++) {
+      const value = s.values[i] ?? 0;
+      const base = value < 0 ? negative : positive;
+      y0.push(base[i]);
+      base[i] += value;
+      y1.push(base[i]);
+    }
     return { y0, y1 };
   });
+}
+
+/** Net totals are separate from the outer edges of diverging stacks. */
+export function seriesTotals(series: { values: (number | null)[] }[]): number[] {
+  return (series[0]?.values ?? []).map((_, i) =>
+    series.reduce((total, s) => total + (s.values[i] ?? 0), 0),
+  );
 }

@@ -126,6 +126,31 @@ describe('validateSpec', () => {
     ]);
   });
 
+  it('rejects nonfinite numbers that cannot be represented in JSON', () => {
+    for (const height of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      expect(messages({ ...line, height })).toEqual(['/height Expected a finite number.']);
+    }
+  });
+
+  it('validates only own schema properties and requires own values', () => {
+    expect(messages({ ...line, toString: 'bad' })).toEqual([
+      '/toString Unknown property "toString" for LineChart.',
+    ]);
+    expect(
+      messages(
+        JSON.parse(
+          '{"component":"LineChart","data":"daily","x":"date","y":"amount","__proto__":{}}',
+        ),
+      ),
+    ).toEqual(['/__proto__ Unknown property "__proto__" for LineChart.']);
+    const inherited = Object.assign(Object.create({ y: 'amount' }), {
+      component: 'LineChart',
+      data: 'daily',
+      x: 'date',
+    });
+    expect(messages(inherited)).toEqual([' Missing required property "y" for LineChart.']);
+  });
+
   it('validates nested objects: KPI target and DataTable columns', () => {
     expect(
       validateSpec({

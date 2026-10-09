@@ -1,7 +1,15 @@
 import { lazy, Suspense } from 'react';
-import { DesignSystemPage } from './design-system/DesignSystemPage';
-import { StorefrontExample } from './examples/storefront/StorefrontExample';
 import { usePath } from './router';
+
+const DesignSystemPage = lazy(() =>
+  import('./design-system/DesignSystemPage').then((m) => ({ default: m.DesignSystemPage })),
+);
+const StorefrontExample = lazy(() =>
+  import('./examples/storefront/StorefrontExample').then((m) => ({ default: m.StorefrontExample })),
+);
+const Workbench = lazy(() =>
+  import('./examples/workbench/Workbench').then((m) => ({ default: m.Workbench })),
+);
 
 // The scratch page is for local development only and is left out of production builds.
 const Scratch = import.meta.env.DEV
@@ -17,6 +25,17 @@ export function App() {
       </Suspense>
     );
   }
-  if (path.startsWith('/examples/storefront')) return <StorefrontExample />;
-  return <DesignSystemPage />;
+  const kind = path.split('/')[2];
+  return (
+    <Suspense fallback={<p role="status">Loading Quartile…</p>}>
+      {path.startsWith('/examples/storefront') ? (
+        <StorefrontExample />
+      ) : path.startsWith('/examples/') &&
+        (kind === 'saas' || kind === 'operations' || kind === 'ai-dashboard') ? (
+        <Workbench key={kind} kind={kind} />
+      ) : (
+        <DesignSystemPage />
+      )}
+    </Suspense>
+  );
 }

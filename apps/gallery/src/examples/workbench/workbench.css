@@ -1,0 +1,187 @@
+.w-page {
+  min-height: 100vh;
+  background: var(--q-bg);
+  color: var(--q-text);
+}
+.w-header {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  padding: 18px 32px;
+  border-bottom: 1px solid var(--q-line);
+  background: var(--q-surface);
+}
+.w-header nav {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+.w-header a {
+  font-size: 14px;
+}
+.w-main {
+  max-width: 1240px;
+  margin: auto;
+  padding: 40px 32px;
+}
+.w-intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+  margin-bottom: 24px;
+}
+.w-intro h1 {
+  font-size: clamp(28px, 4vw, 44px);
+  letter-spacing: -0.045em;
+  margin: 10px 0;
+}
+.w-intro p {
+  max-width: 710px;
+  color: var(--q-text-2);
+  line-height: 1.65;
+}
+.w-intro > a {
+  white-space: nowrap;
+}
+.w-preview {
+  font-size: 12px;
+  color: var(--q-text-3);
+}
+.w-toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 24px;
+}
+.w-toolbar a {
+  margin-left: auto;
+  font-size: 13px;
+}
+.w-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 20px 0;
+}
+.w-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.w-panel {
+  min-width: 0;
+  padding: 20px;
+  background: var(--q-surface);
+  border: 1px solid var(--q-line);
+  border-radius: var(--q-radius-lg);
+}
+.w-panel h2,
+.w-spec-editor h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+}
+.w-panel > p {
+  color: var(--q-text-3);
+  font-size: 13px;
+  margin: 0 0 16px;
+}
+.w-wide {
+  grid-column: 1 / -1;
+}
+.w-inspector {
+  margin: 24px 0;
+  padding: 20px;
+  border: 1px solid var(--q-line);
+  border-radius: var(--q-radius-md);
+}
+.w-inspector summary {
+  cursor: pointer;
+  font-size: 14px;
+}
+.w-inspector p,
+.w-spec-editor p {
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--q-text-2);
+}
+.w-inspector pre {
+  overflow: auto;
+  font-size: 12px;
+}
+.w-spec-editor {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: 32px;
+  padding: 24px;
+  margin-bottom: 24px;
+  background: var(--q-surface);
+  border: 1px solid var(--q-line);
+  border-radius: var(--q-radius-lg);
+}
+.w-spec-editor label {
+  display: grid;
+  gap: 10px;
+  font-size: 13px;
+  min-width: 0;
+}
+.w-spec-editor textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 380px;
+  resize: vertical;
+  font: 12px / 1.6 var(--q-font-mono);
+  color: var(--q-text);
+  background: var(--q-muted);
+  padding: 16px;
+  border: 1px solid var(--q-line-strong);
+  border-radius: var(--q-radius-sm);
+}
+.w-validation {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.w-footer {
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 1px solid var(--q-line);
+  font-size: 12px;
+  color: var(--q-text-3);
+}
+.w-page :focus-visible {
+  outline: 2px solid var(--q-signal);
+  outline-offset: 3px;
+}
+@media (max-width: 700px) {
+  .w-header {
+    flex-wrap: wrap;
+    padding: 16px;
+    gap: 16px;
+  }
+  .w-header nav {
+    order: 3;
+    flex-basis: 100%;
+    gap: 18px;
+  }
+  .w-main {
+    padding: 24px 16px;
+  }
+  .w-intro {
+    display: block;
+  }
+  .w-kpis,
+  .w-grid,
+  .w-spec-editor {
+    grid-template-columns: 1fr;
+  }
+  .w-toolbar a {
+    flex-basis: 100%;
+    margin-top: 8px;
+  }
+  .w-panel {
+    padding: 16px;
+  }
+}

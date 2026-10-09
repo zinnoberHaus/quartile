@@ -1,6 +1,7 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import * as Charts from '../charts';
 import * as DataDisplay from '../data-display';
+import { Selection, useSelection } from '../selection/Selection';
 import { SpecView } from './SpecView';
 import { SPEC_COMPONENTS } from './schema';
 
@@ -11,6 +12,110 @@ const orders = [
 ];
 
 describe('SpecView', () => {
+  it('applies filters before aggregation once, including filters on the measure itself', () => {
+    function Controls() {
+      const selection = useSelection();
+      return (
+        <>
+          <button type="button" onClick={() => selection.set('region', 'Europe')}>
+            Europe
+          </button>
+          <button
+            type="button"
+            onClick={() => selection.set('amount', [15, null], { op: 'between' })}
+          >
+            Large orders
+          </button>
+          <button type="button" onClick={() => selection.clear()}>
+            Clear
+          </button>
+        </>
+      );
+    }
+    render(
+      <Selection>
+        <Controls />
+        <SpecView
+          data={{ orders }}
+          spec={{
+            component: 'LineChart',
+            data: 'orders',
+            x: 'date',
+            y: { field: 'amount', aggregate: 'mean' },
+            format: 'number',
+          }}
+        />
+        <SpecView
+          data={{ orders }}
+          spec={{ component: 'KPI', data: 'orders', value: 'amount', label: 'Revenue' }}
+        />
+      </Selection>,
+    );
+    const values = () =>
+      within(screen.getByRole('table'))
+        .getAllByRole('row')
+        .slice(1)
+        .map((r) => r.lastElementChild?.textContent);
+    expect(values()).toEqual(['7.5', '30']);
+    fireEvent.click(screen.getByRole('button', { name: 'Europe' }));
+    expect(values()).toEqual(['10', '30']);
+    expect(screen.getByRole('group', { name: 'Revenue' }).textContent).toContain('$40');
+    fireEvent.click(screen.getByRole('button', { name: 'Large orders' }));
+    expect(values()).toEqual(['30']);
+    expect(screen.getByRole('group', { name: 'Revenue' }).textContent).toContain('$30');
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+    expect(values()).toEqual(['7.5', '30']);
+  });
+
+  it('shows validation errors instead of rendering malformed dashboard text as React children', () => {
+    render(
+      <SpecView
+        data={{ orders }}
+        spec={{ title: { unexpected: true }, description: { bad: true }, layout: [] }}
+      />,
+    );
+    expect(screen.getByRole('alert').textContent).toContain('Expected a string, got an object.');
+  });
+
+  it('does not compare a post-aggregation sum against a raw-row measure filter', () => {
+    function AmountFilter() {
+      const selection = useSelection();
+      return (
+        <button type="button" onClick={() => selection.set('amount', [5, 10], { op: 'between' })}>
+          Small orders
+        </button>
+      );
+    }
+    render(
+      <Selection>
+        <AmountFilter />
+        <SpecView
+          data={{ orders }}
+          spec={{
+            component: 'LineChart',
+            data: 'orders',
+            x: 'date',
+            y: { field: 'amount', aggregate: 'sum' },
+            format: 'number',
+          }}
+        />
+      </Selection>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Small orders' }));
+    const rows = within(screen.getByRole('table')).getAllByRole('row').slice(1);
+    expect(rows.map((r) => r.lastElementChild?.textContent)).toEqual(['15']);
+  });
+
+  it('does not resolve dataset names through Object.prototype', () => {
+    render(
+      <SpecView
+        data={{ orders }}
+        spec={{ component: 'LineChart', data: 'toString', x: 'date', y: 'amount' }}
+      />,
+    );
+    expect(screen.getByRole('alert').textContent).toContain('Dataset “toString” was not provided');
+  });
+
   it('can resolve every component the schema describes', () => {
     const registry = { ...Charts, ...DataDisplay } as Record<string, unknown>;
     const missing = SPEC_COMPONENTS.filter((n) => {

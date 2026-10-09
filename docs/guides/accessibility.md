@@ -8,6 +8,8 @@ Give charts a useful title or `aria-label`, label fields through `dataset`, stat
 
 Charts expose their data to assistive technology through summaries and tables. Passing `view="table"` makes the formatted table visible. Provide a clear chart/table toggle when your audience needs exact values or alternative navigation. The [SaaS](https://quartile-design.vercel.app/examples/saas) and [operations](https://quartile-design.vercel.app/examples/operations) examples include that toggle.
 
+Scatter plots with more than 200 points expose a visible data-table control and 50 exact rows per page. This avoids inserting thousands of hidden table rows; every plotted value remains reachable through the pager. Canvas and WebGL use the same keyboard interaction, summaries, and table alternative as SVG. For queried plots, state the number of displayed points and total matching source records so a bounded subset is not mistaken for the entire source.
+
 ## Test the actual workflow
 
 1. Use only the keyboard to reach controls, chart marks, menus, and table rows. Check visible focus and that dialogs restore focus when closed.

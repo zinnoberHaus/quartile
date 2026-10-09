@@ -1,9 +1,10 @@
 import { extent, max } from 'd3-array';
-import { scaleLinear, scaleSqrt } from 'd3-scale';
+import { scaleSqrt } from 'd3-scale';
 import {
   type KeyboardEvent,
   type MouseEvent,
   type PointerEvent,
+  useCallback,
   useMemo,
   useRef,
   useState,
@@ -11,6 +12,7 @@ import {
 import { makeFormatter } from '../data/format';
 import type { Predicate, Primitive } from '../data/predicates';
 import { fieldOf, resolveData, toComparable } from '../data/schema';
+import { typedValueKey } from '../data/typed-key';
 import type { DataInput, Formatter, Row } from '../data/types';
 import { useQuartile } from '../provider/QuartileProvider';
 import { useLinkedRows, useSourceId } from '../selection/Selection';
@@ -25,9 +27,16 @@ import {
   Legend,
   type TooltipRow,
 } from './core/guides';
-import { monoTextWidth, seriesColor, tickFormatter } from './core/scales';
+import { seriesColor } from './core/scales';
+import { ScatterGeometry } from './renderers/ScatterGeometry';
+import { ScatterMarks, SvgScatterMarks } from './renderers/ScatterMarks';
+import type { ScatterRenderer, ScatterRendererState } from './renderers/scatter-types';
 
 export interface ScatterPlotProps<R extends Row = Row> extends ChartBaseProps {
+  /** SVG is the default. WebGL falls back to Canvas, then SVG, when unavailable or lost. */
+  renderer?: ScatterRenderer;
+  /** Reports the active renderer after drawing, including any fallback reason. */
+  onRendererChange?: (state: ScatterRendererState) => void;
   /** Rows to plot, or a dataset with a schema attached. */
   data: DataInput<R>;
   /** Quantitative field for the horizontal axis. */
@@ -49,6 +58,8 @@ export interface ScatterPlotProps<R extends Row = Row> extends ChartBaseProps {
    * a field name uses that field, e.g. a point id. Shift adds to the selection.
    */
   select?: boolean | (keyof R & string);
+  /** Preserve physical field identities for prepared query results, including nominal ISO strings. */
+  typedSelection?: boolean;
   /** Shows a legend above the plot. Defaults to true when `color` is set. */
   legend?: boolean;
   /** Axis titles under the plot. Default "<x> →" and "↑ <y>"; false hides them. */
@@ -72,8 +83,6 @@ interface Point {
 }
 
 const LEGEND_H = 28;
-const TITLE_H = 18;
-const TICK_H = 20;
 
 function strength(r: number) {
   const a = Math.abs(r);
@@ -87,6 +96,8 @@ function strength(r: number) {
 export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
   const {
     data,
+    renderer = 'svg',
+    onRendererChange,
     x,
     y,
     size,
@@ -95,6 +106,7 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
     format,
     xFormat,
     select,
+    typedSelection = false,
     legend,
     xTitle,
     yTitle,
@@ -110,9 +122,12 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
   const { rows, selection: sel } = useLinkedRows(allRows, { selection, source });
   const [hidden, setHidden] = useState<Set<string>>(new Set());
 
-  const xField = fieldOf(schema, x, allRows);
-  const yField = fieldOf(schema, y, allRows);
-  const sizeField = size ? fieldOf(schema, size, allRows) : null;
+  const xField = useMemo(() => fieldOf(schema, x, allRows), [schema, x, allRows]);
+  const yField = useMemo(() => fieldOf(schema, y, allRows), [schema, y, allRows]);
+  const sizeField = useMemo(
+    () => (size ? fieldOf(schema, size, allRows) : null),
+    [size, schema, allRows],
+  );
   const fmtX = useMemo(
     () => makeFormatter(xFormat ?? xField.format, { currency: xField.currency, locale }),
     [xFormat, xField, locale],
@@ -134,7 +149,7 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
   const points = useMemo(() => {
     const sizes = size ? allRows.map((r) => Number(r[size])).filter(Number.isFinite) : [];
     const rScale = scaleSqrt()
-      .domain([0, max(sizes) ?? 1])
+      .domain([0, Math.max(0, max(sizes) ?? 0) || 1])
       .range([3, 9]);
     const out: Point[] = [];
     for (const r of rows) {
@@ -161,7 +176,10 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
   // Axes span every row, so filtering from another view never rescales the plot.
   const domains = useMemo(() => {
     const span = (f: string): [number, number] => {
-      const [a, b] = extent(allRows, (r) => (r[f] == null ? undefined : Number(r[f])));
+      const [a, b] = extent(allRows, (r) => {
+        const value = r[f] == null ? Number.NaN : Number(r[f]);
+        return Number.isFinite(value) ? value : undefined;
+      });
       return a == null || b == null ? [0, 1] : a === b ? [a - 1, b + 1] : [a, b];
     };
     return { x: span(x), y: span(y) };
@@ -169,41 +187,74 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
 
   const selectField: string | undefined =
     typeof select === 'string' ? select : select ? (color ?? label) : undefined;
+  const selectionKey = useCallback(
+    (value: unknown) =>
+      typedSelection
+        ? typedValueKey(value, selectField ? schema[selectField]?.type : undefined)
+        : toComparable(value),
+    [typedSelection, selectField, schema],
+  );
   const [localSel, setLocalSel] = useState<Primitive[]>([]);
   const own = selectField ? sel?.get(selectField) : undefined;
-  const selectedValues: Primitive[] = sel
-    ? own && own.source === source
-      ? own.op === 'in'
-        ? own.value
-        : own.op === 'eq'
-          ? [own.value]
+  const selectedValues = useMemo<Primitive[]>(
+    () =>
+      sel
+        ? own && own.source === source
+          ? own.op === 'in'
+            ? own.value
+            : own.op === 'eq'
+              ? [own.value]
+              : []
           : []
-      : []
-    : localSel;
-  const selectedKeys = new Set(selectedValues.map((v) => toComparable(v)));
-  const isSelected = (p: Point) =>
-    !selectField || selectedKeys.size === 0 || selectedKeys.has(toComparable(p.row[selectField]));
+        : localSel,
+    [sel, own, localSel, source],
+  );
+  const selectedKeys = useMemo(
+    () => new Set(selectedValues.map(selectionKey)),
+    [selectedValues, selectionKey],
+  );
+  const isSelected = useCallback(
+    (p: Point) =>
+      !selectField || selectedKeys.size === 0 || selectedKeys.has(selectionKey(p.row[selectField])),
+    [selectField, selectedKeys, selectionKey],
+  );
+  const selected = useMemo(() => points.map(isSelected), [points, isSelected]);
 
-  const toggle = (p: Point, multiple: boolean) => {
-    if (!selectField) return;
-    const v = p.row[selectField] as Primitive;
-    const key = toComparable(v);
-    const has = selectedKeys.has(key);
-    const next = has
-      ? selectedValues.filter((s) => toComparable(s) !== key)
-      : multiple
-        ? [...selectedValues, v]
-        : [v];
-    setLocalSel(next);
-    sel?.toggle(selectField, v, { source, multiple });
-    onSelect?.(next.length ? { field: selectField, op: 'in', value: next, source } : null);
-  };
+  const toggle = useCallback(
+    (p: Point, multiple: boolean) => {
+      if (!selectField) return;
+      const v = p.row[selectField] as Primitive;
+      const key = selectionKey(v);
+      const has = selectedKeys.has(key);
+      const next = has
+        ? selectedValues.filter((s) => selectionKey(s) !== key)
+        : multiple
+          ? [...selectedValues, v]
+          : [v];
+      setLocalSel(next);
+      if (typedSelection) sel?.set(selectField, next, { source, op: 'in' });
+      else sel?.toggle(selectField, v, { source, multiple });
+      onSelect?.(next.length ? { field: selectField, op: 'in', value: next, source } : null);
+    },
+    [
+      selectField,
+      selectedKeys,
+      selectedValues,
+      selectionKey,
+      typedSelection,
+      sel,
+      source,
+      onSelect,
+    ],
+  );
 
   const multi = useRef(false);
-  const { active, setActive, keyboardProps } = useChartKeyboard(points.length, (i) =>
-    toggle(points[i], multi.current),
+  const { active, setActive, keyboardProps } = useChartKeyboard(
+    points.length,
+    (i) => points[i] && toggle(points[i], multi.current),
   );
   const onKeyDown = (e: KeyboardEvent) => {
+    setHover(null);
     multi.current = e.shiftKey;
     keyboardProps.onKeyDown(e);
   };
@@ -253,16 +304,24 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
   const table = useMemo<ChartTable>(() => {
     const fields = [label, color, x, y, size].filter((f): f is string => !!f);
     const unique = [...new Set(fields)];
+    const formatters = unique.map((field) => {
+      if (field === x) return fmtX;
+      if (field === y) return fmtY;
+      const definition = fieldOf(schema, field, allRows);
+      return makeFormatter(definition.format, { currency: definition.currency, locale });
+    });
+    const formatRow = (point: Point) =>
+      unique.map((field, index) => formatters[index](point.row[field]));
     return {
       columns: unique.map((f) => fieldOf(schema, f, allRows).label),
-      rows: points.map((p) =>
-        unique.map((f) => {
-          if (f === x) return fmtX(p.row[f]);
-          if (f === y) return fmtY(p.row[f]);
-          const fd = fieldOf(schema, f, allRows);
-          return makeFormatter(fd.format, { currency: fd.currency, locale })(p.row[f]);
-        }),
-      ),
+      rows: points.length > 200 ? [] : points.map((point) => formatRow(point)),
+      ...(points.length > 200
+        ? {
+            rowCount: points.length,
+            pageSize: 50,
+            getRow: (index: number) => formatRow(points[index]),
+          }
+        : {}),
       numeric: unique.flatMap((f, i) =>
         fieldOf(schema, f, allRows).type === 'quantitative' && i > 0 ? [i] : [],
       ),
@@ -281,155 +340,146 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
       table={table}
       {...frame}
     >
-      {({ width }) => {
-        const plotHeight = height - (showLegend ? LEGEND_H : 0);
-        const bottom = plotHeight - TICK_H - (titlesOn ? TITLE_H : 0);
-        const top = 8;
-        const maxR = Math.max(4.5, ...points.map((p) => p.r));
-        const ys = scaleLinear().domain(domains.y).nice(4);
-        const fmtYTick = tickFormatter({ ...yField, format: format ?? yField.format }, locale);
-        const yTickVals = ys.ticks(4);
-        const left =
-          Math.ceil(Math.max(16, ...yTickVals.map((v) => monoTextWidth(fmtYTick(v))))) + 12;
-        const right = width - 4;
-        ys.range([bottom - maxR * 0.6, top + maxR * 0.6]);
-        const xs = scaleLinear()
-          .domain(domains.x)
-          .nice(5)
-          .range([left + maxR * 0.6, right - maxR * 0.6]);
-        const fmtXTick = tickFormatter({ ...xField, format: xFormat ?? xField.format }, locale);
-        const xTickCount = Math.max(2, Math.min(6, Math.floor((right - left) / 80)));
-        const xTicks = xs.ticks(xTickCount).map((v) => ({ x: xs(v), label: fmtXTick(v) }));
-        const yTicks = yTickVals.map((v) => ({ y: ys(v), label: fmtYTick(v) }));
+      {({ width, height: availableHeight }) => (
+        <ScatterGeometry
+          points={points}
+          selected={selected}
+          domains={domains}
+          width={width}
+          height={availableHeight - (showLegend ? LEGEND_H : 0)}
+          xField={xField}
+          yField={yField}
+          format={format}
+          xFormat={xFormat}
+          locale={locale}
+          titlesOn={titlesOn}
+        >
+          {({ plotHeight, bottom, top, left, right, px, py, xTicks, yTicks, marks, nearest }) => {
+            const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const i = nearest(e.clientX - rect.left, e.clientY - rect.top);
+              setHover(i < 0 ? null : i);
+            };
+            const onClick = (e: MouseEvent<HTMLDivElement>) => {
+              if (!selectField) return;
+              const rect = e.currentTarget.getBoundingClientRect();
+              const i = nearest(e.clientX - rect.left, e.clientY - rect.top);
+              if (i >= 0) toggle(points[i], e.shiftKey || e.metaKey);
+            };
+            const f = focus != null ? points[focus] : null;
+            const tipRows = f ? tipRowsOf(f) : [];
 
-        const px = points.map((p) => xs(p.x));
-        const py = points.map((p) => ys(p.y));
-        const nearest = (mx: number, my: number) => {
-          let best = -1;
-          let bestD = Number.POSITIVE_INFINITY;
-          for (let i = 0; i < points.length; i++) {
-            const d = Math.hypot(px[i] - mx, py[i] - my) - points[i].r;
-            if (d < bestD) {
-              bestD = d;
-              best = i;
-            }
-          }
-          return bestD <= 10 ? best : -1;
-        };
-        const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
-          const rect = e.currentTarget.getBoundingClientRect();
-          const i = nearest(e.clientX - rect.left, e.clientY - rect.top);
-          setHover(i < 0 ? null : i);
-        };
-        const onClick = (e: MouseEvent<HTMLDivElement>) => {
-          if (!selectField) return;
-          const rect = e.currentTarget.getBoundingClientRect();
-          const i = nearest(e.clientX - rect.left, e.clientY - rect.top);
-          if (i >= 0) toggle(points[i], e.shiftKey || e.metaKey);
-        };
-        const drawOrder = points.map((_, i) => i).sort((a, b) => points[b].r - points[a].r);
-        const f = focus != null ? points[focus] : null;
-        const tipRows = f ? tipRowsOf(f) : [];
-
-        return (
-          <>
-            {showLegend && (
-              <Legend
-                className="q-chart-legend-top"
-                items={groups.map((g) => ({
-                  key: g,
-                  label: g,
-                  color: groupColor.get(g) ?? seriesColor(0),
-                  inactive: hidden.has(g),
-                }))}
-                onToggle={(key) =>
-                  setHidden((h) => {
-                    const n = new Set(h);
-                    if (n.has(key)) n.delete(key);
-                    else if (n.size < groups.length - 1) n.add(key);
-                    return n;
-                  })
-                }
-              />
-            )}
-            <div style={{ position: 'relative', height: plotHeight }}>
-              <svg width={width} height={plotHeight} aria-hidden="true">
-                <GridRows ys={yTicks.map((t) => t.y)} x0={left} x1={right} />
-                <AxisLeft ticks={yTicks} x={left - 10} />
-                <AxisBottom ticks={xTicks} y={bottom + 6} x0={left} x1={right} />
-                <path
-                  className="q-scatter-frame"
-                  d={`M${left + 0.5},${top}V${bottom + 0.5}H${right}`}
-                />
-                {drawOrder.map((i) => {
-                  const p = points[i];
-                  return (
-                    <circle
-                      key={i}
-                      className="q-scatter-point"
-                      cx={px[i]}
-                      cy={py[i]}
-                      r={p.r}
-                      style={{ fill: p.color, stroke: 'var(--q-surface)' }}
-                      data-muted={!isSelected(p) || undefined}
-                    />
-                  );
-                })}
-                {f && focus != null && (
-                  <circle
-                    className="q-dist-cell-active"
-                    cx={px[focus]}
-                    cy={py[focus]}
-                    r={f.r + 3}
+            return (
+              <>
+                {showLegend && (
+                  <Legend
+                    className="q-chart-legend-top"
+                    items={groups.map((g) => ({
+                      key: g,
+                      label: g,
+                      color: groupColor.get(g) ?? seriesColor(0),
+                      inactive: hidden.has(g),
+                    }))}
+                    onToggle={(key) =>
+                      setHidden((h) => {
+                        const n = new Set(h);
+                        if (n.has(key)) n.delete(key);
+                        else if (n.size < groups.length - 1) n.add(key);
+                        return n;
+                      })
+                    }
                   />
                 )}
-                {titlesOn && (
-                  <g className="q-dist-axis-title">
-                    {xTitle !== false && (
-                      <text x={left} y={plotHeight - 4}>
-                        {xTitle ?? `${xField.label.toLowerCase()} →`}
-                      </text>
+                <div style={{ position: 'relative', height: plotHeight }}>
+                  <svg width={width} height={plotHeight} aria-hidden="true">
+                    <GridRows ys={yTicks.map((t) => t.y)} x0={left} x1={right} />
+                    <AxisLeft ticks={yTicks} x={left - 10} />
+                    <AxisBottom ticks={xTicks} y={bottom + 6} x0={left} x1={right} />
+                    <path
+                      className="q-scatter-frame"
+                      d={`M${left + 0.5},${top}V${bottom + 0.5}H${right}`}
+                    />
+                    {renderer === 'svg' && (
+                      <g data-renderer="svg">
+                        <SvgScatterMarks marks={marks} onRendererChange={onRendererChange} />
+                      </g>
                     )}
-                    {yTitle !== false && (
-                      <text x={right} y={plotHeight - 4} textAnchor="end">
-                        {yTitle ?? `↑ ${yField.label.toLowerCase()}`}
-                      </text>
+                    {titlesOn && (
+                      <g className="q-dist-axis-title">
+                        {xTitle !== false && (
+                          <text x={left} y={plotHeight - 4}>
+                            {xTitle ?? `${xField.label.toLowerCase()} →`}
+                          </text>
+                        )}
+                        {yTitle !== false && (
+                          <text x={right} y={plotHeight - 4} textAnchor="end">
+                            {yTitle ?? `↑ ${yField.label.toLowerCase()}`}
+                          </text>
+                        )}
+                      </g>
                     )}
-                  </g>
-                )}
-              </svg>
-              <div
-                className="q-chart-plot"
-                style={{ cursor: selectField && hover != null ? 'pointer' : 'default' }}
-                aria-label={`${frame['aria-label'] ?? 'Scatter plot'}. Use arrow keys to move between points${selectField ? ', Enter to select' : ''}.`}
-                role="application"
-                {...keyboardProps}
-                onKeyDown={onKeyDown}
-                onFocus={() => setActive((a) => a ?? 0)}
-                onPointerMove={onPointerMove}
-                onPointerLeave={() => setHover(null)}
-                onClick={onClick}
-              />
-              {f && focus != null && (
-                <ChartTooltip
-                  x={px[focus] + f.r - 8}
-                  width={width}
-                  top={Math.max(0, Math.min(py[focus] - 24, plotHeight - 40 - tipRows.length * 18))}
-                  title={titleOf(f)}
-                  rows={tipRows}
-                />
-              )}
-              <div className="q-visually-hidden" aria-live="polite">
-                {active != null && points[active]
-                  ? `${titleOf(points[active])}: ${tipRowsOf(points[active])
-                      .map((r) => `${r.label} ${r.value}`)
-                      .join(', ')}`
-                  : ''}
-              </div>
-            </div>
-          </>
-        );
-      }}
+                  </svg>
+                  {renderer !== 'svg' && (
+                    <ScatterMarks
+                      marks={marks}
+                      width={width}
+                      height={plotHeight}
+                      renderer={renderer}
+                      onRendererChange={onRendererChange}
+                    />
+                  )}
+                  {f && focus != null && (
+                    <svg
+                      className="q-scatter-focus"
+                      width={width}
+                      height={plotHeight}
+                      aria-hidden="true"
+                    >
+                      <circle
+                        className="q-dist-cell-active"
+                        cx={px[focus]}
+                        cy={py[focus]}
+                        r={f.r + 3}
+                      />
+                    </svg>
+                  )}
+                  <div
+                    className="q-chart-plot"
+                    style={{ cursor: selectField && hover != null ? 'pointer' : 'default' }}
+                    aria-label={`${frame['aria-label'] ?? 'Scatter plot'}. Use arrow keys to move between points${selectField ? ', Enter to select' : ''}.`}
+                    role="application"
+                    {...keyboardProps}
+                    onKeyDown={onKeyDown}
+                    onFocus={() => setActive((a) => a ?? 0)}
+                    onPointerMove={onPointerMove}
+                    onPointerLeave={() => setHover(null)}
+                    onClick={onClick}
+                  />
+                  {f && focus != null && (
+                    <ChartTooltip
+                      x={px[focus] + f.r - 8}
+                      width={width}
+                      top={Math.max(
+                        0,
+                        Math.min(py[focus] - 24, plotHeight - 40 - tipRows.length * 18),
+                      )}
+                      title={titleOf(f)}
+                      rows={tipRows}
+                    />
+                  )}
+                  <div className="q-visually-hidden" aria-live="polite">
+                    {active != null && points[active]
+                      ? `${titleOf(points[active])}: ${tipRowsOf(points[active])
+                          .map((r) => `${r.label} ${r.value}`)
+                          .join(', ')}`
+                      : ''}
+                  </div>
+                </div>
+              </>
+            );
+          }}
+        </ScatterGeometry>
+      )}
     </ChartFrame>
   );
 }

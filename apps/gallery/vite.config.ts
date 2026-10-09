@@ -29,6 +29,12 @@ export default defineConfig({
   plugins: [react(), reloadOnNewStylesheet()],
   resolve: {
     alias: {
+      '@quartile/react/query': fileURLToPath(
+        new URL('../../packages/react/src/query/index.ts', import.meta.url),
+      ),
+      '@quartile/react/duckdb': fileURLToPath(
+        new URL('../../packages/react/src/duckdb/index.ts', import.meta.url),
+      ),
       '@quartile/react': fileURLToPath(
         new URL('../../packages/react/src/index.ts', import.meta.url),
       ),

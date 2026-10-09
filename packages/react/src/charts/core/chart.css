@@ -7,6 +7,50 @@
   color: var(--q-text);
 }
 
+.q-chart-data-access {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  height: 28px;
+}
+
+.q-chart-data-access button,
+.q-chart-table-pagination button {
+  font: 500 11px var(--q-font-sans);
+  color: var(--q-signal);
+  background: var(--q-surface);
+  border: 1px solid var(--q-line);
+  border-radius: var(--q-radius-sm);
+  padding: 3px 7px;
+  cursor: pointer;
+}
+
+.q-chart-data-access button:focus-visible,
+.q-chart-table-pagination button:focus-visible {
+  outline: none;
+  box-shadow: var(--q-focus-ring);
+}
+
+.q-chart-table-pagination {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--q-surface);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  height: 36px;
+  box-sizing: border-box;
+  font: 11px var(--q-font-mono);
+}
+
+.q-chart-table-pagination button:disabled {
+  color: var(--q-text-3);
+  cursor: default;
+}
+
 .q-chart svg {
   display: block;
   overflow: visible;
@@ -371,6 +415,10 @@ button.q-legend-item:focus-visible {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--q-text-3);
+}
+
+.q-chart-table[data-paginated] thead th {
+  top: 36px;
 }
 
 .q-chart-table [data-numeric] {

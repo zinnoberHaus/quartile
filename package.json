@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
+    "playwright": "1.63.0",
     "typescript": "5.9.3"
   },
   "pnpm": {

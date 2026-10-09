@@ -20,7 +20,9 @@ try {
   writeFileSync(
     join(temporary, 'consumer.tsx'),
     `import { DataTable, KPI, LineChart, QuartileProvider, Selection, dataset } from '@quartile/react';
+import { QueryKPI, type QuerySource } from '@quartile/react/query';
 import '@quartile/react/styles.css';
+export const RemoteMetric = ({ source }: { source: QuerySource }) => <QueryKPI data={source} label="Remote count" aggregate="count" />;
 const data = dataset([{ date: '2026-09-01', region: 'Europe', amount: 120 }]);
 export function App() {
   return <QuartileProvider><Selection>
@@ -34,14 +36,18 @@ export function App() {
   writeFileSync(
     join(temporary, 'runtime.mjs'),
     `import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
 import { DataTable, KPI, LineChart, QuartileProvider, Selection, dataset, validateSpec } from '@quartile/react';
+import { QueryKPI } from '@quartile/react/query';
+assert(!existsSync(new URL('./node_modules/apache-arrow', import.meta.url)), 'ordinary consumers must not install Arrow');
+assert(!existsSync(new URL('./node_modules/@duckdb/duckdb-wasm', import.meta.url)), 'ordinary consumers must not install DuckDB');
 const data = dataset([{ date: '2026-09-01', region: 'Europe', amount: 120 }]);
 const warnings = [];
 console.error = (...args) => warnings.push(args);
 const html = renderToString(createElement(QuartileProvider, {}, createElement(Selection, {},
+  createElement(QueryKPI, { data: {kind: 'query-source', id: 'server', version: 'v1', schema: {}, query: async () => { throw new Error('SSR must not start queries'); }, dispose: async () => {} }, label: 'Remote count', aggregate: 'count' }),
   createElement(KPI, { data, value: 'amount', label: 'Revenue' }),
   createElement(LineChart, { data, x: 'date', y: 'amount' }),
   createElement(DataTable, { data, columns: [{ field: 'region' }, { field: 'amount' }] }),
@@ -101,6 +107,44 @@ console.log('Packed import, SSR, CSS, schema, license and README passed.');
     ]);
     console.log(`React ${react}: packed consumer runtime and strict TypeScript passed.`);
   }
+  // Optional adapter declarations and runtime resolve with the explicitly installed peer pair.
+  run('npm', [
+    'install',
+    '--no-audit',
+    '--no-fund',
+    '@duckdb/duckdb-wasm@1.32.0',
+    'apache-arrow@17.0.0',
+  ]);
+  writeFileSync(
+    join(temporary, 'adapter.ts'),
+    `import type { AsyncDuckDB } from '@duckdb/duckdb-wasm';
+import { tableFromArrays } from 'apache-arrow';
+import { createDuckDBBackend } from '@quartile/react/duckdb';
+export async function adapt(database: AsyncDuckDB) {
+  const backend = await createDuckDBBackend({ database });
+  return backend.fromArrow(tableFromArrays({ count: new Int32Array([1, 2]) }), { id: 'consumer' });
+}
+`,
+  );
+  run(process.execPath, [
+    join(temporary, 'node_modules/typescript/bin/tsc'),
+    '--noEmit',
+    '--strict',
+    '--module',
+    'esnext',
+    '--moduleResolution',
+    'bundler',
+    '--target',
+    'es2022',
+    '--lib',
+    'DOM,ES2022',
+    'adapter.ts',
+  ]);
+  run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "import {createDuckDBBackend} from '@quartile/react/duckdb'; if (typeof createDuckDBBackend !== 'function') throw new Error('Missing adapter export');",
+  ]);
   rmSync(temporary, { recursive: true, force: true });
 } catch (error) {
   console.error(`Consumer fixture retained for inspection: ${temporary}`);

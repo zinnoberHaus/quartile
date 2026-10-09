@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@duckdb/duckdb-wasm": "1.32.0",
     "@quartile/react": "workspace:*",
+    "apache-arrow": "17.0.0",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },

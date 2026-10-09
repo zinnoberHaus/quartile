@@ -1,0 +1,69 @@
+{
+  "environment": {
+    "browser": "153.0.8010.12",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "dpr": 2,
+    "reducedMotion": "reduce"
+  },
+  "marks": [
+    {
+      "x": 580.8333333333333,
+      "y": 31.33333333333334,
+      "r": 9
+    },
+    {
+      "x": 232.46666666666667,
+      "y": 192.73333333333332,
+      "r": 7
+    },
+    {
+      "x": 33.4,
+      "y": 228.6,
+      "r": 5
+    }
+  ],
+  "checks": [
+    {
+      "renderer": "canvas",
+      "width": 1280,
+      "height": 544,
+      "cssWidth": 640,
+      "cssHeight": 272,
+      "colored": 3,
+      "glError": null,
+      "keyboard": true,
+      "pointer": true,
+      "exactRows": 3,
+      "theme": true,
+      "lightColor": [46, 70, 232, 33],
+      "darkColor": [116, 131, 255, 33],
+      "resize": true,
+      "dprChange": [0.75, 1, 2]
+    },
+    {
+      "renderer": "webgl",
+      "width": 1280,
+      "height": 544,
+      "cssWidth": 640,
+      "cssHeight": 272,
+      "colored": 3,
+      "glError": 0,
+      "keyboard": true,
+      "pointer": true,
+      "exactRows": 3,
+      "theme": true,
+      "lightColor": [6, 9, 30, 33],
+      "darkColor": [15, 17, 33, 33],
+      "resize": true,
+      "dprChange": [0.75, 1, 2]
+    }
+  ],
+  "fallback": {
+    "requested": "webgl",
+    "active": "canvas",
+    "reason": "webgl-context-lost"
+  },
+  "largeDomNodes": 38,
+  "errors": []
+}

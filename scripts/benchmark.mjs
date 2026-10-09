@@ -1,6 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { cpus } from 'node:os';
+import { dirname, relative, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
+import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { applyPredicates } from '../packages/react/dist/index.js';
 
@@ -37,6 +39,32 @@ for (const name of ['index.js', 'styles.css', 'schema.json']) {
   const contents = await readFile(new URL(`../packages/react/dist/${name}`, import.meta.url));
   artifacts.push({ name, bytes: contents.length, gzipBytes: gzipSync(contents).length });
 }
+const dist = fileURLToPath(new URL('../packages/react/dist/', import.meta.url));
+async function entryGraph(entry) {
+  const files = new Map();
+  const visit = async (file) => {
+    if (files.has(file)) return;
+    const contents = await readFile(file);
+    files.set(file, contents);
+    for (const match of contents
+      .toString()
+      .matchAll(/(?:from\s*|import\s*)['"](\.[^'"]+\.js)['"]/g)) {
+      await visit(resolve(dirname(file), match[1]));
+    }
+  };
+  await visit(resolve(dist, entry));
+  return {
+    entry,
+    description:
+      'Reachable local JS files before application tree-shaking; external dependencies and worker/Wasm assets excluded.',
+    files: [...files.keys()].map((file) => relative(dist, file)).sort(),
+    bytes: [...files.values()].reduce((sum, contents) => sum + contents.length, 0),
+    gzipBytes: [...files.values()].reduce((sum, contents) => sum + gzipSync(contents).length, 0),
+  };
+}
+const entryGraphs = await Promise.all(
+  ['index.js', 'query/index.js', 'duckdb/index.js'].map(entryGraph),
+);
 console.log(
   JSON.stringify(
     {
@@ -52,6 +80,7 @@ console.log(
       predicates,
       cases,
       artifacts,
+      entryGraphs,
     },
     null,
     2,

@@ -103,6 +103,7 @@ export function DesignSystemPage() {
           <a href={links.docs}>Docs</a>
           <Link to="/examples/storefront">Example app</Link>
           <Link to="/examples/saas">Use cases</Link>
+          <Link to="/examples/scale">Worker queries</Link>
           <a href={links.github}>GitHub</a>
         </nav>
       </header>

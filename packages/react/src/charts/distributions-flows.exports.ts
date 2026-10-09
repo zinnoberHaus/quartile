@@ -9,6 +9,7 @@ export type { HeatmapProps } from './Heatmap';
 export { Heatmap } from './Heatmap';
 export type { HistogramProps } from './Histogram';
 export { Histogram } from './Histogram';
+export type { ScatterRenderer, ScatterRendererState } from './renderers/scatter-types';
 export type { SankeyProps } from './Sankey';
 export { Sankey } from './Sankey';
 export type { ScatterPlotProps } from './ScatterPlot';

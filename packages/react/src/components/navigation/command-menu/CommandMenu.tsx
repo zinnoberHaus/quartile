@@ -12,6 +12,7 @@ import { cx } from '../../../lib/cx';
 import { Portal } from '../../../lib/floating';
 import { useControllable } from '../../../lib/useControllable';
 import { Kbd } from '../../display/kbd/Kbd';
+import { useScrollActiveIntoView } from '../../inputs/listbox/listNav';
 import { useModal } from '../../overlays/internal/modal';
 import { type CommandGroup, type CommandItem, filterCommandGroups } from './filter';
 
@@ -62,12 +63,7 @@ export function CommandPalette({
   // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the filtered list only
   useEffect(() => setActive(firstEnabled), [filtered]);
 
-  useEffect(() => {
-    if (active < 0) return;
-    listRef.current
-      ?.querySelector<HTMLElement>(`[data-index="${active}"]`)
-      ?.scrollIntoView?.({ block: 'nearest' });
-  }, [active]);
+  useScrollActiveIntoView(listRef, active, true);
 
   const run = (item: CommandItem | undefined) => {
     if (!item || item.disabled) return;

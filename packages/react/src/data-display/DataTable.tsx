@@ -32,6 +32,8 @@ import {
   sortRows,
 } from './table-model';
 
+const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
+
 export interface DataTableColumn<R extends Row = Row> {
   /** Field read from each row (or aggregated from each group with `groupBy`). */
   field: string;
@@ -323,7 +325,7 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
   const [rowH, setRowH] = useState(50);
   const { height: viewH } = useElementSize(scrollRef);
   const scrollerHeight = height ?? (virtual ? 480 : undefined);
-  useLayoutEffect(() => {
+  useIsoLayoutEffect(() => {
     const el = bodyRef.current?.querySelector<HTMLElement>('[role="row"]');
     if (!el) return;
     const h = el.getBoundingClientRect().height;

@@ -1,12 +1,13 @@
 import { type ComponentType, type CSSProperties, type ReactNode, useMemo } from 'react';
 import * as Charts from '../charts';
-import { applyPredicates } from '../data/predicates';
+import { applyPredicates, type Predicate } from '../data/predicates';
 import { dataset, resolveData } from '../data/schema';
 import type { DataInput, FieldOverride, Row } from '../data/types';
 import * as DataDisplay from '../data-display';
 import { aggregateRows } from '../data-display/shared';
 import { IconAlertCircle } from '../icons';
 import { cx } from '../lib/cx';
+import { AppliedPredicatesContext } from '../selection/appliedPredicates';
 import { Selection, useSelection } from '../selection/Selection';
 import type { ComponentSpec, DashboardSpec, SpecComponentName } from './schema';
 import { isDashboardSpec, type SpecError, validateSpec } from './validate';
@@ -107,6 +108,7 @@ function useSpecProps(spec: ComponentSpec, input: DataInput | undefined) {
   const predicates = sel.predicates;
   return useMemo(() => {
     const props: Record<string, unknown> = {};
+    const appliedPredicates = new Set<Predicate>();
     const overrides: Record<string, Exclude<FieldOverride, string>> = {};
     const dims = new Set<string>();
     const measures: Encoded[] = [];
@@ -145,6 +147,7 @@ function useSpecProps(spec: ComponentSpec, input: DataInput | undefined) {
       // filters itself); the rest are applied here, before the rows collapse.
       const outside = predicates.filter((p) => !dims.has(p.field));
       const filtered = applyPredicates(raw, outside);
+      for (const p of outside) appliedPredicates.add(p);
       const how = measures.find((m) => m.aggregate)?.aggregate ?? 'sum';
       const groups = new Map<string, Row[]>();
       const dimList = [...dims];
@@ -191,7 +194,7 @@ function useSpecProps(spec: ComponentSpec, input: DataInput | undefined) {
     } else if (shape.frame === 'card' && spec.title) {
       props['aria-label'] = spec.title;
     }
-    return props;
+    return { props, appliedPredicates };
   }, [spec, shape, input, predicates]);
 }
 
@@ -248,7 +251,7 @@ function SpecItem({
       />
     );
   }
-  if (spec.data !== undefined && !(spec.data in data)) {
+  if (spec.data !== undefined && !Object.hasOwn(data, spec.data)) {
     const available = Object.keys(data);
     return (
       <ErrorCard
@@ -277,9 +280,13 @@ function SpecComponent({
   Comp: AnyComponent;
   input: DataInput | undefined;
 }) {
-  const props = useSpecProps(spec, input);
+  const { props, appliedPredicates } = useSpecProps(spec, input);
   const shape = SHAPES[spec.component];
-  const node = <Comp {...props} />;
+  const node = (
+    <AppliedPredicatesContext.Provider value={appliedPredicates}>
+      <Comp {...props} />
+    </AppliedPredicatesContext.Provider>
+  );
   if (shape.frame === 'bare') return node;
   return (
     <div className="q-spec-card">
@@ -315,6 +322,8 @@ export function SpecView({ spec, data, className, style }: SpecViewProps) {
     );
   }
   const dash = spec as DashboardSpec;
+  const title = typeof dash.title === 'string' ? dash.title : undefined;
+  const description = typeof dash.description === 'string' ? dash.description : undefined;
   const layout = Array.isArray(dash.layout) ? dash.layout : [];
   const topErrors = result.errors.filter((e) => !/^\/layout\/\d+(\/|$)/.test(e.path));
   let body: ReactNode;
@@ -344,10 +353,10 @@ export function SpecView({ spec, data, className, style }: SpecViewProps) {
   }
   return (
     <div className={cx('q-spec', 'q-spec-dashboard', className)} style={style}>
-      {(dash.title || dash.description) && (
+      {(title || description) && (
         <div className="q-spec-head">
-          {dash.title && <h2 className="q-spec-title">{dash.title}</h2>}
-          {dash.description && <p className="q-spec-desc">{dash.description}</p>}
+          {title && <h2 className="q-spec-title">{title}</h2>}
+          {description && <p className="q-spec-desc">{description}</p>}
         </div>
       )}
       <Selection id={typeof dash.selection === 'string' ? dash.selection : undefined}>

@@ -102,6 +102,7 @@ export function DesignSystemPage() {
           <a href={links.landing}>Landing</a>
           <a href={links.docs}>Docs</a>
           <Link to="/examples/storefront">Example app</Link>
+          <Link to="/examples/saas">Use cases</Link>
           <a href={links.github}>GitHub</a>
         </nav>
       </header>
@@ -124,6 +125,7 @@ export function DesignSystemPage() {
           ))}
         </aside>
         <main className="g-main">
+          <h1 className="q-visually-hidden">Quartile design system</h1>
           <OverviewSection />
           <LandscapeSection />
           <BrandSection />

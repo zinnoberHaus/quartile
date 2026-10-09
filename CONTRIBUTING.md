@@ -1,6 +1,6 @@
 # Contributing
 
-Quartile welcomes issues, documentation, research, and code. While the library's language and scope are undecided, the most useful contributions are proposals that describe a concrete problem the library should solve.
+Quartile welcomes issues, documentation, research, and code. The React/TypeScript preview is implemented; read [the decision](docs/decisions/0001-react-typescript-css-variables.md), [architecture](docs/architecture.md), and [guides](docs/guides/README.md) before changing the public API. Proposals should describe a concrete problem, supported data shape, and observable behavior.
 
 For a bug, include a reproducible example, expected and actual results, and relevant versions. Remove secrets and personal data. For a substantial change, first open an issue explaining the user problem, proposed behavior, alternatives, and acceptance criteria. Report vulnerabilities through [SECURITY.md](SECURITY.md).
 

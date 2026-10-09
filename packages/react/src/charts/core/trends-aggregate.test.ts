@@ -1,5 +1,5 @@
 import { aggregateBy, keyOf, orderKeys, pluralLabel, predicateHas } from './trends-aggregate';
-import { pivotSeries, stackSeries } from './trends-series';
+import { pivotSeries, seriesTotals, stackSeries } from './trends-series';
 
 const rows = [
   { region: 'Europe', amount: 10, change: 0.25 },
@@ -145,5 +145,21 @@ describe('pivotSeries / stackSeries', () => {
       { y0: [0, 0], y1: [1, 2] },
       { y0: [1, 2], y1: [11, 2] },
     ]);
+  });
+
+  it('keeps both signs visible and computes net totals independently of stack edges', () => {
+    const series = [
+      { values: [10, -4] },
+      { values: [-3, 5] },
+      { values: [2, -6] },
+      { values: [-2, null] },
+    ];
+    expect(stackSeries(series)).toEqual([
+      { y0: [0, 0], y1: [10, -4] },
+      { y0: [0, 0], y1: [-3, 5] },
+      { y0: [10, -4], y1: [12, -10] },
+      { y0: [-3, 5], y1: [-5, 5] },
+    ]);
+    expect(seriesTotals(series)).toEqual([7, -5]);
   });
 });

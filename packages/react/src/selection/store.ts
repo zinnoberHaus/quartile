@@ -1,4 +1,5 @@
 import type { Predicate, Primitive } from '../data/predicates';
+import { toComparable } from '../data/schema';
 
 export interface SelectionEvent {
   type: 'set' | 'clear';
@@ -74,10 +75,10 @@ export class SelectionStore {
     const cur = this.byField.get(field);
     const values: Primitive[] =
       cur?.op === 'in' ? [...cur.value] : cur?.op === 'eq' ? [cur.value] : [];
-    const key = value instanceof Date ? value.getTime() : value;
-    const has = values.some((v) => (v instanceof Date ? v.getTime() : v) === key);
+    const key = toComparable(value);
+    const has = values.some((v) => toComparable(v) === key);
     const next = has
-      ? values.filter((v) => (v instanceof Date ? v.getTime() : v) !== key)
+      ? values.filter((v) => toComparable(v) !== key)
       : opts.multiple
         ? [...values, value]
         : [value];

@@ -26,6 +26,16 @@ describe('SelectionStore', () => {
     s.toggle('region', 'Asia');
     expect(s.get('region')).toBeUndefined();
   });
+
+  it('toggles equivalent Date and ISO values using the same comparison as filters', () => {
+    const s = new SelectionStore('dates');
+    s.set('date', ['2026-09-07']);
+    s.toggle('date', new Date(2026, 8, 7));
+    expect(s.get('date')).toBeUndefined();
+    s.set('date', new Date(2026, 8, 7));
+    s.toggle('date', '2026-09-07', { multiple: true });
+    expect(s.get('date')).toBeUndefined();
+  });
   it('clears a field or everything, and treats empty values as clear', () => {
     const s = new SelectionStore('t');
     const events: string[] = [];

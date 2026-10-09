@@ -35,10 +35,12 @@ export function valueScale(
   range: [number, number],
   { zero = true, ticks = 4 } = {},
 ) {
-  const lo = min(values) ?? 0;
-  const hi = max(values) ?? 1;
+  const finite = values.filter(Number.isFinite);
+  const lo = min(finite) ?? 0;
+  const hi = max(finite) ?? 1;
   const d0 = zero ? Math.min(0, lo) : lo;
-  const d1 = hi === d0 ? d0 + 1 : hi + (hi - d0) * 0.08;
+  const top = zero ? Math.max(0, hi) : hi;
+  const d1 = top === d0 ? d0 + 1 : top + (top - d0) * 0.08;
   return scaleLinear().domain([d0, d1]).range(range).nice(ticks);
 }
 

@@ -187,7 +187,9 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
     () => (xField.type === 'temporal' && !xFormat ? makeFormatter('weekday', { locale }) : fmtX),
     [xField, xFormat, fmtX, locale],
   );
-  const visible = series.filter((s) => !hidden.has(s.key));
+  const shown = series.filter((s) => !hidden.has(s.key));
+  // A linked filter may remove every visible group. Keep surviving groups discoverable.
+  const visible = shown.length ? shown : series;
   const showLegend = legend ?? series.length > 1;
   const plotHeight = showLegend ? height - LEGEND_H : height;
 
@@ -368,7 +370,7 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
                       label: s.label,
                       color: s.color,
                       value: last != null ? fmtTick(last) : undefined,
-                      inactive: hidden.has(s.key),
+                      inactive: shown.length > 0 && hidden.has(s.key),
                     };
                   }),
                   ...(compareSeries
@@ -386,7 +388,11 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
                   series.length > 1
                     ? (key) =>
                         setHidden((h) => {
-                          const n = new Set(h);
+                          const n = new Set(
+                            shown.length
+                              ? series.filter((s) => h.has(s.key)).map((s) => s.key)
+                              : [],
+                          );
                           if (n.has(key)) n.delete(key);
                           else if (n.size < series.length - 1) n.add(key);
                           return n;

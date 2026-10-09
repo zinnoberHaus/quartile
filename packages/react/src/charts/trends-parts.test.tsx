@@ -6,6 +6,7 @@ import { BarChart } from './BarChart';
 import { BarList } from './BarList';
 import { DonutChart } from './DonutChart';
 import { Funnel } from './Funnel';
+import { LineChart } from './LineChart';
 import { Sparkline } from './Sparkline';
 
 // jsdom has no layout: give every element a width so ChartFrame renders its children.
@@ -38,6 +39,94 @@ function Probe({ onPredicates }: { onPredicates: (p: Predicate[]) => void }) {
   onPredicates(useSelection().predicates);
   return null;
 }
+
+describe.each([
+  ['AreaChart', AreaChart],
+  ['LineChart', LineChart],
+] as const)('%s linked legend state', (_name, Chart) => {
+  const data = ['A', 'B', 'C'].flatMap((category, i) => [
+    { date: '2026-01-01', category, value: i + 1 },
+    { date: '2026-01-02', category, value: i + 2 },
+  ]);
+
+  function Controls() {
+    const selection = useSelection();
+    return (
+      <>
+        <button type="button" onClick={() => selection.set('category', 'A')}>
+          Only A
+        </button>
+        <button type="button" onClick={() => selection.set('category', ['A', 'B'])}>
+          Only A and B
+        </button>
+        <button type="button" onClick={() => selection.set('category', ['B', 'C'])}>
+          Only B and C
+        </button>
+        <button type="button" onClick={() => selection.clear()}>
+          Clear filter
+        </button>
+      </>
+    );
+  }
+
+  function mount() {
+    const { container } = render(
+      <Selection>
+        <Controls />
+        <Chart data={data} x="date" y="value" color="category" />
+      </Selection>,
+    );
+    return () => container.querySelectorAll('svg path[stroke-width="2"]');
+  }
+
+  const legend = (category: string) =>
+    within(screen.getByRole('figure')).getByRole('button', {
+      name: new RegExp(`^${category}`),
+    });
+
+  it('renders a surviving hidden series when a linked filter removes the visible alternatives', () => {
+    const marks = mount();
+    fireEvent.click(legend('A'));
+    expect(marks()).toHaveLength(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Only A' }));
+    expect(marks()).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: /^A/ })).toBeNull();
+    expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(3);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filter' }));
+    expect(legend('A').getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(legend('A'));
+    expect(marks()).toHaveLength(3);
+    fireEvent.click(legend('A'));
+    expect(marks()).toHaveLength(2);
+  });
+
+  it('keeps recovered legends interactive and discards hidden groups outside the current data', () => {
+    const marks = mount();
+    fireEvent.click(legend('A'));
+    fireEvent.click(legend('B'));
+    expect(marks()).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Only A and B' }));
+    expect(marks()).toHaveLength(2);
+    expect(legend('A').getAttribute('aria-pressed')).toBe('true');
+    expect(legend('B').getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(legend('A'));
+    expect(marks()).toHaveLength(1);
+    expect(legend('A').getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(legend('B'));
+    expect(marks()).toHaveLength(1);
+    expect(legend('B').getAttribute('aria-pressed')).toBe('true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filter' }));
+    expect(marks()).toHaveLength(2);
+    expect(legend('B').getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: 'Only B and C' }));
+    fireEvent.click(legend('B'));
+    expect(marks()).toHaveLength(1);
+    expect(legend('B').getAttribute('aria-pressed')).toBe('false');
+    expect(legend('C').getAttribute('aria-pressed')).toBe('true');
+  });
+});
 
 describe('BarList', () => {
   it('aggregates, ranks and formats rows', () => {
@@ -201,6 +290,26 @@ describe('Funnel', () => {
 });
 
 describe('BarChart', () => {
+  it('keeps net labels accurate for mixed signs and survives changes to the visible groups', () => {
+    const data = [
+      { category: 'A', gains: 10, losses: -4 },
+      { category: 'B', gains: 20, losses: -8 },
+    ];
+    const { container, rerender } = render(
+      <BarChart data={data} x="category" y={['gains', 'losses']} stack orientation="horizontal" />,
+    );
+    expect([...container.querySelectorAll('.q-bar-value')].map((n) => n.textContent)).toEqual([
+      '6',
+      '12',
+    ]);
+    fireEvent.click(screen.getByRole('button', { name: 'Gains' }));
+    rerender(<BarChart data={data} x="category" y="gains" stack orientation="horizontal" />);
+    expect(container.querySelectorAll('.q-bar-marks path')).toHaveLength(2);
+    expect([...container.querySelectorAll('.q-bar-value')].map((n) => n.textContent)).toEqual([
+      '10',
+      '20',
+    ]);
+  });
   it('sums rows per category and summarizes the extremes', () => {
     render(<BarChart data={orders} x="region" y="amount" />);
     expect(
@@ -257,6 +366,32 @@ describe('BarChart', () => {
 });
 
 describe('AreaChart', () => {
+  it('shows net totals while keeping both sides of mixed-sign stacks within the plot', () => {
+    const { container } = render(
+      <AreaChart
+        data={[
+          { d: '2026-01-01', gains: 100, losses: -90 },
+          { d: '2026-01-02', gains: 200, losses: -180 },
+        ]}
+        x="d"
+        y={['gains', 'losses']}
+        curve="linear"
+        stack
+      />,
+    );
+    const rows = within(screen.getByRole('table')).getAllByRole('row');
+    expect(rows.slice(1).map((r) => r.lastElementChild?.textContent)).toEqual(['10', '20']);
+    const edges = [...container.querySelectorAll('.q-area-edge')];
+    expect(edges).toHaveLength(2);
+    for (const path of edges) {
+      const coordinates = (path.getAttribute('d') ?? '').match(/-?\d+(?:\.\d+)?/g)?.map(Number);
+      expect(coordinates?.length).toBe(4);
+      for (const y of [coordinates?.[1], coordinates?.[3]]) {
+        expect(y).toBeGreaterThanOrEqual(0);
+        expect(y).toBeLessThanOrEqual(240);
+      }
+    }
+  });
   it('adds a total to the summary when stacked', () => {
     render(
       <AreaChart

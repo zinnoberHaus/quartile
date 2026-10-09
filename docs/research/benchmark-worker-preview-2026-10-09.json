@@ -1,0 +1,87 @@
+{
+  "description": "Synchronous in-memory filtering only; excludes browser rendering, layout, network and React updates.",
+  "measuredAt": "2026-10-09T20:29:08.351Z",
+  "node": "v22.12.0",
+  "platform": "darwin",
+  "arch": "arm64",
+  "cpu": "Apple M3 Max",
+  "warmup": 20,
+  "samples": 50,
+  "predicates": [
+    {
+      "field": "region",
+      "op": "in",
+      "value": ["Europe", "Americas"]
+    },
+    {
+      "field": "amount",
+      "op": "between",
+      "value": [100, 600]
+    },
+    {
+      "field": "active",
+      "op": "eq",
+      "value": true
+    }
+  ],
+  "cases": [
+    {
+      "rows": 1000,
+      "matched": 267,
+      "medianMs": 0.063,
+      "p95Ms": 0.167
+    },
+    {
+      "rows": 10000,
+      "matched": 2667,
+      "medianMs": 0.654,
+      "p95Ms": 0.833
+    },
+    {
+      "rows": 100000,
+      "matched": 26667,
+      "medianMs": 8.37,
+      "p95Ms": 13.228
+    }
+  ],
+  "artifacts": [
+    {
+      "name": "index.js",
+      "bytes": 387925,
+      "gzipBytes": 85327
+    },
+    {
+      "name": "styles.css",
+      "bytes": 120295,
+      "gzipBytes": 20812
+    },
+    {
+      "name": "schema.json",
+      "bytes": 46870,
+      "gzipBytes": 5500
+    }
+  ],
+  "entryGraphs": [
+    {
+      "entry": "index.js",
+      "description": "Reachable local JS files before application tree-shaking; external dependencies and worker/Wasm assets excluded.",
+      "files": ["chunk-DRQRGSPC.js", "chunk-HKPNS4HY.js", "index.js"],
+      "bytes": 476792,
+      "gzipBytes": 107812
+    },
+    {
+      "entry": "query/index.js",
+      "description": "Reachable local JS files before application tree-shaking; external dependencies and worker/Wasm assets excluded.",
+      "files": ["chunk-DRQRGSPC.js", "chunk-HKPNS4HY.js", "query/index.js"],
+      "bytes": 99918,
+      "gzipBytes": 25884
+    },
+    {
+      "entry": "duckdb/index.js",
+      "description": "Reachable local JS files before application tree-shaking; external dependencies and worker/Wasm assets excluded.",
+      "files": ["chunk-HKPNS4HY.js", "duckdb/index.js"],
+      "bytes": 25681,
+      "gzipBytes": 7624
+    }
+  ]
+}

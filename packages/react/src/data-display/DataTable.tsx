@@ -14,6 +14,7 @@ import { Button } from '../components/button/Button';
 import { type DeltaKind, makeFormatter } from '../data/format';
 import type { Predicate, Primitive } from '../data/predicates';
 import { fieldOf, resolveData } from '../data/schema';
+import { typedValueKey } from '../data/typed-key';
 import type { DataInput, FieldDef, Formatter, Row } from '../data/types';
 import { IconArrowDown, IconArrowUp, IconCheck, IconMinus } from '../icons';
 import { cx } from '../lib/cx';
@@ -85,6 +86,10 @@ export interface DataTableProps<R extends Row = Row> extends ChartStateProps {
   sort?: string | null;
   defaultSort?: string;
   onSortChange?: (sort: string | null) => void;
+  /** Rows are already ordered by an external query. Headers still publish onSortChange. */
+  manualSort?: boolean;
+  /** Preserve physical field identities for prepared query results (including nominal dates). */
+  typedSelection?: boolean;
   /** Keeps only the first N rows after sorting. */
   limit?: number;
   /** Paginates with Previous / Next in the footer. */
@@ -184,6 +189,8 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
     sort: sortProp,
     defaultSort,
     onSortChange,
+    manualSort = false,
+    typedSelection = false,
     limit,
     pageSize,
     rowKey,
@@ -233,7 +240,10 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
     });
   }, [linked, transform, groupBy, columns]);
 
-  const sorted = useMemo(() => sortRows(derived, parseSort(sortValue)), [derived, sortValue]);
+  const sorted = useMemo(
+    () => (manualSort ? derived : sortRows(derived, parseSort(sortValue))),
+    [derived, sortValue, manualSort],
+  );
   const shown = useMemo(() => (limit != null ? sorted.slice(0, limit) : sorted), [sorted, limit]);
 
   const cols: ColumnModel[] = useMemo(() => {
@@ -293,15 +303,36 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
   // Selection state
   const interactive = !!(select && sel) || !!onRowClick;
   const selPredicate = select && sel ? sel.get(select) : undefined;
+  const selectKey = (value: unknown) =>
+    typedSelection
+      ? typedValueKey(value, select ? schema[select]?.type : undefined)
+      : valueKey(value);
   const selectedKeys = useMemo(
-    () => new Set(selectedValues(selPredicate).map(valueKey)),
-    [selPredicate],
+    () =>
+      new Set(
+        selectedValues(selPredicate).map((value) =>
+          typedSelection
+            ? typedValueKey(value, select ? schema[select]?.type : undefined)
+            : valueKey(value),
+        ),
+      ),
+    [selPredicate, typedSelection, schema, select],
   );
-  const isSelected = (r: Row) => !!select && selectedKeys.has(valueKey(r[select]));
+  const isSelected = (r: Row) => !!select && selectedKeys.has(selectKey(r[select]));
   const toggleRow = (r: Row) => {
     if (select && sel) {
       const v = r[select] as Primitive;
-      sel.toggle(select, v, { source, multiple });
+      if (typedSelection) {
+        const previous = selectedValues(sel.get(select));
+        const key = selectKey(v);
+        const present = previous.some((item) => selectKey(item) === key);
+        const next = present
+          ? previous.filter((item) => selectKey(item) !== key)
+          : multiple
+            ? [...previous, v]
+            : [v];
+        sel.set(select, next, { source, op: 'in' });
+      } else sel.toggle(select, v, { source, multiple });
     }
     onRowClick?.(r);
   };
@@ -424,13 +455,15 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
     typeof rowKey === 'function'
       ? rowKey(r, i)
       : rowKey
-        ? valueKey(r[rowKey])
+        ? typedSelection
+          ? typedValueKey(r[rowKey], schema[rowKey]?.type)
+          : valueKey(r[rowKey])
         : groupBy
           ? valueKey(r[groupBy])
           : String(i);
 
   const selectedCount = selectedKeys.size;
-  const visibleKeys = bodyRows.map((r) => (select ? valueKey(r[select]) : ''));
+  const visibleKeys = bodyRows.map((r) => (select ? selectKey(r[select]) : ''));
   const allChecked =
     showCheck && bodyRows.length > 0 && visibleKeys.every((k) => selectedKeys.has(k));
   const someChecked = showCheck && visibleKeys.some((k) => selectedKeys.has(k));

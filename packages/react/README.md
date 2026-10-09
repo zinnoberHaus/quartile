@@ -70,14 +70,17 @@ the trend charts. Use `dataset(rows, fields)` to override inferred field types, 
 - Light and dark themes, comfortable and compact density, and shared `--q-*` tokens.
 - Keyboard navigation, chart summaries and table fallbacks (`view="table"`).
 - `validateSpec`, `SpecView` and `@quartile/react/schema.json` for declarative dashboards.
+- Optional `@quartile/react/query` views and `@quartile/react/duckdb` Arrow ingestion and worker queries. The database and Arrow peers are opt-in.
+- SVG, Canvas and WebGL scatter plots, with capability fallback and paged exact-data access.
 
 See the repository's [architecture guide](https://github.com/zinnoberHaus/quartile/blob/main/docs/architecture.md),
 [examples](https://github.com/zinnoberHaus/quartile/tree/main/apps/gallery), and
 [contributing guide](https://github.com/zinnoberHaus/quartile/blob/main/CONTRIBUTING.md).
 
-Charts currently render SVG and filter rows in memory. Canvas, WebGL, Arrow and DuckDB adapters
-are not included. No production scale limit is claimed; screen-reader testing with NVDA, JAWS
-and VoiceOver remains outstanding.
+Read the [worker query guide](https://github.com/zinnoberHaus/quartile/blob/main/docs/guides/worker-queries.md)
+for the pinned DuckDB/Arrow pair, assets, bounded result plans and ownership. Canvas/WebGL currently
+cover scatter points; other charts render SVG. No universal production scale limit is claimed;
+screen-reader testing with NVDA, JAWS and VoiceOver remains outstanding.
 
 ## License
 

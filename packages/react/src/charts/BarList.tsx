@@ -2,11 +2,12 @@ import { type KeyboardEvent, useMemo, useRef, useState } from 'react';
 import { deltaTone, formatDelta, makeFormatter } from '../data/format';
 import type { Predicate } from '../data/predicates';
 import { fieldOf, resolveData } from '../data/schema';
+import { typedValueKey } from '../data/typed-key';
 import type { DataInput, Formatter, Row } from '../data/types';
 import { useQuartile } from '../provider/QuartileProvider';
 import { useLinkedRows, useSourceId } from '../selection/Selection';
 import { type ChartBaseProps, ChartFrame, type ChartTable, statusOf } from './core/ChartFrame';
-import { type Aggregate, aggregateBy, type SortOrder } from './core/trends-aggregate';
+import { type Aggregate, aggregateBy, type Bucket, type SortOrder } from './core/trends-aggregate';
 import { listFormat } from './core/trends-format';
 import { useToggleSelect } from './core/trends-select';
 
@@ -19,6 +20,8 @@ export interface BarListProps<R extends Row = Row> extends ChartBaseProps {
   value?: keyof R & string;
   /** How rows sharing a category combine. Defaults to sum with a value, count without. */
   aggregate?: Aggregate;
+  /** One already-aggregated numeric value per distinct, typed category. Skips raw-row grouping. */
+  prepared?: boolean;
   /** Ranking order. Defaults to descending. */
   sort?: SortOrder;
   /** Shows at most this many rows; the rest are summarized in a footer line. */
@@ -53,6 +56,7 @@ export function BarList<R extends Row = Row>(props: BarListProps<R>) {
     category,
     value,
     aggregate = value ? 'sum' : 'count',
+    prepared = false,
     sort = 'desc',
     limit,
     format,
@@ -71,16 +75,30 @@ export function BarList<R extends Row = Row>(props: BarListProps<R>) {
   const source = useSourceId(id);
   const { rows: allRows, schema } = useMemo(() => resolveData(data), [data]);
   const { rows, selection: sel } = useLinkedRows(allRows, { selection, source });
-  const picker = useToggleSelect(sel, category, source, onSelect);
+  const picker = useToggleSelect(
+    sel,
+    category,
+    source,
+    onSelect,
+    prepared ? (raw) => typedValueKey(raw, schema[category]?.type) : undefined,
+  );
   const [announce, setAnnounce] = useState('');
   const listRef = useRef<HTMLDivElement>(null);
 
   const catField = fieldOf(schema, category, rows);
   const valueField = value ? fieldOf(schema, value, rows) : undefined;
-  const buckets = useMemo(
-    () => aggregateBy(rows, category, { value, aggregate, sort, delta }),
-    [rows, category, value, aggregate, sort, delta],
-  );
+  const buckets = useMemo(() => {
+    if (!prepared) return aggregateBy(rows, category, { value, aggregate, sort, delta });
+    const groups: Bucket[] = rows.map((row) => ({
+      key: typedValueKey(row[category], schema[category]?.type),
+      raw: row[category],
+      value: value ? Number(row[value]) : 1,
+      count: 1,
+    }));
+    if (sort !== 'none')
+      groups.sort((a, b) => (sort === 'asc' ? a.value - b.value : b.value - a.value));
+    return groups;
+  }, [prepared, rows, category, value, aggregate, sort, delta, schema]);
   const fmtV = useMemo(
     () =>
       makeFormatter(listFormat(valueField, aggregate, format), {
@@ -89,7 +107,10 @@ export function BarList<R extends Row = Row>(props: BarListProps<R>) {
       }),
     [valueField, aggregate, format, locale],
   );
-  const fmtC = useMemo(() => makeFormatter(catField.format, { locale }), [catField, locale]);
+  const fmtC = useMemo(() => {
+    const format = makeFormatter(catField.format, { locale });
+    return (raw: unknown) => (prepared && raw === '' ? '(empty string)' : format(raw));
+  }, [catField, locale, prepared]);
 
   const shown = limit != null ? buckets.slice(0, Math.max(0, limit)) : buckets;
   const rest = buckets.slice(shown.length);

@@ -11,6 +11,8 @@ Quartile is an Apache-2.0 React preview. Start with a working example, then adap
 | Fit an existing React/Next.js app | [Integration and theming](integration.md) | [Provider](../../packages/react/src/provider/QuartileProvider.tsx) |
 | Ship an inclusive analytic surface | [Accessibility](accessibility.md) | [Chart core](../../packages/react/src/charts/core/a11y.ts) |
 | Choose an appropriate data size | [Performance](performance.md) | [Reproducible benchmark](../../scripts/benchmark.mjs) |
+| Query Arrow data in a browser worker | [Worker queries](worker-queries.md) | [Scale explorer](../../apps/gallery/src/examples/scale) |
+| Choose SVG, Canvas or WebGL scatter points | [Renderers](renderers.md) | [Scatter renderers](../../packages/react/src/charts/renderers) |
 
 The public [architecture](../architecture.md), [decision record](../decisions/0001-react-typescript-css-variables.md), and [brand guide](../brand.md) describe the implementation choices. The generated declaration file in a built package is the exact TypeScript API; `schema.json` describes the supported declarative subset.
 

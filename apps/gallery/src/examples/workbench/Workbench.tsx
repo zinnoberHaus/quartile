@@ -302,6 +302,7 @@ export function Workbench({ kind }: { kind: WorkbenchKind }) {
           <Link to="/examples/saas">SaaS</Link>
           <Link to="/examples/operations">Operations</Link>
           <Link to="/examples/ai-dashboard">JSON dashboard</Link>
+          <Link to="/examples/scale">Worker queries</Link>
         </nav>
         <a href={links.docs}>Docs</a>
       </header>

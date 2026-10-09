@@ -10,6 +10,9 @@ const StorefrontExample = lazy(() =>
 const Workbench = lazy(() =>
   import('./examples/workbench/Workbench').then((m) => ({ default: m.Workbench })),
 );
+const ScaleWorkbench = lazy(() =>
+  import('./examples/scale/ScaleWorkbench').then((m) => ({ default: m.ScaleWorkbench })),
+);
 
 // The scratch page is for local development only and is left out of production builds.
 const Scratch = import.meta.env.DEV
@@ -30,6 +33,8 @@ export function App() {
     <Suspense fallback={<p role="status">Loading Quartile…</p>}>
       {path.startsWith('/examples/storefront') ? (
         <StorefrontExample />
+      ) : path === '/examples/scale' ? (
+        <ScaleWorkbench />
       ) : path.startsWith('/examples/') &&
         (kind === 'saas' || kind === 'operations' || kind === 'ai-dashboard') ? (
         <Workbench key={kind} kind={kind} />

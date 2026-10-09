@@ -15,10 +15,10 @@ This maps the supplied Quartile design's product claims to the implemented publi
 | Broader analytic use cases | Subscription portfolio, operations, and declarative dashboard workbenches | [Recipes](guides/use-cases.md); samples are fictional, not provisioned backends |
 | Machine-readable components | JSON Schema, validator, and spec renderer | [Spec](../packages/react/src/spec); no bundled model or arbitrary-code execution |
 | Accessibility features | Keyboard models, generated summaries, chart table fallbacks | [Guide](guides/accessibility.md); manual screen-reader compatibility audit remains open |
-| Performance evidence | Reproducible predicate filtering and artifact-size benchmark | [Measured sample](research/benchmark-2026-10-09.json); excludes React/browser painting and end-to-end latency |
-| Canvas/WebGL renderer switching | Not implemented | Requires a renderer contract, interaction parity, visual testing, and measured thresholds |
-| Arrow/DuckDB and worker query execution | Not implemented | Current data input is rows or `dataset`; requires a separately tested data/query adapter |
-| Million-row application behavior | Not established | Requires representative filter-to-paint and memory measurements, not extrapolation from the filtering microbenchmark |
+| Performance evidence | Reproducible filtering/entry-size benchmark and 93 production-browser observations | [Filtering/artifacts](research/benchmark-worker-preview-2026-10-09.json), [browser report](../apps/gallery/src/examples/scale/MEASUREMENTS.md); frame opportunities are not guaranteed screen presentation, and JS heap excludes worker/Wasm/GPU memory |
+| Canvas/WebGL renderer switching | Implemented for scatter points; other chart marks remain SVG | [Renderer contract](decisions/0003-accelerated-scatter.md), [guide](guides/renderers.md), capability fallback and paged exact data; no automatic scale threshold |
+| Arrow/DuckDB and worker query execution | Optional Arrow 17 / DuckDB-Wasm 1.32 adapter, bounded linked views and remote pages | [Worker guide](guides/worker-queries.md), [decision](decisions/0002-worker-query-sources.md), [runnable explorer](../apps/gallery/src/examples/scale); active cancellation suppresses results but does not guarantee engine interruption |
+| Million-row application behavior | Verified for the deterministic, bounded worker example | [Measured fixture](../apps/gallery/src/examples/scale/MEASUREMENTS.md) returns 2,030 rows across four views; this does not establish arbitrary million-mark rendering, total-memory limits or universal product capacity |
 | Package publication and stable release | Locally packed source preview | Clean React 18/19 consumers verified; npm publication/name clearance and stable API gate remain open |
 
 The mockup's adoption figures, sponsor/community links, version 1.0, and fixed bundle-size claims are not factual release metadata and are not used as evidence. The actual repository license is Apache-2.0.

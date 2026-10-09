@@ -211,6 +211,12 @@ const COMPONENT_DEFS: Record<string, JsonSchema> = {
     'ScatterPlot',
     'The relationship between two measures.',
     {
+      renderer: {
+        type: 'string',
+        enum: ['svg', 'canvas', 'webgl'],
+        description:
+          'Scatter point renderer. Defaults to SVG; WebGL falls back to Canvas, then SVG when unavailable.',
+      },
       x: fieldRef('Horizontal measure.'),
       y: fieldRef('Vertical measure.'),
       size: field('Point size by this field.'),

@@ -16,10 +16,12 @@ packages/react/            @quartile/react
   src/data-display/        KPI, FilterBar, DataTable: the layer between charts and UI
   src/charts/              charts and the chart core (frame, states, scales, guides, a11y)
   src/spec/                JSON Schema for components and the spec renderer
+  src/query/               optional bounded query protocol, React hook and prepared view boundary
+  src/duckdb/              optional Arrow/DuckDB adapter, typed plan compiler and ownership
 apps/gallery/              design system page (/), example app (/examples/storefront)
 ```
 
-`npm run build` in `packages/react` writes `dist/index.js`, `dist/index.d.ts`, `dist/styles.css` (every `src/**/*.css`, foundations first) and `dist/schema.json`.
+`npm run build` in `packages/react` writes the default entry, optional `query/index` and `duckdb/index` entries, shared chunks and declarations, `dist/styles.css` (every `src/**/*.css`, foundations first), and `dist/schema.json`. Keep shared contexts in shared chunks: bundling separate copies would disconnect selection across entries. The default import must not load Arrow or DuckDB. Package checks exercise all entries in clean consumers.
 
 ## Styling
 

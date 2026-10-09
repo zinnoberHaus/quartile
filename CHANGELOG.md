@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — worker queries and scatter renderers
+
+- Optional query and DuckDB entry points: Arrow ingestion, bounded aggregate/detail/histogram plans, source-excluding selection, result generation checks, cancellation, and explicit resource ownership.
+- Query KPI, category totals, and remote table pages; external table sorting preserves worker ordering and exact matching totals.
+- Canvas and WebGL scatter marks with shared selection, keyboard interaction, theme/DPR updates, capability fallback, and paged exact-data access.
+- A deterministic worker explorer and public setup, renderer, and measurement guidance. These APIs remain experimental in the unpublished preview.
+
 ## Unreleased preview
 
 - Added SaaS subscription analytics, service-health investigation, and an editable validated JSON dashboard to the gallery.

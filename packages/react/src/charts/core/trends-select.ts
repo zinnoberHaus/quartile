@@ -21,6 +21,7 @@ export function useToggleSelect(
   field: string,
   source: string,
   onSelect?: (predicate: Predicate | null) => void,
+  identity: (raw: unknown) => string = keyOf,
 ) {
   const [local, setLocal] = useState<Primitive[]>([]);
   const predicate: Predicate | undefined = sel
@@ -30,16 +31,23 @@ export function useToggleSelect(
       : undefined;
   /** True when a click-style (eq / in) predicate is active on the field. Ranges never dim marks. */
   const selecting = predicate != null && (predicate.op === 'in' || predicate.op === 'eq');
-  const has = (raw: unknown) => selecting && predicateHas(predicate, raw);
+  const has = (raw: unknown) =>
+    selecting &&
+    (identity === keyOf
+      ? predicateHas(predicate, raw)
+      : (predicate.op === 'in' ? predicate.value : [predicate.value]).some(
+          (value) => identity(value) === identity(raw),
+        ));
   const toggle = (raw: unknown) => {
     const value = toPrimitive(raw);
     if (sel) {
-      sel.toggle(field, value, { source });
+      if (identity === keyOf) sel.toggle(field, value, { source });
+      else sel.set(field, has(value) ? [] : [value], { source, op: 'in' });
       onSelect?.(sel.get(field) ?? null);
       return;
     }
-    const k = keyOf(value);
-    const next = local.some((v) => keyOf(v) === k) ? [] : [value];
+    const k = identity(value);
+    const next = local.some((v) => identity(v) === k) ? [] : [value];
     setLocal(next);
     onSelect?.(next.length ? { field, op: 'in', value: next, source } : null);
   };

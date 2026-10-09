@@ -6,7 +6,7 @@
 
 - **[Design system and component gallery](https://quartile-design.vercel.app):** components rendered live from this repository (`apps/gallery`).
 - **[Documentation](https://quartile-docs.vercel.app)** and **[public implementation guides](docs/guides/README.md)**: installation, data, selection, integration, accessibility, and performance.
-- **Runnable examples:** [storefront](https://quartile-design.vercel.app/examples/storefront), [SaaS analytics](https://quartile-design.vercel.app/examples/saas), [service health](https://quartile-design.vercel.app/examples/operations), and an [editable JSON dashboard](https://quartile-design.vercel.app/examples/ai-dashboard).
+- **Runnable examples:** [storefront](https://quartile-design.vercel.app/examples/storefront), [SaaS analytics](https://quartile-design.vercel.app/examples/saas), [service health](https://quartile-design.vercel.app/examples/operations), an [editable JSON dashboard](https://quartile-design.vercel.app/examples/ai-dashboard), and the [worker query explorer](https://quartile-design.vercel.app/examples/scale).
 
 ## Why another data-viz library
 
@@ -17,6 +17,8 @@ Chart libraries stop at the chart. UI kits stop at the form. Teams glue the two 
 - **One selection.** Wrap views in `<Selection>`. Brushes, clicks and filter chips publish predicates to a shared store; every other view re-filters, and a view is never filtered by its own selection (crossfilter semantics).
 - **Accessible charts by default.** Every chart has a keyboard model, an auto-written screen-reader summary and a table fallback (`view="table"`).
 - **Machine-readable.** Components are described by JSON Schema (`@quartile/react/schema.json`). `validateSpec` checks a generated dashboard spec and `<SpecView>` renders it.
+- **Optional worker queries.** Arrow input and DuckDB-backed bounded queries link metrics, category totals and remote table pages. [Setup and semantics](docs/guides/worker-queries.md).
+- **Scatter renderer choice.** Use SVG, Canvas, or WebGL for scatter points, with shared selection, keyboard navigation and paged exact data. [Coverage and fallbacks](docs/guides/renderers.md).
 
 How this compares with Recharts, ECharts, Observable Plot, Unovis, shadcn/ui charts, Tremor, MUI X, Mosaic and others, with sources: [docs/research/landscape-2026-10.md](docs/research/landscape-2026-10.md).
 
@@ -65,8 +67,8 @@ Read [docs/architecture.md](docs/architecture.md) before adding a component, and
 The [design coverage audit](docs/design-coverage.md) maps the original design to implementation evidence and remaining gaps.
 
 - **npm release.** `@quartile/react` is not published. The name, npm scope and domain need clearance first.
-- **Renderers and data sources.** Charts render SVG. There is no Canvas or WebGL renderer, and no Arrow or DuckDB input; the selection store filters in-memory rows.
-- **Scale.** A [filtering microbenchmark](docs/guides/performance.md) is reproducible; browser rendering limits and end-to-end performance targets have not been established.
+- **Renderer coverage.** Canvas and WebGL currently cover scatter plots. Other chart marks use SVG; automatic renderer thresholds are not established.
+- **Scale.** The [worker explorer](https://quartile-design.vercel.app/examples/scale) reports actual bounded-query timings. [Measurement guidance](docs/guides/performance.md) describes their limits; no universal row-count or device-performance guarantee is claimed.
 - **Screen-reader testing.** The keyboard model, summaries and table fallbacks exist, but they have not been tested with NVDA, JAWS or VoiceOver yet.
 
 ## Contributing

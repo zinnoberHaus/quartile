@@ -21,3 +21,24 @@ jobs:
       - run: pnpm test
       - run: pnpm build
       - run: pnpm --filter @quartile/react test:package
+      - name: Install browser for integration verification
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Verify linked queries in a production browser build
+        run: |
+          pnpm --filter @quartile/gallery preview --host 127.0.0.1 --port 4178 --strictPort > /tmp/quartile-preview.log 2>&1 &
+          quartile_preview_pid=$!
+          trap 'kill "$quartile_preview_pid"' EXIT
+          for attempt in {1..60}; do
+            if curl --fail --silent http://127.0.0.1:4178/ > /dev/null; then break; fi
+            sleep 1
+          done
+          node apps/gallery/src/examples/scale/verify.mjs http://127.0.0.1:4178 /tmp/quartile-browser-evidence
+      - name: Save browser evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: browser-evidence
+          path: |
+            /tmp/quartile-browser-evidence
+            /tmp/quartile-preview.log
+          if-no-files-found: ignore

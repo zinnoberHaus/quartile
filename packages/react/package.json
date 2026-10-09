@@ -31,6 +31,14 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./query": {
+      "types": "./dist/query/index.d.ts",
+      "import": "./dist/query/index.js"
+    },
+    "./duckdb": {
+      "types": "./dist/duckdb/index.d.ts",
+      "import": "./dist/duckdb/index.js"
+    },
     "./styles.css": "./dist/styles.css",
     "./schema.json": "./dist/schema.json"
   },
@@ -48,23 +56,36 @@
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
+    "@duckdb/duckdb-wasm": "1.32.0",
+    "apache-arrow": "17.0.0",
     "react": ">=18.2",
     "react-dom": ">=18.2"
+  },
+  "peerDependenciesMeta": {
+    "@duckdb/duckdb-wasm": {
+      "optional": true
+    },
+    "apache-arrow": {
+      "optional": true
+    }
   },
   "dependencies": {
     "@types/d3-scale": "4.0.9",
     "@types/d3-shape": "3.2.0",
+    "@types/emscripten": "1.41.6",
     "d3-array": "^3.2.4",
     "d3-sankey": "^0.12.3",
     "d3-scale": "^4.0.2",
     "d3-shape": "^3.2.0"
   },
   "devDependencies": {
+    "@duckdb/duckdb-wasm": "1.32.0",
     "@testing-library/react": "16.3.3",
     "@types/d3-array": "3.2.2",
     "@types/d3-sankey": "0.12.5",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
+    "apache-arrow": "17.0.0",
     "jsdom": "30.1.2",
     "react": "19.3.0",
     "react-dom": "19.3.0",

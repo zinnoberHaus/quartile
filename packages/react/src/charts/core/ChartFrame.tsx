@@ -1,4 +1,4 @@
-import { type CSSProperties, type ReactNode, useRef } from 'react';
+import { type CSSProperties, type ReactNode, useRef, useState } from 'react';
 import { cx } from '../../lib/cx';
 import { useElementSize } from '../../lib/useElementSize';
 
@@ -26,7 +26,7 @@ export interface ChartBaseProps extends ChartStateProps {
   'aria-label'?: string;
   /**
    * `table` renders the same data as a table, with the same formats, at the chart's size.
-   * Screen readers always get the table; this makes it visible.
+   * Large lazy tables expose a data-view control rather than mounting every hidden row.
    */
   view?: 'chart' | 'table';
 }
@@ -37,6 +37,12 @@ export interface ChartTable {
   rows: (string | number)[][];
   /** Index of columns that hold numbers, right-aligned in mono. Defaults to every column but the first. */
   numeric?: number[];
+  /** For large charts: format an exact row on demand instead of constructing every row up front. */
+  getRow?: (index: number) => (string | number)[];
+  /** Total rows available through `getRow`; defaults to `rows.length`. */
+  rowCount?: number;
+  /** Bound the rendered rows and expose an explicit data view with pagination. */
+  pageSize?: number;
 }
 
 export function statusOf(p: ChartStateProps, rowCount: number): ChartStatus {
@@ -74,6 +80,11 @@ export function ChartFrame({
 }: ChartFrameProps) {
   const ref = useRef<HTMLDivElement>(null);
   const { width } = useElementSize(ref);
+  const [dataView, setDataView] = useState(false);
+  const paginated = !!table?.pageSize;
+  const showTable = view === 'table' || (paginated && dataView);
+  const toggle = paginated && view === 'chart' && status === 'ready';
+  const contentHeight = Math.max(1, height - (toggle ? 28 : 0));
   return (
     <div
       ref={ref}
@@ -84,11 +95,28 @@ export function ChartFrame({
       aria-label={ariaLabel ?? kind}
       aria-busy={status === 'loading' || undefined}
     >
-      {status === 'ready' && view === 'chart' && width > 0 ? children({ width, height }) : null}
+      {toggle && (
+        <div className="q-chart-data-access">
+          <button type="button" onClick={() => setDataView((value) => !value)}>
+            {dataView
+              ? 'View chart'
+              : `View data table (${table?.rowCount ?? table?.rows.length ?? 0} rows)`}
+          </button>
+        </div>
+      )}
+      {status === 'ready' && !showTable && width > 0
+        ? children({ width, height: contentHeight })
+        : null}
       {status !== 'ready' && <ChartState status={status} {...state} />}
       {summary && status === 'ready' ? <p className="q-visually-hidden">{summary}</p> : null}
-      {table && status === 'ready' ? (
-        <ChartDataTable table={table} caption={ariaLabel ?? kind} visible={view === 'table'} />
+      {table && status === 'ready' && (!paginated || showTable) ? (
+        paginated ? (
+          <div style={{ height: contentHeight, position: 'relative' }}>
+            <ChartDataTable table={table} caption={ariaLabel ?? kind} visible />
+          </div>
+        ) : (
+          <ChartDataTable table={table} caption={ariaLabel ?? kind} visible={showTable} />
+        )
       ) : null}
     </div>
   );
@@ -105,9 +133,39 @@ export function ChartDataTable({
   visible?: boolean;
 }) {
   const numeric = new Set(table.numeric ?? table.columns.map((_, i) => i).slice(1));
+  const count = table.getRow ? (table.rowCount ?? table.rows.length) : table.rows.length;
+  const pageSize = Math.max(1, Math.floor(table.pageSize ?? Math.max(1, count)));
+  const [requestedPage, setPage] = useState(0);
+  const pages = Math.max(1, Math.ceil(count / pageSize));
+  const page = Math.min(requestedPage, pages - 1);
+  const start = page * pageSize;
+  const end = Math.min(count, start + pageSize);
+  const rows = Array.from({ length: Math.max(0, end - start) }, (_, offset) =>
+    table.getRow ? table.getRow(start + offset) : table.rows[start + offset],
+  );
   return (
-    <div className={visible ? 'q-chart-table' : 'q-visually-hidden'}>
-      <table>
+    <div
+      className={visible ? 'q-chart-table' : 'q-visually-hidden'}
+      data-paginated={!!table.pageSize || undefined}
+    >
+      {table.pageSize && (
+        <div
+          role="group"
+          className="q-chart-table-pagination"
+          aria-label={`${caption ?? 'Chart'} table pages`}
+        >
+          <button type="button" disabled={page === 0} onClick={() => setPage(page - 1)}>
+            Previous rows
+          </button>
+          <span aria-live="polite">
+            {count ? start + 1 : 0}–{end} of {count}
+          </span>
+          <button type="button" disabled={page === pages - 1} onClick={() => setPage(page + 1)}>
+            Next rows
+          </button>
+        </div>
+      )}
+      <table aria-rowcount={count + 1}>
         {caption && <caption className="q-visually-hidden">{caption}</caption>}
         <thead>
           <tr>
@@ -119,8 +177,8 @@ export function ChartDataTable({
           </tr>
         </thead>
         <tbody>
-          {table.rows.map((r, ri) => (
-            <tr key={ri}>
+          {rows.map((r, ri) => (
+            <tr key={start + ri} aria-rowindex={start + ri + 2}>
               {r.map((v, ci) =>
                 ci === 0 ? (
                   <th key={ci} scope="row">

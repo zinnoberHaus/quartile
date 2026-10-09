@@ -4,7 +4,7 @@ Date: 2026-10-09 · Status: accepted for the preview · Issue: #9
 
 ## Decision
 
-`ScatterPlot` accepts `renderer="svg" | "canvas" | "webgl"`; SVG remains the default. This revises the SVG-only renderer portion of ADR 0001 for ScatterPlot only. All other charts remain SVG. There is no automatic row-count threshold and no universal million-row claim.
+`ScatterPlot` accepts `renderer="svg" | "canvas" | "webgl"`; SVG remains the default. This revises the SVG-only renderer portion of ADR 0001 for ScatterPlot only. Other charts keep their existing renderer and do not expose this renderer option. There is no automatic row-count threshold and no universal million-row claim.
 
 The three renderers consume the same projected, radius-ordered marks. Canvas uses actual Canvas2D drawing; WebGL uses a vertex buffer and circle point-sprite shaders. Axes, grid, focus indicator, tooltip, summary, keyboard navigation and selection stay in React/SVG. Picking uses a screen-space grid and the same distance-to-circle rule for all renderers. Coordinates and radii remain CSS pixels; the backing store and WebGL point sizes use the current device pixel ratio.
 

@@ -1,6 +1,6 @@
 # Scatter renderers
 
-`ScatterPlot` supports `renderer="svg"`, `renderer="canvas"` and `renderer="webgl"`. SVG remains the default, including when a dashboard spec omits the prop. Every other chart currently renders SVG. These are preview APIs; the package is not published to npm.
+`ScatterPlot` supports `renderer="svg"`, `renderer="canvas"` and `renderer="webgl"`. SVG remains the default, including when a dashboard spec omits the prop. Other charts currently do not expose accelerated renderer selection. These are preview APIs; the package is not published to npm.
 
 ```tsx
 import { ScatterPlot, type ScatterRendererState } from '@quartile/react';

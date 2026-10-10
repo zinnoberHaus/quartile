@@ -52,6 +52,8 @@ Charts measure their container in the browser. Server markup is not proof of fin
 
 Keep networking in your application. Charts accept `loading`, `error`, `onRetry`, and `empty` state props; avoid replacing a failed query with zero-valued data. Memoize stable dataset construction when useful and replace arrays when results change. For multiple widgets, isolate selection contexts. For very large datasets, return bounded/aggregated results from the server; see [performance](performance.md).
 
+The [API recipes](api-data.md) show real public requests, schema normalization, units, attribution and explicit failure handling. Copy the standalone helper into an existing app, or use [Studio](studio.md) to arrange the views and download a Vite starter with native React source and its matching helper. Studio's browser adapter supports public HTTPS JSON with CORS; keep authentication and private data access on your own server.
+
 ## Tables, analyst runtimes and AI
 
 Use [DataExplorer](tables.md) for local table view state and controlled edit callbacks. Its filters/search refine its own table; shared chart predicates still live in `Selection`. Persist validated view JSON separately from source records and authorization. An edit callback must update caller data; the component has no database write capability.

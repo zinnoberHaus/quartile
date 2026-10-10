@@ -105,6 +105,7 @@ export function DesignSystemPage() {
           <Link to="/examples/explore">Data science</Link>
           <Link to="/examples/assistant">AI workbench</Link>
           <Link to="/examples/scale">Worker queries</Link>
+          <Link to="/studio">App Studio</Link>
           <a href={links.github}>GitHub</a>
         </nav>
       </header>
@@ -114,14 +115,14 @@ export function DesignSystemPage() {
             <div key={g.group} className="g-nav-group">
               <span className="g-nav-heading">{g.group}</span>
               {g.items.map(([id, label]) => (
-                <a
+                <Link
                   key={id}
-                  href={`#${id}`}
+                  to={`#${id}`}
                   className="g-nav-link"
                   aria-current={active === id ? 'true' : undefined}
                 >
                   {label}
-                </a>
+                </Link>
               ))}
             </div>
           ))}

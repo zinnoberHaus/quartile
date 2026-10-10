@@ -5,6 +5,8 @@ Quartile is an Apache-2.0 React preview. Start with a working example, then adap
 | Task | Guide | Working source |
 | --- | --- | --- |
 | Try the library in an existing app | [Install the preview](installation.md) | [Gallery workspace](../../apps/gallery) |
+| Fetch weather, earthquake or development data | [Connect API data](api-data.md) | [Standalone source adapter](../../apps/gallery/src/examples/studio/sources.ts) |
+| Build visually and export a React starter | [Visual Studio](studio.md) | [Studio application](../../apps/gallery/src/examples/studio) |
 | Model rows and coordinate views | [Data and linked selection](data-and-selection.md) | [Linked-selection demo](../../apps/gallery/src/design-system/sections/LinkedSelection.tsx) |
 | Build revenue, SaaS, or operations analytics | [Use cases](use-cases.md) | [Storefront](../../apps/gallery/src/examples/storefront), [workbench](../../apps/gallery/src/examples/workbench) |
 | Render a validated dashboard spec | [Generated dashboards](generated-dashboards.md) | [Editable spec playground](../../apps/gallery/src/examples/workbench/Workbench.tsx) |

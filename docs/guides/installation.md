@@ -13,7 +13,11 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-Open `http://localhost:5173`. Routes include `/examples/storefront`, `/examples/saas`, `/examples/operations`, and `/examples/ai-dashboard`. All sample data is fictional and deterministic.
+Open `http://localhost:5173`. Routes include `/examples/storefront`, `/examples/saas`, `/examples/operations`, and `/examples/ai-dashboard`; those examples use fictional deterministic rows. [Studio](studio.md) at `/studio` makes real public API requests and supports custom public JSON. [API data](api-data.md) documents its sources and normalization.
+
+## Start visually
+
+[Open Studio](https://quartile-design.vercel.app/studio) to arrange a view and download a runnable Vite starter. The ZIP includes native React source, its data helper and the built preview tarball. Use Node 22.12 or newer, unzip, run `npm install`, then `npm run dev`. Other dependencies still install from npm; Quartile resolves from the bundled local file. See [the export contract](studio.md#export-and-continue-in-react).
 
 ## Install into your React app
 

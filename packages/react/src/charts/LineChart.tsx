@@ -3,7 +3,7 @@ import { area as d3area, line as d3line } from 'd3-shape';
 import { type PointerEvent, useId, useMemo, useRef, useState } from 'react';
 import { formatDelta, makeFormatter } from '../data/format';
 import type { Predicate } from '../data/predicates';
-import { fieldOf, resolveData, toComparable } from '../data/schema';
+import { fieldOf, resolveData, toComparable, toDate } from '../data/schema';
 import type { DataInput, FieldDef, Formatter, Row } from '../data/types';
 import { useQuartile } from '../provider/QuartileProvider';
 import { useLinkedRows, useSourceId } from '../selection/Selection';
@@ -110,11 +110,22 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
   const model = useMemo(() => {
     const xField = fieldOf(schema, x, rows);
     const yFields = (Array.isArray(y) ? y : [y]).map((f) => fieldOf(schema, f, rows));
-    const sorted = [...rows].sort((a, b) => {
-      const av = toComparable(a[x]);
-      const bv = toComparable(b[x]);
-      return av === bv ? 0 : (av as number) < (bv as number) ? -1 : 1;
-    });
+    const numericValue = (value: unknown): number | null => {
+      if (value == null || value === '') return null;
+      const number = Number(value);
+      return Number.isFinite(number) ? number : null;
+    };
+    const coordinate = (value: unknown): number | null => {
+      if (value == null || value === '') return null;
+      return xField.type === 'temporal'
+        ? numericValue(toDate(value).getTime())
+        : numericValue(value);
+    };
+    // Invalid x coordinates cannot participate in scales, keyboard navigation or brushing.
+    // Keep valid x coordinates with missing y values so the line retains visible gaps.
+    const sorted = rows
+      .filter((row) => coordinate(row[x]) !== null)
+      .sort((a, b) => coordinate(a[x])! - coordinate(b[x])!);
     const xsKeys: (number | string)[] = [];
     const xsRaw: unknown[] = [];
     const indexOf = new Map<number | string, number>();
@@ -136,7 +147,8 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
         const vals = groups.get(g)!;
         const at = indexOf.get(toComparable(r[x]) as number | string)!;
         // Rows that share an x value are summed, like AreaChart and BarChart.
-        vals[at] = (vals[at] ?? 0) + Number(r[y as string]);
+        const value = numericValue(r[y as string]);
+        if (value !== null) vals[at] = (vals[at] ?? 0) + value;
       }
       let i = 0;
       for (const [g, values] of groups) {
@@ -147,7 +159,8 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
         const values = blank();
         for (const r of sorted) {
           const at = indexOf.get(toComparable(r[x]) as number | string)!;
-          values[at] = (values[at] ?? 0) + Number(r[f.name]);
+          const value = numericValue(r[f.name]);
+          if (value !== null) values[at] = (values[at] ?? 0) + value;
         }
         series.push({ key: f.name, label: f.label, color: seriesColor(i), field: f, values });
       });
@@ -156,10 +169,10 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
     if (compare && series.length === 1) {
       const values = blank();
       for (const r of sorted) {
-        const v = r[compare];
-        if (v == null) continue;
+        const v = numericValue(r[compare]);
+        if (v === null) continue;
         const at = indexOf.get(toComparable(r[x]) as number | string)!;
-        values[at] = (values[at] ?? 0) + Number(v);
+        values[at] = (values[at] ?? 0) + v;
       }
       compareSeries = {
         key: compare,
@@ -169,6 +182,12 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
         values,
         dashed: true,
       };
+    }
+    // Finite inputs can still overflow when duplicate coordinates are summed.
+    for (const item of [...series, ...(compareSeries ? [compareSeries] : [])]) {
+      item.values = item.values.map((value) =>
+        value !== null && Number.isFinite(value) ? value : null,
+      );
     }
     return { xField, yFields, xsRaw, series, compareSeries };
   }, [rows, schema, x, y, color, compare, compareLabel]);

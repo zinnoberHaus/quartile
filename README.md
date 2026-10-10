@@ -6,6 +6,7 @@
 
 - **[Design system and component gallery](https://quartile-design.vercel.app):** components rendered live from this repository (`apps/gallery`).
 - **[Documentation](https://quartile-docs.vercel.app)** and **[public implementation guides](docs/guides/README.md)**: installation, data, selection, integration, accessibility, and performance.
+- **[Visual Studio](https://quartile-design.vercel.app/studio):** connect a real public API, arrange charts and tables, then export project JSON or a runnable React starter. [Studio guide](docs/guides/studio.md) · [API recipes](docs/guides/api-data.md).
 - **Runnable examples:** [storefront](https://quartile-design.vercel.app/examples/storefront), [SaaS analytics](https://quartile-design.vercel.app/examples/saas), [service health](https://quartile-design.vercel.app/examples/operations), an [editable JSON dashboard](https://quartile-design.vercel.app/examples/ai-dashboard), and the [worker query explorer](https://quartile-design.vercel.app/examples/scale).
 - **Data-science workspaces:** [dataset exploration](https://quartile-design.vercel.app/examples/explore), [cohort retention](https://quartile-design.vercel.app/examples/cohorts), [model evaluation](https://quartile-design.vercel.app/examples/model-evaluation), and [reviewed analysis assistance](https://quartile-design.vercel.app/examples/assistant). [Bring a pandas/Polars snapshot](examples/python) or [connect your own model backend](examples/ai-server).
 
@@ -50,6 +51,8 @@ export function OrdersExplorer({ orders }) {
 ## Develop
 
 To install the unpublished preview into another application, [build and pack it locally](docs/guides/installation.md). Do not use an npm registry install command until a release is announced.
+
+To begin visually, open [Studio](https://quartile-design.vercel.app/studio). Its downloadable starter includes a built local preview package, normal React components and a real API helper. The [API guide](docs/guides/api-data.md) also supports copying that helper into an existing app. Studio is a bounded editor for public data; private requests, deployment and persistence stay in your application.
 
 Requires Node 20.19+ and pnpm 10.
 

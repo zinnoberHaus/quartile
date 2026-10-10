@@ -1,6 +1,10 @@
 # Data-app recipes
 
-These are runnable patterns using the public package API. They use fictional data, with no authentication, persistence, or external service implied.
+These are runnable patterns using the public package API. The product and scientific examples use fictional fixtures; [Studio and API recipes](api-data.md) make real requests to named public providers. Authentication and application persistence stay with the caller.
+
+## Public API exploration
+
+Use [Studio](studio.md) for a weather forecast, earthquake event inspection or country-year life-expectancy comparison. Each starts from a real public request and preserves units, missing values and attribution. Build visually and export a React starter, or copy the [standalone API helper](api-data.md) into your existing React app. Choose charts according to row grain: hourly observations for a forecast line, individual events for a scatter plot, and country/year observations with separate country series for development data.
 
 | Use case | Live example | Source |
 | --- | --- | --- |

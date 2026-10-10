@@ -535,6 +535,7 @@ export function ScaleWorkbench() {
           <Link to="/examples/storefront">Storefront</Link>
           <Link to="/examples/operations">Operations</Link>
           <Link to="/examples/scale">Worker queries</Link>
+          <Link to="/studio">App Studio</Link>
         </nav>
         <a href={links.docs}>Docs</a>
       </header>

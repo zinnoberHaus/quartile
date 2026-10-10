@@ -1,6 +1,7 @@
 import { median as d3median, sum } from 'd3-array';
 import { type KeyboardEvent, type PointerEvent, useMemo, useRef, useState } from 'react';
 import { makeFormatter } from '../data/format';
+import { finiteNumber } from '../data/number';
 import type { Predicate } from '../data/predicates';
 import { fieldOf, resolveData, toComparable } from '../data/schema';
 import type { DataInput, Formatter, Row } from '../data/types';
@@ -83,10 +84,8 @@ export function Histogram<R extends Row = Row>(props: HistogramProps<R>) {
   const valueField = value ? fieldOf(schema, value, allRows) : null;
 
   const model = useMemo(() => {
-    const at = (r: Row) => (r[x] == null || r[x] === '' ? Number.NaN : Number(toComparable(r[x])));
-    const weight = value
-      ? (r: Row) => (r[value] == null || r[value] === '' ? Number.NaN : Number(r[value]))
-      : undefined;
+    const at = (r: Row) => finiteNumber(temporal ? toComparable(r[x]) : r[x]) ?? Number.NaN;
+    const weight = value ? (r: Row) => finiteNumber(r[value]) ?? Number.NaN : undefined;
     const present = allRows.filter((r) => r[x] != null && Number.isFinite(at(r)));
     const bins: Bin[] = temporal
       ? timeBins(

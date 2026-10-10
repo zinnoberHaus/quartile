@@ -16,6 +16,7 @@ Chart libraries stop at the chart. UI kits stop at the form. Teams glue the two 
 
 - **One theme.** Charts, tables, inputs and overlays read the same `--q-*` CSS custom properties. Light and dark themes and two densities are token remaps. No Tailwind or CSS-in-JS runtime is required, and it sits inside a Tailwind or shadcn/ui app.
 - **One data model.** Pass rows and name the fields. Types, labels and formats are inferred (or declared once with `dataset()`), and axes, tooltips, tables and KPIs all use them.
+- **Bring your own data.** The local dataset explorer imports CSV/JSON files or bounded HTTP snapshots, then links charts, profiles and records. [Connection workflow and API shape](docs/guides/connecting-data.md).
 - **One selection.** Wrap views in `<Selection>`. Brushes, clicks and filter chips publish predicates to a shared store; every other view re-filters, and a view is never filtered by its own selection (crossfilter semantics).
 - **Accessible charts by default.** Every chart has a keyboard model, an auto-written screen-reader summary and a table fallback (`view="table"`).
 - **Machine-readable.** Components are described by JSON Schema (`@quartile/react/schema.json`). `validateSpec` checks a generated dashboard spec and `<SpecView>` renders it.

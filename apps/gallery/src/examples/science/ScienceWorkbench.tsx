@@ -22,7 +22,7 @@ import {
   useSelection,
 } from '@quartile/react';
 import { profileDataset } from '@quartile/react/ai';
-import { type ChangeEvent, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from '../../router';
 import { Wordmark } from '../../shell/Logo';
 import { links } from '../../shell/links';
@@ -33,6 +33,7 @@ import {
   predictionRows,
   retentionByCohort,
 } from './analysis';
+import { DatasetSource } from './DatasetSource';
 import {
   cohortEvents,
   cohortUsers,
@@ -40,7 +41,6 @@ import {
   modelPredictions,
   SCIENCE_OBSERVED_THROUGH,
 } from './data';
-import { IMPORT_LIMITS, parseDatasetText } from './import-data';
 import './science.css';
 
 export type ScienceKind = 'explore' | 'cohorts' | 'model-evaluation';
@@ -481,58 +481,25 @@ function DatasetExplorer() {
   const [data, setData] = useState<Dataset>(laboratory);
   const [label, setLabel] = useState('Materials experiment');
   const [revision, setRevision] = useState(0);
-  const [status, setStatus] = useState(
-    '180 fictional measurements. Imported files stay in this browser.',
-  );
-  async function importFile(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
-    try {
-      if (file.size > IMPORT_LIMITS.bytes) throw new Error('Import a file smaller than 5 MB.');
-      const result = parseDatasetText(await file.text(), file.name);
-      setData({
-        kind: 'dataset',
-        rows: result.rows,
-        schema: inferSchema(result.rows, result.fields, result.rows.length),
-      });
-      setLabel(result.label);
-      setRevision((value) => value + 1);
-      setStatus(
-        `Loaded ${result.rows.length.toLocaleString()} rows from ${file.name}. No file was uploaded.`,
-      );
-    } catch (error) {
-      setStatus(`Import failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
   return (
     <>
-      <div className="sc-source-bar">
-        <div>
-          <strong>{label}</strong>
-          <span role="status">{status}</span>
-        </div>
-        <div className="sc-source-actions">
-          <label className="sc-import">
-            Import CSV or JSON
-            <input
-              type="file"
-              accept=".csv,.json,text/csv,application/json"
-              onChange={importFile}
-            />
-          </label>
-          <Button
-            onClick={() => {
-              setData(laboratory);
-              setLabel('Materials experiment');
-              setRevision((value) => value + 1);
-              setStatus('Restored 180 fictional measurements.');
-            }}
-          >
-            Restore sample
-          </Button>
-        </div>
-      </div>
+      <DatasetSource
+        label={label}
+        onLoad={(result) => {
+          setData({
+            kind: 'dataset',
+            rows: result.rows,
+            schema: inferSchema(result.rows, result.fields, result.rows.length),
+          });
+          setLabel(result.label);
+          setRevision((value) => value + 1);
+        }}
+        onRestore={() => {
+          setData(laboratory);
+          setLabel('Materials experiment');
+          setRevision((value) => value + 1);
+        }}
+      />
       <Selection key={revision} id="science-explore">
         <Explorer data={data} onData={setData} label={label} />
       </Selection>

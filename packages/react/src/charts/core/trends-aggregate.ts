@@ -1,3 +1,4 @@
+import { finiteNumber } from '../../data/number';
 import { toComparable } from '../../data/schema';
 import type { Row } from '../../data/types';
 
@@ -22,12 +23,6 @@ export interface Bucket {
 export function keyOf(v: unknown): string {
   const c = toComparable(v);
   return c == null ? '' : String(c);
-}
-
-function num(v: unknown): number | null {
-  if (v == null || v === '') return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
 }
 
 /**
@@ -71,13 +66,13 @@ export function aggregateBy(
       map.set(k, b);
     }
     b.n++;
-    const v = value ? num(r[value]) : 1;
+    const v = value ? finiteNumber(r[value]) : 1;
     if (v != null) {
       b.sum += v;
       b.valued++;
     }
     if (delta) {
-      const d = num(r[delta]);
+      const d = finiteNumber(r[delta]);
       if (d != null) {
         b.dSum += d;
         b.dN++;
@@ -93,17 +88,21 @@ export function aggregateBy(
     const v =
       aggregate === 'count'
         ? b.n
-        : aggregate === 'mean'
-          ? b.valued
+        : b.valued === 0
+          ? Number.NaN
+          : aggregate === 'mean'
             ? b.sum / b.valued
-            : 0
-          : b.sum;
+            : b.sum;
     let d: number | undefined;
     if (b.dN > 0) d = aggregate === 'sum' && b.prev > 0 ? b.cur / b.prev - 1 : b.dSum / b.dN;
     out.push({ key: k, raw: b.raw, value: v, count: b.n, delta: d });
   }
-  if (sort === 'desc') out.sort((a, b) => b.value - a.value);
-  else if (sort === 'asc') out.sort((a, b) => a.value - b.value);
+  if (sort !== 'none')
+    out.sort((a, b) => {
+      if (!Number.isFinite(a.value)) return Number.isFinite(b.value) ? 1 : 0;
+      if (!Number.isFinite(b.value)) return -1;
+      return sort === 'desc' ? b.value - a.value : a.value - b.value;
+    });
   return out;
 }
 

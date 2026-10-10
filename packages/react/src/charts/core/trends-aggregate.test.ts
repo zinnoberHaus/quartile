@@ -10,12 +10,27 @@ const rows = [
 ];
 
 describe('aggregateBy', () => {
+  it('keeps invalid ISO-looking nominal categories distinct and selectable', () => {
+    const buckets = aggregateBy(
+      [
+        { id: '2026-02-30', n: 2 },
+        { id: '2026-02-31', n: 3 },
+      ],
+      'id',
+      { value: 'n' },
+    );
+    expect(buckets.map((bucket) => [bucket.key, bucket.value])).toEqual([
+      ['2026-02-30', 2],
+      ['2026-02-31', 3],
+    ]);
+    expect(predicateHas({ op: 'eq', value: '2026-02-30' }, '2026-02-31')).toBe(false);
+  });
   it('sums by default and keeps first-seen order', () => {
     const b = aggregateBy(rows, 'region', { value: 'amount' });
     expect(b.map((x) => [x.key, x.value, x.count])).toEqual([
       ['Europe', 40, 2],
       ['Asia', 20, 2],
-      ['Africa', 0, 1],
+      ['Africa', NaN, 1],
     ]);
   });
 
@@ -27,12 +42,12 @@ describe('aggregateBy', () => {
   it('averages only rows with a usable value', () => {
     const b = aggregateBy(rows, 'region', { value: 'amount', aggregate: 'mean' });
     expect(b.find((x) => x.key === 'Asia')?.value).toBe(10);
-    expect(b.find((x) => x.key === 'Africa')?.value).toBe(0);
+    expect(b.find((x) => x.key === 'Africa')?.value).toBeNaN();
   });
 
   it('sorts ascending and descending', () => {
     expect(aggregateBy(rows, 'region', { value: 'amount', sort: 'asc' }).map((x) => x.key)).toEqual(
-      ['Africa', 'Asia', 'Europe'],
+      ['Asia', 'Europe', 'Africa'],
     );
     expect(
       aggregateBy(rows, 'region', { value: 'amount', sort: 'desc' }).map((x) => x.key),

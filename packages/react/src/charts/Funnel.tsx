@@ -89,13 +89,13 @@ export function Funnel<R extends Row = Row>(props: FunnelProps<R>) {
     return {
       ...s,
       label: fmtS(s.raw),
-      ofFirst: first > 0 ? s.value / first : 0,
-      ofPrev: prev > 0 ? s.value / prev : 0,
-      prevOfFirst: first > 0 ? prev / first : 0,
+      ofFirst: first > 0 ? s.value / first : Number.NaN,
+      ofPrev: prev > 0 ? s.value / prev : Number.NaN,
+      prevOfFirst: first > 0 ? prev / first : Number.NaN,
       dropped: Math.max(0, prev - s.value),
     };
   });
-  const overallRate = first > 0 ? last / first : 0;
+  const overallRate = first > 0 ? last / first : Number.NaN;
 
   const { active, setActive, keyboardProps } = useChartKeyboard(model.length);
   const [hover, setHover] = useState<number | null>(null);
@@ -135,7 +135,7 @@ export function Funnel<R extends Row = Row>(props: FunnelProps<R>) {
   // Lists size to their content; states and the visible table need the fixed frame height.
   const autoHeight = status === 'ready' && frame.view !== 'table';
   const kind = 'Funnel chart';
-  const barPct = (v: number) => Math.max(1.2, v * 100);
+  const barPct = (v: number) => (Number.isFinite(v) ? Math.max(1.2, v * 100) : 0);
 
   return (
     <ChartFrame
@@ -161,7 +161,8 @@ export function Funnel<R extends Row = Row>(props: FunnelProps<R>) {
             }}
           >
             {model.map((m, i) => {
-              const conv = i === 0 ? '100%' : fmtPct(m.ofPrev);
+              const conv =
+                i === 0 ? (Number.isFinite(first) && first > 0 ? '100%' : '—') : fmtPct(m.ofPrev);
               const end =
                 align === 'center'
                   ? width / 2 + (barPct(m.ofFirst) / 200) * width
@@ -203,7 +204,7 @@ export function Funnel<R extends Row = Row>(props: FunnelProps<R>) {
                         <span className="q-funnel-label">{m.label}</span>
                         <span className="q-funnel-figures">{fmtV(m.value)}</span>
                         <span className="q-funnel-conv">
-                          {i === 0 ? '100%' : `${conv} from previous`}
+                          {i === 0 ? conv : `${conv} from previous`}
                         </span>
                       </div>
                     </>

@@ -12,6 +12,10 @@ const events = dataset(rows, {
 
 Percent fields use ratios: `0.125` renders as 12.5%. Currency values use major units: `42.5` with USD renders as $42.50. Normalize cents and percentages before creating the dataset. Formatters change display, not stored values. Use explicit types for ambiguous strings and normalize timestamps to one convention before comparison.
 
+Numeric charts and aggregate measures accept finite numbers and nonblank numeric strings. Nulls, blank strings, booleans, objects and nonfinite values are not numeric observations; an explicit zero remains zero. All-missing measure groups display an unavailable value rather than an invented zero. For table/KPI sums, an empty population sums to zero, while a nonempty population containing no valid measures remains unavailable. Counts still describe records, so a category can contain records without a usable measurement.
+
+Calendar-date inference rejects impossible dates such as `2026-02-30`. Such strings remain nominal values that can be grouped and selected; they are not silently moved into March. Declare ambiguous identifiers as nominal, and provide validated timestamps when a field must be temporal.
+
 Rows are `Record<string, unknown>`; a TypeScript object `type` alias works naturally. Dates can be `Date` objects or supported ISO strings. Do not mutate a dataset's rows in place: replace the array/dataset when new data arrives so memoized views update.
 
 ## Selection semantics

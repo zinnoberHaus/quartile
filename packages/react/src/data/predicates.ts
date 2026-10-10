@@ -1,4 +1,5 @@
 import { formatField } from './format';
+import { finiteNumber } from './number';
 import { toComparable } from './schema';
 import type { Row, Schema } from './types';
 
@@ -25,12 +26,24 @@ export function matches(row: Row, p: Predicate): boolean {
     case 'in':
       return p.value.some((x) => toComparable(x) === v);
     case 'between': {
-      if (v == null) return false;
+      if (v == null || typeof v === 'boolean') return false;
       const lo = toComparable(p.value[0]);
       const hi = toComparable(p.value[1]);
+      if (typeof v === 'number' || typeof lo === 'number' || typeof hi === 'number') {
+        const value = finiteNumber(v);
+        const lower = finiteNumber(lo);
+        const upper = finiteNumber(hi);
+        return (
+          value != null &&
+          (lo == null || (lower != null && value >= lower)) &&
+          (hi == null || (upper != null && value <= upper))
+        );
+      }
       return (
-        (lo == null || (v as number) >= (lo as number)) &&
-        (hi == null || (v as number) <= (hi as number))
+        typeof v === 'string' &&
+        v.trim() !== '' &&
+        (lo == null || (typeof lo === 'string' && v >= lo)) &&
+        (hi == null || (typeof hi === 'string' && v <= hi))
       );
     }
   }

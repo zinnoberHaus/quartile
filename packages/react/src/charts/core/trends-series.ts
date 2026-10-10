@@ -1,3 +1,4 @@
+import { finiteNumber } from '../../data/number';
 import { toComparable } from '../../data/schema';
 import type { FieldDef, Row } from '../../data/types';
 import { seriesColor } from './scales';
@@ -61,9 +62,8 @@ export function pivotSeries(
   }
   const blank = () => xsRaw.map(() => null as number | null);
   const add = (values: (number | null)[], i: number, v: unknown) => {
-    if (v == null || v === '') return;
-    const n = Number(v);
-    if (!Number.isFinite(n)) return;
+    const n = finiteNumber(v);
+    if (n == null) return;
     values[i] = (values[i] ?? 0) + n;
   };
   const colorFor = (key: string, i: number) => {

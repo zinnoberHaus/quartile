@@ -1,6 +1,7 @@
 import type { DataInput, Dataset, FieldDef, FieldOverride, FieldType, Row, Schema } from './types';
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}([T ][\d:.]+(Z|[+-]\d{2}:?\d{2})?)?$/;
+const ISO_DATE =
+  /^(\d{4})-(\d{2})-(\d{2})(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/;
 const CURRENCY_NAME = /(revenue|amount|price|cost|sales|spend|mrr|arr|aov|gmv|ltv|value)$/i;
 const RATE_NAME = /(rate|ratio|share|pct|percent|conversion|churn|margin)$/i;
 
@@ -15,24 +16,49 @@ export function humanize(name: string): string {
 }
 
 export function isTemporalValue(v: unknown): boolean {
-  return v instanceof Date || (typeof v === 'string' && ISO_DATE.test(v));
+  return (
+    (v instanceof Date || (typeof v === 'string' && ISO_DATE.test(v))) &&
+    Number.isFinite(toDate(v).getTime())
+  );
 }
 
 /** Coerces dates, ISO strings and epoch numbers to a Date. */
 export function toDate(v: unknown): Date {
   if (v instanceof Date) return v;
-  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
-    const [y, m, d] = v.split('-').map(Number);
-    return new Date(y, m - 1, d);
+  if (typeof v === 'number') return new Date(v);
+  if (typeof v !== 'string' || v.trim() === '') return new Date(NaN);
+  const iso = ISO_DATE.exec(v);
+  if (iso) {
+    const [, year, month, day] = iso;
+    const y = Number(year);
+    const m = Number(month);
+    const d = Number(day);
+    const calendar = new Date(0);
+    calendar.setUTCFullYear(y, m - 1, d);
+    if (
+      calendar.getUTCFullYear() !== y ||
+      calendar.getUTCMonth() !== m - 1 ||
+      calendar.getUTCDate() !== d
+    )
+      return new Date(NaN);
+    if (v.length === 10) {
+      const local = new Date(0);
+      local.setFullYear(y, m - 1, d);
+      local.setHours(0, 0, 0, 0);
+      return local;
+    }
   }
-  return new Date(v as string | number);
+  return new Date(v);
 }
 
 /** A value suitable for ordering and range checks: dates become epoch ms. */
 export function toComparable(v: unknown): number | string | boolean | null {
   if (v == null) return null;
   if (v instanceof Date) return v.getTime();
-  if (typeof v === 'string' && ISO_DATE.test(v)) return toDate(v).getTime();
+  if (typeof v === 'string' && ISO_DATE.test(v)) {
+    const time = toDate(v).getTime();
+    return Number.isFinite(time) ? time : v;
+  }
   return v as number | string | boolean;
 }
 
@@ -92,14 +118,14 @@ export function inferSchema<R extends Row>(
   const head = rows.slice(0, sample);
   for (const r of head) for (const k of Object.keys(r)) names.add(k);
   for (const k of Object.keys(overrides)) names.add(k);
-  const schema: Schema = {};
+  const schema: Schema = Object.create(null);
   for (const name of names) {
     schema[name] = applyOverride(
       inferField(
         name,
         head.map((r) => r[name]),
       ),
-      overrides[name],
+      Object.hasOwn(overrides, name) ? overrides[name] : undefined,
     );
   }
   return schema;
@@ -129,7 +155,7 @@ export function resolveData<R extends Row>(
 /** Field definition for `name`, inferred from rows if the schema lacks it. */
 export function fieldOf(schema: Schema, name: string, rows: readonly Row[] = []): FieldDef {
   return (
-    schema[name] ??
+    (Object.hasOwn(schema, name) ? schema[name] : undefined) ??
     inferField(
       name,
       rows.slice(0, 200).map((r) => r[name]),

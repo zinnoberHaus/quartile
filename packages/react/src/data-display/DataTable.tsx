@@ -12,6 +12,7 @@ import {
 import { ChartState, type ChartStateProps } from '../charts/core/ChartFrame';
 import { Button } from '../components/button/Button';
 import { type DeltaKind, makeFormatter } from '../data/format';
+import { finiteNumber } from '../data/number';
 import type { Predicate, Primitive } from '../data/predicates';
 import { fieldOf, resolveData } from '../data/schema';
 import { typedValueKey } from '../data/typed-key';
@@ -311,8 +312,8 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
       let total = 0;
       if (kind === 'bar') {
         for (const r of shown) {
-          const v = Number(r[key]);
-          if (Number.isFinite(v)) {
+          const v = finiteNumber(r[key]);
+          if (v != null) {
             max = Math.max(max, Math.abs(v));
             total += v;
           }
@@ -560,7 +561,7 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
       case 'number':
         return <span className="q-dt-num">{c.fmt(v)}</span>;
       case 'bar': {
-        const n = Number(v);
+        const n = finiteNumber(v) ?? Number.NaN;
         const w = c.max && Number.isFinite(n) ? (Math.abs(n) / c.max) * 100 : 0;
         return (
           <span className="q-dt-bar">
@@ -575,12 +576,16 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
       }
       case 'sparkline':
         return Array.isArray(v) && v.length > 1 ? (
-          <TrendLine values={v.map(Number)} height={28} className="q-dt-spark" />
+          <TrendLine
+            values={v.map((value) => finiteNumber(value) ?? Number.NaN)}
+            height={28}
+            className="q-dt-spark"
+          />
         ) : null;
       case 'delta':
         return (
           <DeltaPill
-            value={v == null ? null : Number(v)}
+            value={finiteNumber(v)}
             kind={c.col.deltaKind ?? 'percent'}
             invert={c.col.invert}
           />

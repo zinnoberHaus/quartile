@@ -2,6 +2,7 @@ import { bisectCenter } from 'd3-array';
 import { area as d3area, line as d3line } from 'd3-shape';
 import { type PointerEvent, useId, useMemo, useRef, useState } from 'react';
 import { formatDelta, makeFormatter } from '../data/format';
+import { finiteNumber } from '../data/number';
 import type { Predicate } from '../data/predicates';
 import { fieldOf, resolveData, toComparable, toDate } from '../data/schema';
 import type { DataInput, FieldDef, Formatter, Row } from '../data/types';
@@ -110,16 +111,11 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
   const model = useMemo(() => {
     const xField = fieldOf(schema, x, rows);
     const yFields = (Array.isArray(y) ? y : [y]).map((f) => fieldOf(schema, f, rows));
-    const numericValue = (value: unknown): number | null => {
-      if (value == null || value === '') return null;
-      const number = Number(value);
-      return Number.isFinite(number) ? number : null;
-    };
     const coordinate = (value: unknown): number | null => {
       if (value == null || value === '') return null;
       return xField.type === 'temporal'
-        ? numericValue(toDate(value).getTime())
-        : numericValue(value);
+        ? finiteNumber(toDate(value).getTime())
+        : finiteNumber(value);
     };
     // Invalid x coordinates cannot participate in scales, keyboard navigation or brushing.
     // Keep valid x coordinates with missing y values so the line retains visible gaps.
@@ -147,8 +143,8 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
         const vals = groups.get(g)!;
         const at = indexOf.get(toComparable(r[x]) as number | string)!;
         // Rows that share an x value are summed, like AreaChart and BarChart.
-        const value = numericValue(r[y as string]);
-        if (value !== null) vals[at] = (vals[at] ?? 0) + value;
+        const value = finiteNumber(r[yFields[0].name]);
+        if (value != null) vals[at] = (vals[at] ?? 0) + value;
       }
       let i = 0;
       for (const [g, values] of groups) {
@@ -159,8 +155,8 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
         const values = blank();
         for (const r of sorted) {
           const at = indexOf.get(toComparable(r[x]) as number | string)!;
-          const value = numericValue(r[f.name]);
-          if (value !== null) values[at] = (values[at] ?? 0) + value;
+          const value = finiteNumber(r[f.name]);
+          if (value != null) values[at] = (values[at] ?? 0) + value;
         }
         series.push({ key: f.name, label: f.label, color: seriesColor(i), field: f, values });
       });
@@ -169,8 +165,8 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
     if (compare && series.length === 1) {
       const values = blank();
       for (const r of sorted) {
-        const v = numericValue(r[compare]);
-        if (v === null) continue;
+        const v = finiteNumber(r[compare]);
+        if (v == null) continue;
         const at = indexOf.get(toComparable(r[x]) as number | string)!;
         values[at] = (values[at] ?? 0) + v;
       }

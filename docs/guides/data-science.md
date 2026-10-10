@@ -66,6 +66,8 @@ write_snapshot(df.head(1000), "observations.json",
 
 Import the file through the dataset explorer. Example limits are 10,000 rows, 64 fields and 5 MB; these are input guards, not universal library capacity claims. Records stay in that browser unless the application exports them or sends configured assistant context. Saved view configuration does not contain the imported records.
 
+The local explorer also loads bounded CSV/JSON snapshots from a data URL, with cancel, refresh by reloading, and last-good-data preservation on failure. [Bring your data](connecting-data.md) describes supported API shapes, browser access, source identity and authenticated-backend integration.
+
 The helper converts missing/nonfinite values to null and dates to ISO text, rejects nested cells, and rejects integers outside JavaScript's safe range. Convert such identifiers to strings intentionally. Row-oriented JSON does not automatically preserve a dataframe index; make identity a column. A metadata envelope is adapted by the example importer, not passed directly to `dataset()` as if it were a Quartile Dataset.
 
 For the optional Arrow path, see [worker queries](worker-queries.md). pandas/Polars default integer widths, timestamp precision, string representation and IPC compatibility may need explicit conversion to the adapter's supported types. Quartile does not execute Python, stream notebook state, or ship a Jupyter/Streamlit widget. Those integrations need a separate tested bridge.

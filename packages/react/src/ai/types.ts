@@ -12,7 +12,8 @@ export interface FieldProfile {
   type: FieldType;
   /** Null, undefined and empty strings. */
   missing: number;
-  /** Present values that do not match the declared type; nonfinite numbers are invalid. */
+  /** Present values that do not match the declared type; nonfinite numbers are invalid.
+   * Nominal categories accept strings, finite numbers and booleans without coercion. */
   invalid: number;
   valid: number;
   /** Exact distinct valid values within the examined prefix, not an estimate of all rows. */

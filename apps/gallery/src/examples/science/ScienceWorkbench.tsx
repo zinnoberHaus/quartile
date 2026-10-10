@@ -336,7 +336,12 @@ function Explorer({
               <select
                 value={x ?? ''}
                 disabled={!numeric.length}
-                onChange={(event) => setField(event.target.value)}
+                onChange={(event) => {
+                  for (const predicate of selection.predicates)
+                    if (predicate.source === 'science-distribution')
+                      selection.clear(predicate.field);
+                  setField(event.target.value);
+                }}
               >
                 {numeric.map((item) => (
                   <option value={item.name} key={item.name}>
@@ -374,7 +379,11 @@ function Explorer({
               <select
                 value={group ?? ''}
                 disabled={!categories.length}
-                onChange={(event) => setCategory(event.target.value)}
+                onChange={(event) => {
+                  for (const predicate of selection.predicates)
+                    if (predicate.source === 'science-categories') selection.clear(predicate.field);
+                  setCategory(event.target.value);
+                }}
               >
                 {categories.map((item) => (
                   <option value={item.name} key={item.name}>

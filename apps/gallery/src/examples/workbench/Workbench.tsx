@@ -32,7 +32,7 @@ const recipes = {
   },
   operations: {
     title: 'Service health',
-    lead: 'Follow an incident from its distribution to the requests behind it. Select a service and compare latency, failures, and regions.',
+    lead: 'Investigate a simulated service incident. Select a service, isolate errors or brush the slow tail, then inspect the matching requests.',
     guide: 'use-cases',
   },
   'ai-dashboard': {
@@ -70,7 +70,7 @@ function SaaS({ table }: { table: boolean }) {
           { field: 'plan', pinned: true },
           { field: 'status' },
         ]}
-        summary={(rows) => `${rows.length} accounts`}
+        summary={(rows) => `${rows.length} ${rows.length === 1 ? 'account' : 'accounts'}`}
       />
       <div className="w-kpis">
         <KPI
@@ -85,14 +85,18 @@ function SaaS({ table }: { table: boolean }) {
           data={accounts}
           value="adoption"
           aggregate="mean"
-          label="Mean seat adoption"
+          label="Mean account seat adoption"
           format="percent"
         />
       </div>
       <div className="w-grid">
         <section className="w-panel">
           <h2>Revenue by plan</h2>
-          <p>Click a plan to filter the other views.</p>
+          <p>
+            {table
+              ? 'Exact plan totals. Return to chart mode to select a plan, or use the Plan filter above.'
+              : 'Click a plan to filter the other views. Click it again to clear.'}
+          </p>
           <BarList
             id="portfolio-plan"
             data={accounts}
@@ -104,7 +108,11 @@ function SaaS({ table }: { table: boolean }) {
         </section>
         <section className="w-panel">
           <h2>Seats and monthly revenue</h2>
-          <p>Every point is one account; color identifies its plan.</p>
+          <p>
+            {table
+              ? 'One row per account, ordered by licensed seats. Use the account table below to select an account.'
+              : 'Every point is one account; color identifies its plan. Select a point to inspect that account.'}
+          </p>
           <ScatterPlot
             data={accounts}
             x="seats"
@@ -118,7 +126,11 @@ function SaaS({ table }: { table: boolean }) {
         </section>
         <section className="w-panel w-wide">
           <h2>Revenue distribution</h2>
-          <p>Brush a range to investigate an account segment.</p>
+          <p>
+            {table
+              ? 'Each row counts accounts within a revenue interval. Return to chart mode to brush a range.'
+              : 'Brush a range to investigate an account segment. Click the plot without dragging to clear the range.'}
+          </p>
           <Histogram data={accounts} x="mrr" bins={20} brush view={view} height={220} />
         </section>
         <section className="w-panel w-wide">
@@ -136,7 +148,7 @@ function SaaS({ table }: { table: boolean }) {
             sort="-mrr"
             pageSize={8}
             select="account"
-            caption="Fictional subscription accounts; MRR is a point-in-time snapshot, not cumulative revenue."
+            caption="96 fictional accounts. MRR is a monthly snapshot; adoption is averaged equally across accounts. Select a row to focus sibling views; this table retains the other matching accounts."
           />
         </section>
       </div>
@@ -156,7 +168,7 @@ function Operations({ table }: { table: boolean }) {
           { field: 'region', pinned: true },
           { field: 'status', pinned: true },
         ]}
-        summary={(rows) => `${rows.length} requests`}
+        summary={(rows) => `${rows.length} ${rows.length === 1 ? 'request' : 'requests'}`}
       />
       <div className="w-kpis">
         <KPI data={requests} aggregate="count" label="Requests in view" format="integer" />
@@ -181,7 +193,11 @@ function Operations({ table }: { table: boolean }) {
       <div className="w-grid">
         <section className="w-panel">
           <h2>Latency by service</h2>
-          <p>Quartiles, median, and Tukey whiskers. Click a service.</p>
+          <p>
+            {table
+              ? 'Exact distribution statistics by service. Use the Service filter above to select a group.'
+              : 'Quartiles, median, and Tukey whiskers. Click a service; click it again to clear.'}
+          </p>
           <BoxPlot
             data={requests}
             category="service"
@@ -193,12 +209,30 @@ function Operations({ table }: { table: boolean }) {
         </section>
         <section className="w-panel">
           <h2>Latency distribution</h2>
-          <p>Brush the slow tail to inspect the affected requests.</p>
+          <p>
+            {table
+              ? 'Each row counts requests within a latency interval. Return to chart mode to brush a range.'
+              : 'Brush the slow tail to inspect the affected requests. Click without dragging to clear the range.'}
+          </p>
           <Histogram data={requests} x="latency" bins={24} median brush view={view} height={260} />
         </section>
         <section className="w-panel w-wide">
-          <h2>Request volume by service and region</h2>
-          <Heatmap data={requests} x="region" y="service" view={view} height={220} />
+          <h2>Failed requests by service and region</h2>
+          <p>
+            Counts of errors among the matching requests, not percentages. The Service, Region and
+            Status filters above apply to this view.
+          </p>
+          <Heatmap
+            data={requests}
+            x="region"
+            y="service"
+            value="error"
+            aggregate="sum"
+            format="integer"
+            peak={false}
+            view={view}
+            height={220}
+          />
         </section>
         <section className="w-panel w-wide">
           <h2>Slowest matching requests</h2>
@@ -213,7 +247,7 @@ function Operations({ table }: { table: boolean }) {
             ]}
             sort="-latency"
             pageSize={8}
-            caption="360 deterministic sample requests. Error rate is errors divided by requests in the current selection."
+            caption="360 fictional requests without timestamps; this is a fixed sample, not a live feed. Error rate is errors divided by all matching requests."
           />
         </section>
       </div>
@@ -227,6 +261,12 @@ function SpecPlayground() {
   const [spec, setSpec] = useState<unknown>(initialSpec);
   const [message, setMessage] = useState('Valid spec. The dashboard below is ready to explore.');
   const [revision, setRevision] = useState(0);
+  function reset() {
+    setText(JSON.stringify(initialSpec, null, 2));
+    setSpec(initialSpec);
+    setRevision((value) => value + 1);
+    setMessage('Example restored. Dashboard selection reset.');
+  }
   function render() {
     try {
       const parsed: unknown = JSON.parse(text);
@@ -261,9 +301,14 @@ function SpecPlayground() {
           <p>
             Try changing a component to <code>PieChart</code> to see the unknown-component error.
           </p>
+          <p>
+            Available fields: <code>{Object.keys(accounts.schema).join(', ')}</code>. The dataset
+            contains 96 fictional account snapshots.
+          </p>
           <Button variant="signal" onClick={render}>
             Validate and render
           </Button>
+          <Button onClick={reset}>Reset example</Button>
           <p className="w-validation" role="status">
             {message}
           </p>
@@ -273,7 +318,12 @@ function SpecPlayground() {
           <textarea
             spellCheck={false}
             value={text}
-            onChange={(event) => setText(event.target.value)}
+            onChange={(event) => {
+              setText(event.target.value);
+              setMessage(
+                'Unvalidated edits. The dashboard still shows the last successfully rendered spec.',
+              );
+            }}
           />
         </label>
       </div>
@@ -299,9 +349,18 @@ export function Workbench({ kind }: { kind: WorkbenchKind }) {
         </Link>
         <nav aria-label="Examples">
           <Link to="/examples/storefront">Storefront</Link>
-          <Link to="/examples/saas">SaaS</Link>
-          <Link to="/examples/operations">Operations</Link>
-          <Link to="/examples/ai-dashboard">JSON dashboard</Link>
+          <Link to="/examples/saas" aria-current={kind === 'saas' ? 'page' : undefined}>
+            SaaS
+          </Link>
+          <Link to="/examples/operations" aria-current={kind === 'operations' ? 'page' : undefined}>
+            Operations
+          </Link>
+          <Link
+            to="/examples/ai-dashboard"
+            aria-current={kind === 'ai-dashboard' ? 'page' : undefined}
+          >
+            JSON dashboard
+          </Link>
           <Link to="/examples/scale">Worker queries</Link>
           <Link to="/studio">App Studio</Link>
         </nav>
@@ -325,7 +384,7 @@ export function Workbench({ kind }: { kind: WorkbenchKind }) {
           </Button>
           {kind !== 'ai-dashboard' && (
             <Button aria-pressed={table} onClick={() => setTable(!table)}>
-              View charts as tables
+              {table ? 'View charts' : 'View charts as tables'}
             </Button>
           )}
           <a href={`${links.github}/blob/main/docs/guides/${recipe.guide}.md`}>

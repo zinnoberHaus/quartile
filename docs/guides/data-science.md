@@ -13,9 +13,9 @@ Quartile supplies an inspectable React surface around data preparation and model
 
 The lab fixture contains 180 records: sample ID, batch, material, instrument, UTC measurement time, nullable measurements and a nullable quality flag. `yieldPct` is a fraction from zero to one, displayed as a percentage. Temperature, pressure and duration retain their physical units.
 
-The explorer combines a field profile with linked distribution/relationship views and an exact table. The optional `profileDataset` helper from `@quartile/react/ai` provides valid/missing/invalid/distinct counts and numeric/date ranges; numeric fields also have a mean. It examines at most a configured prefix, so show `scannedRows`, `totalRows`, and `complete`. It neither imputes missing values nor detects statistically significant anomalies.
+The explorer combines a field profile with linked distributions and category counts and an exact table. The optional `profileDataset` helper from `@quartile/react/ai` provides valid/missing/invalid/distinct counts and numeric/date ranges; numeric fields also have a mean. It examines at most a configured prefix, so show `scannedRows`, `totalRows`, and `complete`. It neither imputes missing values nor detects statistically significant anomalies.
 
-Supply field metadata when inference would misclassify identifiers or sparse columns. A nominal ID that resembles a date must remain an ID. Shared chart filters and a table's local filters have separate scopes; see [tables](tables.md). Label which population a profile describes, particularly after table search.
+Supply field metadata when inference would misclassify identifiers or sparse columns. A nominal ID that resembles a date must remain an ID. Shared chart filters and a standalone table's local filters have separate scopes; see [tables](tables.md). This example deliberately applies table search/filters to the charts and profile, then applies shared chart predicates. Label which population a profile describes.
 
 ## Retention: users, calendar months and maturity
 
@@ -51,7 +51,7 @@ An undefined denominator returns null; render “—” with an explanation. A d
 
 ## pandas, Polars and notebook handoff
 
-The [Python handoff](../../examples/python/README.md) exports a dataframe or list of dictionaries into an inspectable JSON snapshot. Its utility uses the Python standard library and requires no Quartile Python package. The included notebook demonstrates pandas in the caller's notebook environment.
+The [Python handoff](../../examples/python/README.md) exports a dataframe or list of dictionaries into an inspectable JSON snapshot. Its utility uses the Python standard library and requires no Quartile Python package. Copy `quartile_snapshot.py` beside your notebook/script, or add its directory to your Python import path. The included notebook runs from `examples/python` and demonstrates pandas in the caller's notebook environment. In the fragment below, `df` is your existing dataframe.
 
 ```python
 from quartile_snapshot import write_snapshot

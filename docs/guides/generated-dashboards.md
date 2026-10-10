@@ -19,7 +19,9 @@ const spec = {
 
 const result = validateSpec(spec);
 // Show result.errors if invalid; never cast unvalidated output to trusted props.
-export function GeneratedView({ orders }) {
+type Order = { order: string; region: string; amount: number };
+
+export function GeneratedView({ orders }: { orders: Order[] }) {
   return <SpecView spec={spec} data={{ orders }} />;
 }
 ```

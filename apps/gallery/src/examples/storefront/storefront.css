@@ -57,6 +57,21 @@
   min-width: 0;
   padding: 18px 24px 32px;
 }
+.sf-example-link {
+  display: block;
+  padding: 8px 12px;
+  color: var(--q-text-2);
+  font-size: 12px;
+}
+.sf-example-note {
+  margin: 0;
+  color: var(--q-text-2);
+  font-size: 12px;
+  line-height: 1.6;
+}
+[data-sf-section] {
+  scroll-margin-top: 58px;
+}
 
 /* Header */
 .sf-header {

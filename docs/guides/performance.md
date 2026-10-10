@@ -1,6 +1,6 @@
 # Performance and scale
 
-The preview has two data paths: synchronous JavaScript rows and optional [Arrow/DuckDB worker queries](worker-queries.md). Scatter points can use [SVG, Canvas or WebGL](renderers.md); other chart marks remain SVG. Querying many source records and drawing many marks are different workloads. Measure both in your actual application; neither path supplies a universal scale guarantee.
+The preview has two data paths: synchronous JavaScript rows and optional [Arrow/DuckDB worker queries](worker-queries.md). Scatter points can use [SVG, Canvas or WebGL](renderers.md); other charts do not expose accelerated renderer selection. Querying many source records and drawing many marks are different workloads. Measure both in your actual application; neither path supplies a universal scale guarantee.
 
 ## Reproduce a narrow benchmark
 

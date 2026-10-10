@@ -1,5 +1,7 @@
 # Connect API data
 
+For CSV/JSON files or an application-provided snapshot URL, start with [connecting data](connecting-data.md). The recipes below use Studio's distinct JSON adapter and its smaller, explicitly bounded response contract.
+
 Quartile accepts rows and field metadata. Your application owns the request, authorization, caching and refresh policy. The public [Studio](https://quartile-design.vercel.app/studio) demonstrates three real, unauthenticated API requests and a custom JSON source. It displays request failures; it never replaces a failed response with sample records.
 
 Use the [Studio guide](studio.md) to build visually and download a React starter. For an existing React app, [install the preview](installation.md) and copy the standalone [source helper](../../apps/gallery/src/examples/studio/sources.ts) into your app as `quartile-data.ts`. This is example application code, not an export from `@quartile/react`.

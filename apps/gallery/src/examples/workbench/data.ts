@@ -37,7 +37,7 @@ export const requestRows = Array.from({ length: 360 }, (_, i) => {
 
 export const requests = dataset(requestRows, {
   latency: { label: 'Latency (ms)', format: 'integer', unit: 'ms' },
-  error: { label: 'Error rate', format: 'percent', unit: '%' },
+  error: { label: 'Failed requests', format: 'integer' },
 });
 
 export const initialSpec = {

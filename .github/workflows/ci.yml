@@ -37,10 +37,12 @@ jobs:
             sleep 1
           done
           node apps/gallery/src/examples/scale/verify.mjs http://127.0.0.1:4178 /tmp/quartile-browser-evidence
+          node apps/gallery/src/examples/workbench/verify.mjs http://127.0.0.1:4178 /tmp/quartile-browser-evidence/workbench
           node apps/gallery/src/examples/science/verify.mjs http://127.0.0.1:4178 /tmp/quartile-browser-evidence/science
           QUARTILE_NAV_BASE_URL=http://127.0.0.1:4178 node apps/gallery/src/shell/verify-navigation.mjs
           node apps/gallery/src/examples/studio/verify.mjs http://127.0.0.1:4178 /tmp/quartile-browser-evidence/studio
           node apps/gallery/scripts/verify-starter.mjs /tmp/quartile-browser-evidence/studio/quartile-react-starter.zip
+          node apps/gallery/scripts/verify-starter.mjs /tmp/quartile-browser-evidence/studio/quartile-custom-starter.zip
       - name: Save browser evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

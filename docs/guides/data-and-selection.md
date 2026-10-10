@@ -40,10 +40,15 @@ Use a single enclosing selection for one analytic surface. Prefer the nearest co
 A selected region cannot filter rows that no longer contain `region`. For custom derived views, first filter the raw rows, then aggregate:
 
 ```tsx
-function RevenueTrend({ rows }) {
-  const source = 'revenue-trend';
+import { LineChart, useLinkedRows, useSourceId } from '@quartile/react';
+
+// date is a normalized calendar day, not an arbitrary timestamp.
+type Order = { date: string; amount: number; region: string };
+
+export function RevenueTrend({ rows }: { rows: Order[] }) {
+  const source = useSourceId();
   const { rows: visible } = useLinkedRows(rows, { source });
-  const byDay = new Map();
+  const byDay = new Map<string, number>();
   for (const row of visible) byDay.set(row.date, (byDay.get(row.date) ?? 0) + row.amount);
   const daily = [...byDay].map(([date, revenue]) => ({ date, revenue }));
   // Filtering is already applied above. This view is display-only.
@@ -51,7 +56,7 @@ function RevenueTrend({ rows }) {
 }
 ```
 
-`BarList`, `DonutChart`, `KPI`, and grouped `DataTable` can aggregate raw rows themselves. The declarative spec layer also supports explicit aggregate measures. `LineChart` is a series of values, not a general SQL aggregation engine; preaggregate deliberately or use an aggregate encoding in a spec.
+Mount this component inside your provider and selection scope. `BarList`, `DonutChart`, `KPI`, and grouped `DataTable` can aggregate raw rows themselves. `LineChart`, `AreaChart` and `BarChart` sum valid numeric values at repeated x/series coordinates. That is not calendar bucketing or a mean: timestamps at different hours remain different coordinates. Use `Histogram` with a temporal interval for calendar buckets, or calculate the required statistic before rendering. The declarative spec layer supports explicit aggregate measures. Studio deliberately requires unique line coordinates to avoid summing measures such as temperature or life expectancy.
 
 ## Connect to a server
 

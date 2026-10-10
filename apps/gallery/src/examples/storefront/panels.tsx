@@ -47,12 +47,21 @@ function Hint({ children }: { children: ReactNode }) {
 
 // ── Net revenue ────────────────────────────────────────────────────────────────
 
-/** Clears the chart's own brush when something else (a chip ×, a period change) clears `date`. */
-function ClearWhenOuterClears({ outerHasDate }: { outerHasDate: boolean }) {
+/** Keeps a restored URL selection and chip resets reflected in the chart's local brush. */
+function SyncTrendSelection({ predicate }: { predicate: Predicate | undefined }) {
   const local = useSelectionStore();
   useEffect(() => {
-    if (!outerHasDate && local?.get('date')) local.clear('date');
-  }, [outerHasDate, local]);
+    if (!local) return;
+    const current = local.get('date');
+    if (!predicate) {
+      if (current) local.clear('date');
+    } else if (
+      current?.op !== predicate.op ||
+      JSON.stringify(current.value) !== JSON.stringify(predicate.value)
+    ) {
+      local.set('date', predicate.value, { op: predicate.op, source: SOURCE.trend });
+    }
+  }, [predicate, local]);
   return null;
 }
 
@@ -86,11 +95,11 @@ function TrendPlot({
     if (p && p.op !== 'eq') outer.set('date', p.value, { op: p.op, source: SOURCE.trend });
     else outer.clear('date');
   };
-  const outerHasDate = outer.predicates.some((p) => p.source === SOURCE.trend);
+  const datePredicate = outer.predicates.find((p) => p.field === 'date');
   const label = 'Net revenue per day, this period and previous';
   return (
     <Selection key={chart} onChange={relay}>
-      <ClearWhenOuterClears outerHasDate={outerHasDate} />
+      <SyncTrendSelection predicate={datePredicate} />
       {chart === 'Bars' ? (
         <BarChart
           id={SOURCE.trend}
@@ -249,7 +258,7 @@ export function HoursCard({ facts }: { facts: Dataset<Fact> }) {
     [rows],
   );
   return (
-    <Card className="sf-hours" title="Orders by hour" actions={<Hint>peak {peak}</Hint>}>
+    <Card className="sf-hours" title="Modeled order timing" actions={<Hint>peak {peak}</Hint>}>
       <Heatmap
         data={data}
         x="hour"
@@ -262,8 +271,13 @@ export function HoursCard({ facts }: { facts: Dataset<Fact> }) {
         legend
         peak={false}
         selection={false}
-        aria-label="Orders by weekday and hour, a typical week of the period"
+        aria-label="Selected orders distributed by modeled weekday and hour"
       />
+      <div className="sf-card-foot">
+        <Hint>
+          Selected-period orders distributed using a fixed weekly profile; not observed timestamps.
+        </Hint>
+      </div>
     </Card>
   );
 }

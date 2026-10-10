@@ -18,7 +18,7 @@ Chart libraries stop at the chart. UI kits stop at the form. Teams glue the two 
 - **One data model.** Pass rows and name the fields. Types, labels and formats are inferred (or declared once with `dataset()`), and axes, tooltips, tables and KPIs all use them.
 - **Bring your own data.** The local dataset explorer imports CSV/JSON files or bounded HTTP snapshots, then links charts, profiles and records. [Connection workflow and API shape](docs/guides/connecting-data.md).
 - **One selection.** Wrap views in `<Selection>`. Brushes, clicks and filter chips publish predicates to a shared store; every other view re-filters, and a view is never filtered by its own selection (crossfilter semantics).
-- **Accessible charts by default.** Every chart has a keyboard model, an auto-written screen-reader summary and a table fallback (`view="table"`).
+- **Accessible analytical views.** Charts provide keyboard navigation, generated summaries and table alternatives (`view="table"`). Sparkline is a compact image with a summary instead of interactive navigation or a table. [Accessibility scope](docs/guides/accessibility.md).
 - **Machine-readable.** Components are described by JSON Schema (`@quartile/react/schema.json`). `validateSpec` checks a generated dashboard spec and `<SpecView>` renders it.
 - **Optional worker queries.** Arrow input and DuckDB-backed bounded queries link metrics, category totals and remote table pages. [Setup and semantics](docs/guides/worker-queries.md).
 - **Scatter renderer choice.** Use SVG, Canvas, or WebGL for scatter points, with shared selection, keyboard navigation and paged exact data. [Coverage and fallbacks](docs/guides/renderers.md).
@@ -35,7 +35,9 @@ The [product-direction follow-up](docs/research/product-direction-2026-10-09.md)
 import { QuartileProvider, Selection, KPI, Histogram, BarList, DataTable } from '@quartile/react';
 import '@quartile/react/styles.css';
 
-export function OrdersExplorer({ orders }) {
+type Order = { product: string; region: string; amount: number };
+
+export function OrdersExplorer({ orders }: { orders: Order[] }) {
   return (
     <QuartileProvider theme="system">
       <Selection id="orders">
@@ -55,7 +57,7 @@ To install the unpublished preview into another application, [build and pack it 
 
 To begin visually, open [Studio](https://quartile-design.vercel.app/studio). Its downloadable starter includes a built local preview package, normal React components and a real API helper. The [API guide](docs/guides/api-data.md) also supports copying that helper into an existing app. Studio is a bounded editor for public data; private requests, deployment and persistence stay in your application.
 
-Requires Node 20.19+ and pnpm 10.
+Use Node 22.12 or newer and pnpm 10. The Vite toolchain also supports Node 20.19+; earlier Node 22 releases are not supported.
 
 ```sh
 pnpm install

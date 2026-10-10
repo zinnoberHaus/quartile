@@ -7,6 +7,7 @@ import {
   FilterBar,
   Histogram,
   LineChart,
+  type Predicate,
   type Primitive,
   QuartileProvider,
   type Row,
@@ -135,7 +136,9 @@ function AssistedAnalysis() {
     'Local mode makes no network requests and does not call a model.',
   );
   const [includeProfile, setIncludeProfile] = useState(true);
-  const [history, setHistory] = useState<AnalysisViewState[]>([]);
+  const [history, setHistory] = useState<{ view: AnalysisViewState; predicates: Predicate[] }[]>(
+    [],
+  );
   const [applied, setApplied] = useState<AnalysisPlan | null>(null);
   const [notice, setNotice] = useState('Choose a suggested request or describe the view you want.');
   const rows = useMemo(() => selection.filter(labSamples), [selection]);
@@ -171,7 +174,9 @@ function AssistedAnalysis() {
     onApply: (plan) => {
       const current = { ...view, filters: context.selection };
       const next = reduceAnalysisPlan(plan, current, context);
-      setHistory((previous) => [...previous, current].slice(-5));
+      setHistory((previous) =>
+        [...previous, { view: current, predicates: [...selection.predicates] }].slice(-5),
+      );
       setView(next);
       publish(selection, next.filters);
       setApplied(plan);
@@ -208,12 +213,22 @@ function AssistedAnalysis() {
     const previous = history[history.length - 1];
     if (!previous) return;
     setHistory((items) => items.slice(0, -1));
-    setView(previous);
-    publish(selection, previous.filters);
+    setView(previous.view);
+    selection.clear();
+    for (const predicate of previous.predicates)
+      selection.set(predicate.field, predicate.value, {
+        op: predicate.op,
+        source: predicate.source,
+      });
     setApplied(null);
     setNotice('Restored the previous analysis view.');
   }
-  const chartProps = { data: samples, height: 290, 'aria-label': 'Assistant analysis chart' };
+  const chartProps = {
+    id: 'assistant-analysis-chart',
+    data: samples,
+    height: 290,
+    'aria-label': 'Assistant analysis chart',
+  };
   return (
     <>
       <div className="sc-source-bar">
@@ -229,6 +244,7 @@ function AssistedAnalysis() {
           </Button>
           <Button
             onClick={() => {
+              assistant.discard();
               selection.clear();
               setView(initialView);
               setApplied(null);

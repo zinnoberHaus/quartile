@@ -166,6 +166,9 @@ export function parseDatasetText(text: string, filename: string): ImportedData {
   });
   if (!names.size || names.size > IMPORT_LIMITS.fields)
     throw new Error(`Provide between 1 and ${IMPORT_LIMITS.fields} fields.`);
+  // Missing cells must be own values, including fields named like Object.prototype members.
+  // This also gives profiles, tables and charts one consistent rectangular snapshot.
+  for (const row of rows) for (const name of names) if (!Object.hasOwn(row, name)) row[name] = null;
   const fields: Record<string, FieldOverride> = {};
   if (metadata !== undefined) {
     if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata))

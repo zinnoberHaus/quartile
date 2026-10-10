@@ -11,13 +11,10 @@ import {
   IconDownload,
   IconExternal,
   IconFile,
-  IconFlask,
   IconFunnel,
   IconGrid,
   IconLineChart,
-  IconSettings,
   IconShare,
-  IconUsers,
   Menu,
   type DateRange as QDateRange,
   SegmentedControl,
@@ -38,24 +35,24 @@ import {
   type Period,
   rangeForPeriod,
 } from '../../data/storefront';
+import { Link } from '../../router';
 import { fmt } from './model';
 
 export const SOURCE_URL =
   'https://github.com/zinnoberHaus/quartile/tree/main/apps/gallery/src/examples/storefront';
 
-const NAV: { label: string; icon: ReactNode }[] = [
-  { label: 'Overview', icon: <IconGrid /> },
-  { label: 'Revenue', icon: <IconLineChart /> },
-  { label: 'Customers', icon: <IconUsers /> },
-  { label: 'Products', icon: <IconBox /> },
-  { label: 'Funnels', icon: <IconFunnel /> },
-  { label: 'Experiments', icon: <IconFlask /> },
+export type StorefrontSection = 'overview' | 'revenue' | 'products' | 'conversion';
+const NAV: { label: string; section: StorefrontSection; icon: ReactNode }[] = [
+  { label: 'Overview', section: 'overview', icon: <IconGrid /> },
+  { label: 'Revenue & markets', section: 'revenue', icon: <IconLineChart /> },
+  { label: 'Products', section: 'products', icon: <IconBox /> },
+  { label: 'Channels & conversion', section: 'conversion', icon: <IconFunnel /> },
 ];
 
 export interface SidebarProps {
   open: boolean;
   onSearch: () => void;
-  onPlaceholder: (page: string) => void;
+  onSection: (section: StorefrontSection) => void;
   onAlerts: () => void;
   alertCount: number;
   onTheme: (t: 'light' | 'dark') => void;
@@ -66,7 +63,7 @@ export interface SidebarProps {
 export function SfSidebar({
   open,
   onSearch,
-  onPlaceholder,
+  onSection,
   onAlerts,
   alertCount,
   onTheme,
@@ -113,10 +110,10 @@ export function SfSidebar({
                 Sample
               </Badge>
             </div>
-            <div className="sf-source-name">kestrel.orders</div>
-            <div className="sf-source-meta">Sample data · generated in the browser</div>
+            <div className="sf-source-name">kestrel.aggregate_sales</div>
+            <div className="sf-source-meta">Modeled sales, not individual orders</div>
             <div className="sf-source-meta">
-              {fmt.int(rowsInView)} {grain} rows in this period
+              {fmt.int(rowsInView)} {grain} × market × channel × product rows
             </div>
           </div>
           <div className="sf-theme">
@@ -142,30 +139,31 @@ export function SfSidebar({
         </>
       }
     >
-      <SidebarSection title="Analytics">
+      <SidebarSection title="On this page">
         {NAV.map((n) => (
           <SidebarItem
             key={n.label}
             label={n.label}
             icon={n.icon}
-            active={n.label === 'Overview'}
-            onClick={n.label === 'Overview' ? undefined : () => onPlaceholder(n.label)}
+            onClick={() => onSection(n.section)}
           />
         ))}
       </SidebarSection>
       <SidebarSection title="Workspace">
-        <SidebarItem label="Reports" icon={<IconFile />} onClick={() => onPlaceholder('Reports')} />
         <SidebarItem
-          label="Alerts"
+          label="Sample stock alerts"
           icon={<IconBell />}
           badge={alertCount > 0 ? alertCount : undefined}
           onClick={onAlerts}
         />
-        <SidebarItem
-          label="Settings"
-          icon={<IconSettings />}
-          onClick={() => onPlaceholder('Settings')}
-        />
+      </SidebarSection>
+      <SidebarSection title="Explore Quartile">
+        <Link className="sf-example-link" to="/">
+          Component gallery ↗
+        </Link>
+        <Link className="sf-example-link" to="/studio">
+          Build with Studio ↗
+        </Link>
       </SidebarSection>
     </Sidebar>
   );

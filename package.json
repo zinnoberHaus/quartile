@@ -6,7 +6,7 @@
     "node": ">=20.19"
   },
   "scripts": {
-    "build": "pnpm --filter @quartile/react build && pnpm --filter @quartile/gallery build",
+    "build": "pnpm --filter @quartile/gallery build",
     "build:lib": "pnpm --filter @quartile/react build",
     "benchmark": "node scripts/benchmark.mjs",
     "dev": "pnpm --filter @quartile/gallery dev",

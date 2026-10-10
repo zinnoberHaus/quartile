@@ -2,6 +2,8 @@
 
 Quartile provides a constrained rendering surface for dashboard JSON. It does not include a model, prompt service, database connection, or arbitrary-code interpreter.
 
+For visual composition without a model, use [Studio](studio.md). It connects public API data, edits six view types and exports native React code. Its versioned project includes source configuration and editor blocks; it is a separate document from a bare Dashboard spec.
+
 For an existing workspace where a user asks for a filter, sort, chart or table change, use the separate optional [analysis-assistance API](ai-assistance.md). `AnalysisPlan` and `analysisPlanSchema` describe reviewed actions; `QuartileSpec` and `schema.json` describe dashboard layouts. They are distinct contracts. The [assistant demo](https://quartile-design.vercel.app/examples/assistant) starts with a labeled deterministic planner and can connect an application-owned model backend. The JSON editor below remains a local spec editor.
 
 ```tsx

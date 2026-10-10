@@ -83,8 +83,10 @@ export function Histogram<R extends Row = Row>(props: HistogramProps<R>) {
   const valueField = value ? fieldOf(schema, value, allRows) : null;
 
   const model = useMemo(() => {
-    const at = (r: Row) => Number(toComparable(r[x]));
-    const weight = value ? (r: Row) => Number(r[value]) : undefined;
+    const at = (r: Row) => (r[x] == null || r[x] === '' ? Number.NaN : Number(toComparable(r[x])));
+    const weight = value
+      ? (r: Row) => (r[value] == null || r[value] === '' ? Number.NaN : Number(r[value]))
+      : undefined;
     const present = allRows.filter((r) => r[x] != null && Number.isFinite(at(r)));
     const bins: Bin[] = temporal
       ? timeBins(

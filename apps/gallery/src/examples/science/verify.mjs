@@ -186,6 +186,10 @@ try {
   checked('Explicit cancellation stops a streaming source without losing the current dataset.');
 
   await page.setViewportSize({ width: 375, height: 900 });
+  // ResizeObserver updates chart dimensions after the viewport change is acknowledged.
+  await page.waitForFunction(() => document.documentElement.scrollWidth <= innerWidth + 1, null, {
+    timeout: 5000,
+  });
   assert.equal(
     await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1),
     false,

@@ -31,3 +31,7 @@ python3 -m unittest discover -s examples/python -p 'test_*.py'
 ```
 
 See [the notebook](dataframe_handoff.ipynb) for an executable pandas example. Install pandas in your own notebook environment to run it; Quartile does not install or manage that environment.
+
+## Verified handoff
+
+On 2026-10-10, snapshots produced with pandas 2.3.3 and Polars 1.34.0 were imported into the deployed dataset explorer. The two-record fixture preserved leading-zero string IDs, finite numbers, a null numeric cell, booleans and UTC timestamps without browser errors. This verifies that bounded scalar handoff for those versions; nested values, arbitrary extension dtypes and other producer versions require their own checks.

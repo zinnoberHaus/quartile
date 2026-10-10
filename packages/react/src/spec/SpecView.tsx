@@ -87,11 +87,21 @@ function lookup(name: string): AnyComponent | null {
 function encoded(v: unknown): Encoded | null {
   if (typeof v === 'string') return { field: v };
   if (v && typeof v === 'object' && !Array.isArray(v) && 'field' in v) {
-    const { field, aggregate, type, label, format } = v as Record<string, unknown>;
+    const { field, aggregate, ...metadata } = v as Record<string, unknown>;
     const override: Exclude<FieldOverride, string> = {};
-    if (type) override.type = type as never;
-    if (label) override.label = label as string;
-    if (format) override.format = format as never;
+    for (const key of [
+      'type',
+      'label',
+      'format',
+      'axisFormat',
+      'tooltipFormat',
+      'description',
+      'timeZone',
+      'currency',
+      'unit',
+    ] as const) {
+      if (metadata[key] !== undefined) override[key] = metadata[key] as never;
+    }
     return {
       field: String(field),
       aggregate: aggregate as Aggregate | undefined,

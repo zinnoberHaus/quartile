@@ -21,6 +21,8 @@ import { links } from '../../shell/links';
 import { blockDataError } from './chart-data';
 import chartRuntime from './chart-data.ts?raw';
 import { createZip, reactSource, starterFiles } from './export';
+import { FormattingInspector } from './FormattingInspector';
+import { applyFormatting } from './formatting';
 import {
   type BlockType,
   blockError,
@@ -399,8 +401,15 @@ export function StudioPage() {
   const sequence = useRef(0);
   const seedCustom = useRef(false);
   const sourceKey = JSON.stringify(project.source);
-  const result =
+  const rawResult =
     loaded?.sourceKey === sourceKey && loaded.revision === revision ? loaded.result : null;
+  const result = useMemo(
+    () =>
+      rawResult
+        ? { ...rawResult, data: applyFormatting(rawResult.data, project.formatting) }
+        : null,
+    [rawResult, project.formatting],
+  );
   const schema =
     result?.data.schema ?? sourcePresets.find((p) => p.id === project.source.kind)?.fields ?? {};
   const rowIds = useMemo(
@@ -603,7 +612,7 @@ export function StudioPage() {
   }
 
   return (
-    <QuartileProvider>
+    <QuartileProvider locale={project.formatting?.locale} timeZone={project.formatting?.timeZone}>
       <div className="st-page">
         <header className="st-header">
           <Link to="/" aria-label="Quartile component gallery">
@@ -825,6 +834,11 @@ export function StudioPage() {
                   }}
                 />
               )}
+              <FormattingInspector
+                schema={schema}
+                formatting={project.formatting}
+                onChange={(formatting) => setProject((current) => ({ ...current, formatting }))}
+              />
             </aside>
             <section className="st-canvas" id="studio-canvas" aria-label="Analysis canvas">
               <div className="st-canvas-toolbar">

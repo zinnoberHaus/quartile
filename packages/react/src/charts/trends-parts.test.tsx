@@ -234,7 +234,7 @@ describe('DonutChart', () => {
     const rows = within(screen.getByRole('table')).getAllByRole('row');
     expect(Array.from(rows[1].children).map((c) => c.textContent)).toEqual([
       'Email',
-      '$80',
+      '$80.00',
       '61.5%',
     ]);
   });
@@ -250,7 +250,7 @@ describe('DonutChart', () => {
     const plot = screen.getByRole('application');
     act(() => plot.focus());
     fireEvent.keyDown(plot, { key: 'ArrowRight' });
-    expect(screen.getByText(/^Email: \$80, 61\.5% of total$/)).toBeTruthy();
+    expect(screen.getByText(/^Email: \$80\.00, 61\.5% of total$/)).toBeTruthy();
     fireEvent.keyDown(plot, { key: 'Enter' });
     expect(preds[0]).toMatchObject({ field: 'channel', op: 'in', value: ['Email'] });
   });
@@ -426,7 +426,7 @@ describe('AreaChart', () => {
     const rows = within(screen.getByRole('table')).getAllByRole('row');
     expect(rows.map((r) => Array.from(r.children).map((c) => c.textContent))).toEqual([
       ['D', 'A', 'B', 'Total'],
-      ['Thu, Jan 1', '1', '3', '4'],
+      ['Jan 1', '1', '3', '4'],
     ]);
   });
 });

@@ -1,6 +1,7 @@
 import { forwardRef, type HTMLAttributes } from 'react';
 import { type DeltaKind, deltaTone, formatDelta } from '../../../data/format';
 import { cx } from '../../../lib/cx';
+import { useQuartile } from '../../../provider/QuartileProvider';
 
 export type DeltaTone = 'positive' | 'negative' | 'neutral' | 'signal';
 export type DeltaVariant = 'soft' | 'plain' | 'arrow';
@@ -23,11 +24,13 @@ export interface DeltaProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'child
 export function describeDelta(
   value: number,
   kind: DeltaKind = 'percent',
-  { digits, invert = false }: { digits?: number; invert?: boolean } = {},
+  { digits, invert = false, locale }: { digits?: number; invert?: boolean; locale?: string } = {},
 ) {
   const places = digits ?? (kind === 'pt' ? 2 : 1);
-  const text = formatDelta(value, kind, places);
+  const text = formatDelta(value, kind, places, { locale });
   const scaled = kind === 'percent' ? value * 100 : value;
+  if (!Number.isFinite(scaled))
+    return { text, direction: 'flat' as const, tone: 'neutral' as const };
   const rounded = Number(scaled.toFixed(places));
   const direction: 'up' | 'down' | 'flat' = rounded > 0 ? 'up' : rounded < 0 ? 'down' : 'flat';
   return { text, direction, tone: deltaTone(rounded, invert) as DeltaTone };
@@ -38,7 +41,8 @@ export const Delta = forwardRef<HTMLSpanElement, DeltaProps>(function Delta(
   { value, kind = 'percent', invert = false, variant = 'soft', digits, tone, className, ...rest },
   ref,
 ) {
-  const d = describeDelta(value, kind, { digits, invert });
+  const { locale } = useQuartile();
+  const d = describeDelta(value, kind, { digits, invert, locale });
   const resolvedTone = tone ?? d.tone;
   const arrow = variant === 'arrow' && d.direction !== 'flat';
   return (
@@ -52,7 +56,8 @@ export const Delta = forwardRef<HTMLSpanElement, DeltaProps>(function Delta(
       {arrow ? (
         <>
           <span aria-hidden="true">
-            {d.direction === 'up' ? '▲' : '▼'} {d.text.slice(1)}
+            {d.direction === 'up' ? '▲' : '▼'}{' '}
+            {d.text.replace(/^([\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]*?)[+−-]/, '$1')}
           </span>
           <span className="q-visually-hidden">{d.text}</span>
         </>

@@ -19,12 +19,18 @@ try {
   );
   writeFileSync(
     join(temporary, 'consumer.tsx'),
-    `import { DataExplorer, DataTable, KPI, LineChart, QuartileProvider, Selection, dataset } from '@quartile/react';
+    `import { DataExplorer, DataTable, KPI, LineChart, QuartileProvider, Selection, dataset, formatParts, makeFieldFormatter, makeRangeFormatter, validateFormat, type NumberFormat } from '@quartile/react';
 import { QueryKPI, type QuerySource } from '@quartile/react/query';
 import { AssistantPanel, createAnalysisContext, profileDataset, useAnalysisAssistant, type AssistantAdapter } from '@quartile/react/ai';
 import '@quartile/react/styles.css';
 export const RemoteMetric = ({ source }: { source: QuerySource }) => <QueryKPI data={source} label="Remote count" aggregate="count" />;
 const data = dataset([{ date: '2026-09-01', region: 'Europe', amount: 120 }]);
+const numberFormat: NumberFormat = { type: 'number', notation: 'engineering', maximumSignificantDigits: 4, suffix: ' ms' };
+const formatted = dataset(data.rows, { amount: { format: numberFormat, axisFormat: 'compact', tooltipFormat: { type: 'number', maximumFractionDigits: 5 }, description: 'Elapsed time' }, date: { format: { type: 'date', dateStyle: 'long' }, timeZone: 'UTC' } });
+export const displayed = makeFieldFormatter(formatted.schema.amount, { surface: 'tooltip', locale: 'de-DE' })(120);
+export const parts = formatParts(numberFormat, 120);
+export const range = makeRangeFormatter('currency')(1, 2);
+export const valid = validateFormat(numberFormat);
 const adapter: AssistantAdapter = { id: 'consumer', label: 'Consumer', mode: 'live', generate: async () => ({}) };
 export function Assistant() {
   const context = createAnalysisContext({ schema: data.schema, source: { id: 'rows', version: '1' }, profile: profileDataset(data) });
@@ -32,10 +38,10 @@ export function Assistant() {
   return <AssistantPanel assistant={assistant} />;
 }
 export function App() {
-  return <QuartileProvider><Selection>
+  return <QuartileProvider locale="de-DE" timeZone="UTC"><Selection>
     <KPI data={data} label="Revenue" value="amount" />
     <LineChart data={data} x="date" y="amount" brush />
-    <DataExplorer data={data} rowKey="region" columns={[{ field: 'region' }, { field: 'amount', editable: true }]} />
+    <DataExplorer data={formatted} rowKey="region" csvFormat="formatted" columns={[{ field: 'region' }, { field: 'amount', editable: true, description: 'Elapsed time' }]} />
     <DataTable data={data} columns={[{ field: 'region' }, { field: 'amount' }]} />
   </Selection></QuartileProvider>;
 }
@@ -47,7 +53,7 @@ export function App() {
 import { existsSync, readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
-import { DataExplorer, DataTable, KPI, LineChart, QuartileProvider, Selection, dataset, validateSpec } from '@quartile/react';
+import { DataExplorer, DataTable, KPI, LineChart, QuartileProvider, Selection, dataset, validateSpec, validateFormat, makeFormatter, formatParts, tableToCSV } from '@quartile/react';
 import { QueryKPI } from '@quartile/react/query';
 import { AssistantPanel, createAnalysisContext, profileDataset, useAnalysisAssistant, validateAnalysisPlan } from '@quartile/react/ai';
 const adapter = { id: 'consumer', label: 'Consumer', mode: 'live', generate: async () => { throw new Error('SSR must not invoke a model'); } };
@@ -82,6 +88,12 @@ assert.match(css, /q-assistant/);
 const schema = JSON.parse(readFileSync(new URL(import.meta.resolve('@quartile/react/schema.json')), 'utf8'));
 assert(schema.$defs.LineChart);
 assert(validateSpec({ component: 'LineChart', data: 'rows', x: 'date', y: 'amount' }).valid);
+assert(validateFormat({ type: 'number', notation: 'engineering', maximumSignificantDigits: 4 }).valid);
+assert(!validateFormat({ type: 'date', timeZone: 'Invalid/Zone' }).valid);
+assert.equal(makeFormatter('number')(9007199254740991), '9,007,199,254,740,991');
+assert.equal(makeFormatter({ type: 'number', maximumFractionDigits: 3 })('9007199254740993.125'), '9,007,199,254,740,993.125');
+assert(formatParts({ style: 'currency', currency: 'EUR' }, -1).some(part => part.type === 'currency'));
+assert(tableToCSV(data.rows, [{ field: 'amount' }], { mode: 'formatted', schema: data.schema, locale: 'de-DE' }).includes('120,00'));
 assert.match(readFileSync(new URL('../LICENSE', import.meta.resolve('@quartile/react')), 'utf8'), /Apache License/);
 assert.match(readFileSync(new URL('../README.md', import.meta.resolve('@quartile/react')), 'utf8'), /0.1 preview/);
 console.log('Packed import, SSR, CSS, schema, license and README passed.');

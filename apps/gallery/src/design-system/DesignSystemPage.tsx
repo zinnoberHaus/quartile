@@ -105,6 +105,7 @@ export function DesignSystemPage() {
           <Link to="/examples/explore">Data science</Link>
           <Link to="/examples/assistant">AI workbench</Link>
           <Link to="/examples/scale">Worker queries</Link>
+          <Link to="/examples/formatting">Formatting</Link>
           <Link to="/studio">App Studio</Link>
           <a href={links.github}>GitHub</a>
         </nav>

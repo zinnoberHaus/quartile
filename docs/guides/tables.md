@@ -89,6 +89,8 @@ Set `editable` on a column, provide `rowKey`, and handle `onCellEdit`. The compo
 
 ## Export and scale
 
-CSV includes all matching sorted result rows before pagination and only visible columns in their visible order. When grouped, it exports groups. `onExport({ csv, rows, columns, view })` replaces the browser download. The lower-level `tableToCSV` quotes/escapes cells and prefixes formula-like strings; values are source values, not localized display text.
+CSV includes all matching sorted result rows before pagination and only visible columns in their visible order. When grouped, it exports groups. `onExport({ csv, rows, columns, view })` replaces the browser download. Raw values are the default. Set `csvFormat="formatted"` on DataExplorer for presentation exports using column/field formats and the provider locale/time zone. This does not reproduce custom cell JSX, sparkline/bar-share visuals or delta-pill rendering; `onExport.rows` still contains result values.
+
+The lower-level `tableToCSV(rows, columns, { mode: 'formatted', schema, locale, timeZone })` provides the same explicit choice. It quotes/escapes cells and prefixes formula-like strings in either mode. Keep raw mode for machine-readable handoffs. See [formatting](formatting.md) for descriptors, field explanations and the distinction between display precision and calculation precision.
 
 This is local row processing. Virtualization bounds rendered rows, not filtering/sorting cost or the dataset in memory. `QueryDataTable` remains the separate worker-paging path; do not run a local explorer over one remote page and label the export as the entire remote source. See [worker queries](worker-queries.md) and [data-science workflows](data-science.md).

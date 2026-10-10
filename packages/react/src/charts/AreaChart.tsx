@@ -1,7 +1,7 @@
 import { bisectCenter } from 'd3-array';
 import { area as d3area, line as d3line } from 'd3-shape';
 import { type PointerEvent, useId, useMemo, useRef, useState } from 'react';
-import { makeFormatter } from '../data/format';
+import { makeFieldFormatter } from '../data/format';
 import type { Predicate } from '../data/predicates';
 import { fieldOf, resolveData } from '../data/schema';
 import type { DataInput, Formatter, Row } from '../data/types';
@@ -27,6 +27,7 @@ import {
   valueScale,
 } from './core/scales';
 import { isKeyboardFocus } from './core/trends-focus';
+import { seriesFormatters } from './core/trends-format';
 import { pivotSeries, seriesTotals, stackSeries } from './core/trends-series';
 
 export interface AreaChartProps<R extends Row = Row> extends ChartBaseProps {
@@ -86,7 +87,7 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
     height = 240,
     ...frame
   } = props;
-  const { locale } = useQuartile();
+  const { locale, timeZone } = useQuartile();
   const source = useSourceId(id);
   const gradientId = useId().replace(/:/g, '');
   const { rows: allRows, schema } = useMemo(() => resolveData(data), [data]);
@@ -96,26 +97,38 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
   const model = useMemo(() => {
     const xField = fieldOf(schema, x, rows);
     const yFields = (Array.isArray(y) ? y : [y]).map((f) => fieldOf(schema, f, rows));
-    const { xsRaw, series } = pivotSeries(rows, { x, yFields, color, colors });
+    const { xsRaw, series } = pivotSeries(rows, {
+      x,
+      yFields,
+      color: color,
+      colors,
+      formatGroup: color
+        ? makeFieldFormatter(fieldOf(schema, color, allRows), { locale, timeZone })
+        : undefined,
+    });
     return { xField, yFields, xsRaw, series };
-  }, [rows, schema, x, y, color, colors]);
+  }, [rows, schema, x, y, color, colors, allRows, locale, timeZone]);
 
   const { xField, xsRaw, series } = model;
   const valueField = series[0]?.field ?? model.yFields[0];
   const fmtY = useMemo(
-    () => makeFormatter(format ?? valueField?.format, { currency: valueField?.currency, locale }),
-    [format, valueField, locale],
+    () => makeFieldFormatter(valueField, { locale, timeZone }, format),
+    [format, valueField, locale, timeZone],
   );
   const fmtX = useMemo(
-    () => makeFormatter(xFormat ?? xField.format, { locale }),
-    [xFormat, xField, locale],
+    () => makeFieldFormatter(xField, { locale, timeZone }, xFormat),
+    [xFormat, xField, locale, timeZone],
   );
   const fmtXLong = useMemo(
-    () => (xField.type === 'temporal' && !xFormat ? makeFormatter('weekday', { locale }) : fmtX),
-    [xField, xFormat, fmtX, locale],
+    () => makeFieldFormatter(xField, { locale, timeZone, surface: 'tooltip' }, xFormat),
+    [xField, xFormat, locale, timeZone],
   );
   const continuous = xField.type === 'temporal' || xField.type === 'quantitative';
   const canBrush = brush && continuous;
+  const formats = useMemo(
+    () => seriesFormatters(series, { locale, timeZone }, format),
+    [series, locale, timeZone, format],
+  );
   const shown = series.filter((s) => !hidden.has(s.key));
   // A linked filter may remove every visible group. Keep surviving groups discoverable.
   const visible = shown.length ? shown : series;
@@ -149,7 +162,8 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
         s.label,
         s.values.flatMap((v, i) => (v == null ? [] : [{ x: xsRaw[i], y: v }])),
         fmtX,
-        fmtY,
+        formats.get(s.key)!.value,
+        locale,
       ),
     );
     if (stack && series.length > 1) {
@@ -160,23 +174,24 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
           totals.map((v, i) => ({ x: xsRaw[i], y: v })),
           fmtX,
           fmtY,
+          locale,
         ),
       );
     }
     return parts.join(' ');
-  }, [series, xsRaw, fmtX, fmtY, stack]);
+  }, [series, xsRaw, fmtX, fmtY, formats, stack, locale]);
 
   const table = useMemo<ChartTable>(() => {
     const totals = stack && series.length > 1 ? seriesTotals(series) : null;
     return {
       columns: [xField.label, ...series.map((s) => s.label), ...(totals ? ['Total'] : [])],
       rows: xsRaw.map((xv, i) => [
-        fmtXLong(xv),
-        ...series.map((s) => fmtY(s.values[i])),
+        fmtX(xv),
+        ...series.map((s) => formats.get(s.key)!.value(s.values[i])),
         ...(totals ? [fmtY(totals[i])] : []),
       ]),
     };
-  }, [series, stack, xField, xsRaw, fmtXLong, fmtY]);
+  }, [series, stack, xField, xsRaw, fmtX, fmtY, formats]);
 
   return (
     <ChartFrame
@@ -195,10 +210,7 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
           plotHeight - MARGIN.bottom,
           MARGIN.top,
         ]);
-        const fmtTick = tickFormatter(
-          { ...valueField, format: format ?? valueField.format },
-          locale,
-        );
+        const fmtTick = tickFormatter(valueField, locale, timeZone, format);
         const yTicks = yScale.ticks(4).map((v) => ({ y: yScale(v), label: fmtTick(v) }));
         const left = Math.ceil(Math.max(...yTicks.map((t) => monoTextWidth(t.label)), 16)) + 12;
         const x0 = left;
@@ -207,7 +219,7 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
         const px = xsRaw.map((v, i) =>
           xs ? xs.value(v) : x0 + (xsRaw.length > 1 ? (i * (x1 - x0)) / (xsRaw.length - 1) : 0),
         );
-        const fmtXTick = tickFormatter({ ...xField, format: xFormat ?? xField.format }, locale);
+        const fmtXTick = tickFormatter(xField, locale, timeZone, xFormat);
         const xTicks = spacedIndices(
           xsRaw.length,
           Math.max(2, Math.min(6, Math.floor((x1 - x0) / 90))),
@@ -286,7 +298,8 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
                 .filter((s) => s.values[tip] != null)
                 .map((s) => ({
                   label: s.label,
-                  value: fmtY(s.values[tip]),
+                  value: formats.get(s.key)!.tooltip(s.values[tip]),
+                  description: s.field.description,
                   color: series.length > 1 ? s.color : undefined,
                 }));
         const tipFooter: TooltipRow | undefined =
@@ -416,6 +429,10 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
                 aria-label={`${frame['aria-label'] ?? (stack ? 'Stacked area chart' : 'Area chart')}. Use arrow keys to move between points${canBrush ? ', Enter to select' : ''}.`}
                 role="application"
                 {...keyboardProps}
+                onKeyDown={(event) => {
+                  setHover(null);
+                  keyboardProps.onKeyDown(event);
+                }}
                 onFocus={(e) => {
                   if (isKeyboardFocus(e.currentTarget)) setActive((a) => a ?? xsRaw.length - 1);
                 }}
@@ -426,6 +443,7 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
               />
               {tip != null && tipRows.length > 0 && (
                 <ChartTooltip
+                  note={frame.tooltipNote}
                   x={px[tip]}
                   width={width}
                   title={fmtXLong(xsRaw[tip])}
@@ -435,7 +453,7 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
               )}
               <div className="q-visually-hidden" aria-live="polite">
                 {active != null && tipRows.length > 0
-                  ? `${fmtXLong(xsRaw[active])}: ${tipRows.map((r) => `${r.label} ${r.value}`).join(', ')}${tipFooter ? `, total ${tipFooter.value}` : ''}`
+                  ? `${fmtXLong(xsRaw[active])}: ${tipRows.map((r) => `${r.label} ${r.value}${r.description ? `. ${r.description}` : ''}`).join(', ')}${tipFooter ? `, total ${tipFooter.value}` : ''}`
                   : ''}
               </div>
             </div>

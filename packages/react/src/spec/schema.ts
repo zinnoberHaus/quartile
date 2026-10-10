@@ -2,6 +2,7 @@
  * The JSON Schema (draft 2020-12) for every component a model may generate. A spec names a
  * component, a dataset and fields; SpecView validates it against this schema and renders it.
  */
+import type { SerializableFormatter } from '../data/types';
 
 type JsonSchema = Record<string, unknown>;
 
@@ -10,6 +11,11 @@ const FORMATS = [
   'number',
   'integer',
   'compact',
+  'scientific',
+  'engineering',
+  'bytes',
+  'bytes-binary',
+  'duration',
   'currency',
   'currency-compact',
   'percent',
@@ -44,6 +50,106 @@ const measures = (description: string): JsonSchema => ({
   oneOf: [ref('Measure'), { type: 'array', items: ref('Field'), minItems: 1 }],
 });
 
+const LOCALE = { type: 'string', minLength: 1, description: 'BCP 47 locale identifier.' };
+const TIME_ZONE = {
+  type: 'string',
+  minLength: 1,
+  description: 'Intl time zone identifier. Changes display, not data bucketing.',
+  'x-quartile-time-zone': true,
+};
+const CURRENCY = {
+  type: 'string',
+  pattern: '^[A-Za-z]{3}$',
+  description: 'Three-letter currency code, e.g. USD or JPY.',
+};
+const NUMBER_OPTIONS = {
+  localeMatcher: oneOfEnum(['lookup', 'best fit'], 'Locale matching algorithm.'),
+  numberingSystem: str('Unicode numbering system identifier.'),
+  style: oneOfEnum(['decimal', 'currency', 'percent', 'unit'], 'Numeric display style.'),
+  currency: CURRENCY,
+  currencyDisplay: oneOfEnum(['symbol', 'narrowSymbol', 'code', 'name'], 'Currency label.'),
+  currencySign: oneOfEnum(['standard', 'accounting'], 'Negative currency convention.'),
+  unit: str('Intl sanctioned unit, optionally compounded with -per-.'),
+  unitDisplay: oneOfEnum(['short', 'narrow', 'long'], 'Unit label length.'),
+  notation: oneOfEnum(['standard', 'scientific', 'engineering', 'compact'], 'Numeric notation.'),
+  compactDisplay: oneOfEnum(['short', 'long'], 'Compact suffix length.'),
+  useGrouping: oneOfEnum([true, false, 'auto', 'always', 'min2'], 'Digit grouping.'),
+  signDisplay: oneOfEnum(['auto', 'always', 'exceptZero', 'negative', 'never'], 'Sign policy.'),
+  minimumIntegerDigits: int('Minimum integer digits.', 1, 21),
+  minimumFractionDigits: int('Minimum fractional places.', 0, 100),
+  maximumFractionDigits: int('Maximum fractional places.', 0, 100),
+  minimumSignificantDigits: int('Minimum significant digits.', 1, 21),
+  maximumSignificantDigits: int('Maximum significant digits.', 1, 21),
+  roundingPriority: oneOfEnum(['auto', 'morePrecision', 'lessPrecision'], 'Precision precedence.'),
+  roundingIncrement: oneOfEnum(
+    [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 2500, 5000],
+    'Rounding increment. Subject to Intl precision constraints.',
+  ),
+  roundingMode: oneOfEnum(
+    [
+      'ceil',
+      'floor',
+      'expand',
+      'trunc',
+      'halfCeil',
+      'halfFloor',
+      'halfExpand',
+      'halfTrunc',
+      'halfEven',
+    ],
+    'Rounding rule.',
+  ),
+  trailingZeroDisplay: oneOfEnum(['auto', 'stripIfInteger'], 'Trailing fractional zeros.'),
+};
+const DATE_OPTIONS = {
+  localeMatcher: oneOfEnum(['lookup', 'best fit'], 'Locale matching algorithm.'),
+  calendar: str('Unicode calendar identifier.'),
+  numberingSystem: str('Unicode numbering system identifier.'),
+  timeZone: TIME_ZONE,
+  hour12: bool('Use a 12-hour clock.'),
+  hourCycle: oneOfEnum(['h11', 'h12', 'h23', 'h24'], 'Hour cycle.'),
+  formatMatcher: oneOfEnum(['basic', 'best fit'], 'Date component matching algorithm.'),
+  dateStyle: oneOfEnum(
+    ['full', 'long', 'medium', 'short'],
+    'Date style; excludes component options.',
+  ),
+  timeStyle: oneOfEnum(
+    ['full', 'long', 'medium', 'short'],
+    'Time style; excludes component options.',
+  ),
+  weekday: oneOfEnum(['long', 'short', 'narrow'], 'Weekday label.'),
+  era: oneOfEnum(['long', 'short', 'narrow'], 'Era label.'),
+  year: oneOfEnum(['numeric', '2-digit'], 'Year label.'),
+  month: oneOfEnum(['numeric', '2-digit', 'long', 'short', 'narrow'], 'Month label.'),
+  day: oneOfEnum(['numeric', '2-digit'], 'Day label.'),
+  dayPeriod: oneOfEnum(['long', 'short', 'narrow'], 'Day-period label.'),
+  hour: oneOfEnum(['numeric', '2-digit'], 'Hour label.'),
+  minute: oneOfEnum(['numeric', '2-digit'], 'Minute label.'),
+  second: oneOfEnum(['numeric', '2-digit'], 'Second label.'),
+  fractionalSecondDigits: int('Fractional second places.', 1, 3),
+  timeZoneName: oneOfEnum(
+    ['long', 'short', 'shortOffset', 'longOffset', 'shortGeneric', 'longGeneric'],
+    'Time-zone label.',
+  ),
+};
+const FORMAT_META = {
+  locale: LOCALE,
+  missing: str('Text for missing or invalid values; defaults to an em dash.'),
+};
+
+function formatObject(
+  kind: 'number' | 'date' | 'bytes' | 'duration' | 'bare-number',
+  properties: Record<string, JsonSchema>,
+): JsonSchema {
+  return {
+    type: 'object',
+    properties: kind === 'bare-number' ? properties : { type: { const: kind }, ...properties },
+    ...(kind === 'bare-number' ? {} : { required: ['type'] }),
+    additionalProperties: false,
+    'x-quartile-format': kind,
+  };
+}
+
 const META = {
   title: str('Card title. Charts render it above the plot and use it as their accessible name.'),
   description: str('One line under the title.'),
@@ -72,6 +178,13 @@ function component(
       ...(data ? DATA : { data: str('Optional dataset name, used for derived options.') }),
       ...META,
       ...(chart ? CHART : {}),
+      ...(chart && name !== 'Sparkline'
+        ? {
+            tooltipNote: str(
+              'Plain-text chart context, included in accessible descriptions and supported hover tooltips.',
+            ),
+          }
+        : {}),
       ...props,
     },
     required: ['component', ...(data ? ['data'] : []), ...required],
@@ -306,8 +419,10 @@ const COMPONENT_DEFS: Record<string, JsonSchema> = {
       trendBy: field('Draw a sparkline of the value per distinct value of this field.'),
       format: format('Value format.'),
       unit: str('Mono tag in the corner, e.g. "USD".'),
+      currency: CURRENCY,
       comparison: str('What the delta is measured against, e.g. "vs. previous 30 days".'),
       deltaKind: oneOfEnum(['percent', 'pt'], 'Ratio change or percentage points.'),
+      deltaDigits: int('Fraction digits for the displayed change.', 0, 20),
       invert: bool('Down is good.'),
       compare: bool('Show this period and the previous one as two bars.'),
       target: {
@@ -427,19 +542,21 @@ export type SpecFieldRef =
       field: string;
       type?: 'temporal' | 'quantitative' | 'nominal';
       label?: string;
-      format?: (typeof FORMATS)[number];
+      format?: SerializableFormatter;
+      axisFormat?: SerializableFormatter;
+      tooltipFormat?: SerializableFormatter;
+      description?: string;
+      timeZone?: string;
+      currency?: string;
+      unit?: string;
     };
 
 /** A field, optionally aggregated across rows. */
 export type SpecMeasure =
   | string
-  | {
-      field: string;
+  | (Exclude<SpecFieldRef, string> & {
       aggregate?: 'sum' | 'count' | 'mean';
-      type?: 'temporal' | 'quantitative' | 'nominal';
-      label?: string;
-      format?: (typeof FORMATS)[number];
-    };
+    });
 
 export interface ComponentSpec {
   component: SpecComponentName;
@@ -463,6 +580,12 @@ const ENCODING_OVERRIDES = {
   type: oneOfEnum(['temporal', 'quantitative', 'nominal'], 'How the field behaves on a scale.'),
   label: str('Human label for axes, legends and headers.'),
   format: format('Display format.'),
+  axisFormat: format('Axis-only format; table values retain format.'),
+  tooltipFormat: format('Tooltip-only format; table values retain format.'),
+  description: str('Plain-text field definition or caveat.'),
+  timeZone: TIME_ZONE,
+  currency: CURRENCY,
+  unit: str('Short unit badge, not a numeric conversion.'),
 };
 
 const TONES = ['neutral', 'signal', 'positive', 'warning', 'negative'];
@@ -504,7 +627,43 @@ export const quartileSchema = {
         },
       ],
     },
-    Format: { enum: [...FORMATS], description: 'A named value format.' },
+    Format: {
+      description:
+        'A named format, Intl number options, or a typed format descriptor. Callbacks are React-only.',
+      oneOf: [
+        { enum: [...FORMATS] },
+        ref('NumberOptions'),
+        ref('NumberFormat'),
+        ref('DateFormat'),
+        ref('BytesFormat'),
+        ref('DurationFormat'),
+      ],
+    },
+    NumberOptions: formatObject('bare-number', NUMBER_OPTIONS),
+    NumberFormat: formatObject('number', {
+      ...FORMAT_META,
+      ...NUMBER_OPTIONS,
+      prefix: str('Literal prefix, outside the localized number.'),
+      suffix: str('Literal suffix, outside the localized number.'),
+      scale: {
+        type: 'number',
+        description: 'Finite display-only multiplier; percent already multiplies ratios by 100.',
+      },
+    }),
+    DateFormat: formatObject('date', { ...FORMAT_META, ...DATE_OPTIONS }),
+    BytesFormat: formatObject('bytes', {
+      ...FORMAT_META,
+      base: oneOfEnum([1000, 1024], 'Decimal kB/MB or binary KiB/MiB.'),
+      maximumFractionDigits: int('Maximum fractional places.', 0, 20),
+    }),
+    DurationFormat: formatObject('duration', {
+      ...FORMAT_META,
+      unit: oneOfEnum(
+        ['millisecond', 'second'],
+        'Unit of the elapsed numeric observation; default millisecond.',
+      ),
+      maximumFractionDigits: int('Maximum fractional second places.', 0, 20),
+    }),
     Column: {
       type: 'object',
       description: 'A DataTable column.',
@@ -514,6 +673,7 @@ export const quartileSchema = {
           'Unique column id; defaults to the field. Required when two columns share a field.',
         ),
         label: str('Header text.'),
+        description: str('Plain-text field definition; overrides dataset field description.'),
         format: format('Value format.'),
         align: oneOfEnum(['left', 'center', 'right'], 'Alignment.'),
         width: {
@@ -532,6 +692,7 @@ export const quartileSchema = {
           additionalProperties: { enum: TONES },
         },
         deltaKind: oneOfEnum(['percent', 'pt', 'number'], 'Delta cells: unit of change.'),
+        deltaDigits: int('Delta cells: fraction digits for the displayed change.', 0, 20),
         invert: bool('Delta cells: down is good.'),
         share: bool('Bar cells: label shows the share of the column total.'),
         aggregate: oneOfEnum(

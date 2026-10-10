@@ -1,10 +1,12 @@
 import { curveMonotoneX, area as d3area, line as d3line } from 'd3-shape';
 import { useMemo } from 'react';
-import { type DeltaKind, deltaTone, formatDelta } from '../data/format';
+import { describeDelta } from '../components/display/delta/Delta';
+import type { DeltaKind } from '../data/format';
 import { finiteNumber } from '../data/number';
 import { toComparable } from '../data/schema';
 import type { Row } from '../data/types';
 import { cx } from '../lib/cx';
+import { useQuartile } from '../provider/QuartileProvider';
 
 /** How rows are combined into one number. */
 export type AggregateName = 'sum' | 'count' | 'mean' | 'min' | 'max';
@@ -189,15 +191,12 @@ export function DeltaPill({
   digits?: number;
   className?: string;
 }) {
+  const { locale } = useQuartile();
   if (value == null || !Number.isFinite(value)) return null;
-  const text = formatDelta(value, kind, digits);
-  const shown = Number(text.replace(/[^\d.]/g, ''));
+  const delta = describeDelta(value, kind, { digits, invert, locale });
   return (
-    <span
-      className={cx('q-dd-delta', className)}
-      data-tone={shown ? deltaTone(value, invert) : 'neutral'}
-    >
-      {text}
+    <span className={cx('q-dd-delta', className)} data-tone={delta.tone}>
+      {delta.text}
     </span>
   );
 }

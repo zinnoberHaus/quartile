@@ -45,7 +45,7 @@ export function reactSource(input: StudioProject): string {
     ),
   ).join(', ');
   return `import { type ReactElement, useEffect, useMemo, useState } from 'react';
-import { type Dataset, type Row, QuartileProvider, Selection, FilterBar${components ? `, ${components}` : ''} } from '@quartile/react';
+import { type Dataset, type FieldDef, type Row, QuartileProvider, Selection, FilterBar${components ? `, ${components}` : ''} } from '@quartile/react';
 import { loadSource, type LoadedSource } from './quartile-data';
 import { blockDataError } from './quartile-chart';
 import '@quartile/react/styles.css';
@@ -53,6 +53,12 @@ import './app.css';
 
 // Edit normal React components below. API normalization lives in quartile-data.ts.
 const source = ${literal(project.source)} as const;
+const fieldFormatting: Record<string, Partial<FieldDef>> = ${literal(project.formatting?.fields ?? {})};
+// Display metadata only: keep source values and row identities unchanged.
+function formatSource(next: LoadedSource): LoadedSource {
+  const schema = Object.fromEntries(Object.entries(next.data.schema).map(([name, field]) => [name, { ...field, ...fieldFormatting[name] }]));
+  return { ...next, data: { ...next.data, schema } };
+}
 
 type ViewProps = { x?: string; y?: string; value?: string; color?: string; group?: string; aggregate?: string; columns?: { field: string }[] };
 // Validate the actual JSX bindings against every fresh API response.
@@ -71,14 +77,14 @@ export default function App() {
     const controller = new AbortController();
     setLoading(true); setError(''); setResult(null);
     loadSource(source, { signal: controller.signal }).then(
-      (next) => { if (!controller.signal.aborted) setResult(next); },
+      (next) => { if (!controller.signal.aborted) setResult(formatSource(next)); },
       (reason: unknown) => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Request failed.'); },
     ).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [revision]);
   const rowIds = useMemo(() => new Map(result?.data.rows.map((row, index) => [row, String(index)])), [result]);
   const filters = result ? Object.values(result.data.schema).filter((field) => (field.type === 'nominal' || field.type === 'boolean') && new Set(result.data.rows.map((row) => row[field.name])).size <= 24).slice(0, 3).map((field) => ({ field: field.name, pinned: true })) : [];
-  return <QuartileProvider><main className="analysis-app">
+  return <QuartileProvider${prop('locale', project.formatting?.locale)}${prop('timeZone', project.formatting?.timeZone)}><main className="analysis-app">
     <header><span className="eyebrow">QUARTILE / PUBLIC DATA</span><h1>{${literal(project.name)}}</h1><button type="button" onClick={() => setRevision((n) => n + 1)}>Reload source</button></header>
     {loading && <p role="status">Loading the public API…</p>}
     {error && <p role="alert">{error} Use Reload source to retry.</p>}
@@ -262,7 +268,7 @@ export function starterFiles(
     { name: '.gitignore', content: 'node_modules/\ndist/\n.env*\n' },
     {
       name: 'README.md',
-      content: `# ${p.name}\n\nAn editable React app exported from Quartile App Studio. Requires Node.js 22.12 or newer.\n\n\`\`\`sh\nnpm install\nnpm run dev\n# Type-check and build for production\nnpm run build\n\`\`\`\n\nEdit src/App.tsx to change components and src/quartile-data.ts to change API normalization. quartile-project.json can be reimported into Studio; Studio does not parse changes made to JSX.\n\nThe Apache-2.0 Quartile 0.1 source preview is bundled under vendor/; no Quartile registry publication is required. Other dependencies install from npm; retain the resulting package-lock.json for reproducible installs. This is a source preview, not a stable package release. Library source: https://github.com/zinnoberHaus/quartile\n\nAPI data is fetched directly in the browser; no records, credentials, or current table/selection state are exported. Public sources need CORS, no credentials or redirects, and are limited to 2 MiB, 5,000 records, 64 fields and 20 seconds. Handle authenticated data on a backend you control. Attribution and provider warnings remain in the app. Open-Meteo's free endpoint is for non-commercial use; commercial usage needs an appropriate provider plan. Data licenses are separate from this code's Apache-2.0 license. Review provider terms before publishing.\n\nLine charts require unique X / series observations and reject duplicate grain; missing values remain gaps. Scatter charts use rows as observations. Bar charts sum each x/series combination: use additive measures. KPI mean is unweighted and skips nulls. Each view validates its JSX fields against fresh responses; missing or incompatible fields show an actionable message. Update the JSX or source adapter when your API schema changes. Table filters and linked chart selections remain distinct.\n`,
+      content: `# ${p.name}\n\nAn editable React app exported from Quartile App Studio. Requires Node.js 22.12 or newer.\n\n\`\`\`sh\nnpm install\nnpm run dev\n# Type-check and build for production\nnpm run build\n\`\`\`\n\nEdit src/App.tsx to change components and src/quartile-data.ts to change API normalization. quartile-project.json can be reimported into Studio; Studio does not parse changes made to JSX.\n\nThe Apache-2.0 Quartile 0.1 source preview is bundled under vendor/; no Quartile registry publication is required. Other dependencies install from npm; retain the resulting package-lock.json for reproducible installs. This is a source preview, not a stable package release. Library source: https://github.com/zinnoberHaus/quartile\n\nAPI data is fetched directly in the browser; no records, credentials, or current table/selection state are exported. Public sources need CORS, no credentials or redirects, and are limited to 2 MiB, 5,000 records, 64 fields and 20 seconds. Handle authenticated data on a backend you control. Attribution and provider warnings remain in the app. Open-Meteo's free endpoint is for non-commercial use; commercial usage needs an appropriate provider plan. Data licenses are separate from this code's Apache-2.0 license. Review provider terms before publishing.\n\nLine charts require unique X / series observations and reject duplicate grain; missing values remain gaps. Scatter charts use rows as observations. Bar charts sum each x/series combination: use additive measures. KPI mean is unweighted and skips nulls. Each view validates its JSX fields against fresh responses; missing or incompatible fields show an actionable message. Update the JSX or source adapter when your API schema changes. Table filters and linked chart selections remain distinct. Display formatting is preserved in the provider and fieldFormatting metadata in src/App.tsx. It changes labels, not underlying values; axis and tooltip overrides leave exact table values independent.\n`,
     },
   ];
 }

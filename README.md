@@ -15,7 +15,7 @@
 Chart libraries stop at the chart. UI kits stop at the form. Teams glue the two together and then spend weeks reconciling themes, tooltips and filter state. Quartile ships the layers as one system:
 
 - **One theme.** Charts, tables, inputs and overlays read the same `--q-*` CSS custom properties. Light and dark themes and two densities are token remaps. No Tailwind or CSS-in-JS runtime is required, and it sits inside a Tailwind or shadcn/ui app.
-- **One data model.** Pass rows and name the fields. Types, labels and formats are inferred (or declared once with `dataset()`), and axes, tooltips, tables and KPIs all use them.
+- **One data model.** Pass rows and name the fields. Types, labels and formats are inferred (or declared once with `dataset()`), and axes, tooltips, tables and KPIs all use them. [Formatting](docs/guides/formatting.md) supports explicit precision, scientific/engineering notation, locale, time zones, units and separate axis/tooltip presentation.
 - **Bring your own data.** The local dataset explorer imports CSV/JSON files or bounded HTTP snapshots, then links charts, profiles and records. [Connection workflow and API shape](docs/guides/connecting-data.md).
 - **One selection.** Wrap views in `<Selection>`. Brushes, clicks and filter chips publish predicates to a shared store; every other view re-filters, and a view is never filtered by its own selection (crossfilter semantics).
 - **Accessible analytical views.** Charts provide keyboard navigation, generated summaries and table alternatives (`view="table"`). Sparkline is a compact image with a summary instead of interactive navigation or a table. [Accessibility scope](docs/guides/accessibility.md).

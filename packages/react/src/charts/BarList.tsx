@@ -1,5 +1,5 @@
 import { type KeyboardEvent, useMemo, useRef, useState } from 'react';
-import { deltaTone, formatDelta, makeFormatter } from '../data/format';
+import { deltaTone, formatDelta, makeFieldFormatter } from '../data/format';
 import { finiteNumber } from '../data/number';
 import type { Predicate } from '../data/predicates';
 import { fieldOf, resolveData } from '../data/schema';
@@ -72,7 +72,7 @@ export function BarList<R extends Row = Row>(props: BarListProps<R>) {
     style,
     ...frame
   } = props;
-  const { locale } = useQuartile();
+  const { locale, timeZone } = useQuartile();
   const source = useSourceId(id);
   const { rows: allRows, schema } = useMemo(() => resolveData(data), [data]);
   const { rows, selection: sel } = useLinkedRows(allRows, { selection, source });
@@ -104,18 +104,29 @@ export function BarList<R extends Row = Row>(props: BarListProps<R>) {
       });
     return groups;
   }, [prepared, rows, category, value, aggregate, sort, delta, schema]);
+  const measureField = aggregate === 'count' ? undefined : valueField;
   const fmtV = useMemo(
     () =>
-      makeFormatter(listFormat(valueField, aggregate, format), {
-        currency: valueField?.currency,
-        locale,
-      }),
-    [valueField, aggregate, format, locale],
+      makeFieldFormatter(
+        measureField,
+        { locale, timeZone },
+        format ?? (!measureField ? 'integer' : undefined),
+      ),
+    [measureField, locale, timeZone, format],
+  );
+  const fmtLabel = useMemo(
+    () =>
+      makeFieldFormatter(
+        measureField,
+        { locale, timeZone },
+        listFormat(valueField, aggregate, format),
+      ),
+    [measureField, valueField, aggregate, locale, timeZone, format],
   );
   const fmtC = useMemo(() => {
-    const format = makeFormatter(catField.format, { locale });
+    const format = makeFieldFormatter(catField, { locale, timeZone });
     return (raw: unknown) => (prepared && raw === '' ? '(empty string)' : format(raw));
-  }, [catField, locale, prepared]);
+  }, [catField, locale, timeZone, prepared]);
 
   const shown = limit != null ? buckets.slice(0, Math.max(0, limit)) : buckets;
   const rest = buckets.slice(shown.length);
@@ -146,10 +157,12 @@ export function BarList<R extends Row = Row>(props: BarListProps<R>) {
       rows: buckets.map((b) => [
         fmtC(b.raw),
         fmtV(b.value),
-        ...(withDelta ? [b.delta != null ? formatDelta(b.delta) : '—'] : []),
+        ...(withDelta
+          ? [b.delta != null ? formatDelta(b.delta, 'percent', 1, { locale }) : '—']
+          : []),
       ]),
     };
-  }, [buckets, aggregate, valueField, catField, fmtC, fmtV]);
+  }, [buckets, aggregate, valueField, catField, fmtC, fmtV, locale]);
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (!select) return;
@@ -205,10 +218,10 @@ export function BarList<R extends Row = Row>(props: BarListProps<R>) {
                   <span className="q-bar-list-head">
                     <span className="q-bar-list-label">{label}</span>
                     <span className="q-bar-list-figures">
-                      <span className="q-bar-list-value">{fmtV(b.value)}</span>
+                      <span className="q-bar-list-value">{fmtLabel(b.value)}</span>
                       {b.delta != null && (
                         <span className="q-bar-list-delta" data-tone={tone}>
-                          {formatDelta(b.delta)}
+                          {formatDelta(b.delta, 'percent', 1, { locale })}
                         </span>
                       )}
                     </span>

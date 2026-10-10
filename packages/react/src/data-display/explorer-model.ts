@@ -1,5 +1,7 @@
+import { makeFieldFormatter } from '../data/format';
+import { fieldOf } from '../data/schema';
 import { typedValueKey } from '../data/typed-key';
-import type { Row, Schema } from '../data/types';
+import type { Formatter, Row, Schema } from '../data/types';
 import { columnKey, groupRows, type ModelColumn, type SortState, sortRows } from './table-model';
 
 export type TableScalar = string | number | boolean | null;
@@ -298,15 +300,32 @@ export function deriveTableRows(
   return sortRows(derived, view.sorts);
 }
 
+export interface TableCSVOptions {
+  /** Raw values by default. Formatted mode applies column/field formats, not custom cell JSX. */
+  mode?: 'raw' | 'formatted';
+  schema?: Schema;
+  locale?: string;
+  timeZone?: string;
+}
+
 /** RFC 4180 CSV of the supplied result rows/columns. Strings beginning like formulas are prefixed with '. */
 export function tableToCSV(
   rows: readonly Row[],
-  columns: readonly { field: string; key?: string; label?: unknown }[],
+  columns: readonly {
+    field: string;
+    key?: string;
+    label?: unknown;
+    format?: Formatter;
+    aggregate?: string;
+  }[],
+  options: TableCSVOptions = {},
 ): string {
   const encode = (value: unknown) => {
     let text =
       value instanceof Date
-        ? value.toISOString()
+        ? Number.isFinite(value.getTime())
+          ? value.toISOString()
+          : ''
         : value == null
           ? ''
           : typeof value === 'object'
@@ -317,8 +336,25 @@ export function tableToCSV(
     if (typeof value === 'string' && /^[=+\-@]/.test(text.slice(start))) text = `'${text}`;
     return `"${text.replace(/"/g, '""')}"`;
   };
+  const formatters =
+    options.mode === 'formatted'
+      ? columns.map((column) =>
+          makeFieldFormatter(
+            fieldOf(options.schema ?? {}, column.field, rows),
+            { locale: options.locale, timeZone: options.timeZone },
+            column.format ?? (column.aggregate === 'count' ? 'integer' : undefined),
+          ),
+        )
+      : null;
   return [
     columns.map((c) => encode(typeof c.label === 'string' ? c.label : columnKey(c))).join(','),
-    ...rows.map((row) => columns.map((c) => encode(row[columnKey(c)])).join(',')),
+    ...rows.map((row) =>
+      columns
+        .map((c, index) => {
+          const value = row[columnKey(c)];
+          return encode(formatters ? formatters[index](value) : value);
+        })
+        .join(','),
+    ),
   ].join('\r\n');
 }

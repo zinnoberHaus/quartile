@@ -1,5 +1,6 @@
-import { type CSSProperties, type ReactNode, useMemo } from 'react';
-import { makeFormatter } from '../data/format';
+import { type CSSProperties, type ReactNode, useId, useMemo } from 'react';
+import { Tooltip } from '../components/overlays/tooltip/Tooltip';
+import { isPercentFormat, makeFieldFormatter, makeFormatter } from '../data/format';
 import { finiteNumber } from '../data/number';
 import { fieldOf, resolveData } from '../data/schema';
 import type { DataInput, FieldDef, Formatter, Row } from '../data/types';
@@ -66,6 +67,8 @@ export interface KPIProps<R extends Row = Row> {
   delta?: number;
   /** Defaults to "pt" for percent-formatted values, "percent" otherwise. */
   deltaKind?: 'percent' | 'pt';
+  /** Delta decimal places, an integer from 0 to 20. Defaults to 1 for percent and 2 for pt. */
+  deltaDigits?: number;
   /** For metrics where down is good (churn, cost): flips the delta color. */
   invert?: boolean;
   /** What the delta is measured against, e.g. "vs. previous 30 days". */
@@ -154,6 +157,7 @@ function KPIBase<R extends Row = Row>(props: KPIProps<R>) {
     currency,
     unit,
     deltaKind,
+    deltaDigits,
     invert = false,
     comparison,
     target,
@@ -162,26 +166,46 @@ function KPIBase<R extends Row = Row>(props: KPIProps<R>) {
     className,
     style,
   } = props;
-  const { locale } = useQuartile();
+  const { locale, timeZone } = useQuartile();
+  const descriptionId = useId();
   const { field, current, previous, trend: linkedTrend } = useKPIModel(props);
   const fmtName = format ?? (props.aggregate === 'count' ? 'integer' : field?.format) ?? 'number';
   const fmt = useMemo(
-    () => makeFormatter(fmtName, { currency: currency ?? field?.currency, locale }),
-    [fmtName, currency, field, locale],
+    () => makeFieldFormatter(field, { currency, locale, timeZone }, fmtName),
+    [fmtName, currency, field, locale, timeZone],
   );
-  const kind = deltaKind ?? (fmtName === 'percent' ? 'pt' : 'percent');
+  const fmtProgress = useMemo(
+    () => makeFormatter({ style: 'percent', maximumFractionDigits: 0 }, { locale }),
+    [locale],
+  );
+  const kind = deltaKind ?? (isPercentFormat(fmtName) ? 'pt' : 'percent');
   let delta = props.delta;
   if (delta === undefined && current != null && previous != null) {
     if (kind === 'pt') delta = (current - previous) * 100;
     else if (previous !== 0) delta = current / previous - 1;
   }
   const trend = props.trend ?? linkedTrend;
-  const unitTag = unit ?? (props.data !== undefined ? field?.unit : undefined);
+  const unitTag =
+    unit ?? (props.data !== undefined && props.aggregate !== 'count' ? field?.unit : undefined);
   const name = props['aria-label'] ?? textOf(label);
 
   const head = (
     <div className="q-kpi-head">
-      <span className="q-kpi-label">{label}</span>
+      {field?.description ? (
+        <>
+          <Tooltip content={field.description}>
+            {/* biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard access to the field definition tooltip. */}
+            <span className="q-kpi-label" tabIndex={0}>
+              {label}
+            </span>
+          </Tooltip>
+          <span hidden id={descriptionId}>
+            {field.description}
+          </span>
+        </>
+      ) : (
+        <span className="q-kpi-label">{label}</span>
+      )}
       {unitTag != null && <span className="q-kpi-unit">{unitTag}</span>}
     </div>
   );
@@ -193,6 +217,7 @@ function KPIBase<R extends Row = Row>(props: KPIProps<R>) {
         style={style}
         role="group"
         aria-label={name}
+        aria-describedby={field?.description ? descriptionId : undefined}
         aria-busy="true"
       >
         {head}
@@ -217,6 +242,7 @@ function KPIBase<R extends Row = Row>(props: KPIProps<R>) {
         style={style}
         role="group"
         aria-label={name}
+        aria-describedby={field?.description ? descriptionId : undefined}
       >
         {head}
         <div className="q-kpi-compare-row">
@@ -236,16 +262,19 @@ function KPIBase<R extends Row = Row>(props: KPIProps<R>) {
           </div>
         )}
         <div className="q-kpi-compare-foot">
-          <DeltaPill value={delta} kind={kind} invert={invert} />
+          <DeltaPill value={delta} kind={kind} digits={deltaDigits} invert={invert} />
           {comparisonNode}
         </div>
       </div>
     );
   }
 
-  const progress = target && current != null && target.value ? current / target.value : null;
+  const progress =
+    target && current != null && Number.isFinite(target.value) && target.value
+      ? finiteNumber(current / target.value)
+      : null;
   let pace: { text: string; tone: string } | null = null;
-  if (target?.expected != null && progress != null) {
+  if (target?.expected != null && Number.isFinite(target.expected) && progress != null) {
     // Compare the whole percentages shown, so the words always agree with the numbers.
     const gap = Math.round(progress * 100) - Math.round(target.expected * 100);
     pace =
@@ -263,6 +292,7 @@ function KPIBase<R extends Row = Row>(props: KPIProps<R>) {
       style={style}
       role="group"
       aria-label={name}
+      aria-describedby={field?.description ? descriptionId : undefined}
     >
       {head}
       <div className="q-kpi-main">
@@ -270,7 +300,7 @@ function KPIBase<R extends Row = Row>(props: KPIProps<R>) {
         {target ? (
           <span className="q-kpi-of">/ {fmt(target.value)}</span>
         ) : (
-          <DeltaPill value={delta} kind={kind} invert={invert} />
+          <DeltaPill value={delta} kind={kind} digits={deltaDigits} invert={invert} />
         )}
       </div>
       {target && progress != null ? (
@@ -280,14 +310,15 @@ function KPIBase<R extends Row = Row>(props: KPIProps<R>) {
             role="progressbar"
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-valuenow={Math.round(progress * 100)}
-            aria-label={`${Math.round(progress * 100)}% of target`}
+            aria-valuenow={Math.max(0, Math.min(100, Math.round(progress * 100)))}
+            aria-valuetext={`${fmtProgress(progress)} of target`}
+            aria-label="Progress toward target"
           >
             <span
               className="q-kpi-target-fill"
               style={{ width: `${Math.max(0, Math.min(100, progress * 100))}%` }}
             />
-            {target.expected != null && (
+            {target.expected != null && Number.isFinite(target.expected) && (
               <span
                 className="q-kpi-target-marker"
                 style={{ left: `${Math.max(0, Math.min(100, target.expected * 100))}%` }}
@@ -296,11 +327,11 @@ function KPIBase<R extends Row = Row>(props: KPIProps<R>) {
           </div>
           <div className="q-kpi-target-foot">
             <span>
-              {Math.round(progress * 100)}% of {target.label ?? 'target'}
+              {fmtProgress(progress)} of {target.label ?? 'target'}
             </span>
             {pace && target.expected != null && (
               <span data-tone={pace.tone}>
-                {pace.text} · {Math.round(target.expected * 100)}% expected
+                {pace.text} · {fmtProgress(target.expected)} expected
               </span>
             )}
           </div>

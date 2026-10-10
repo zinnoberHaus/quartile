@@ -75,8 +75,12 @@ const development = [
   ),
 ];
 let weatherBehavior = 'success';
+let weatherRequests = 0;
 let finishPending;
+let weatherGate;
 await context.route('https://api.open-meteo.com/**', async (route) => {
+  weatherRequests++;
+  if (weatherGate) await weatherGate;
   if (weatherBehavior === 'pending')
     await new Promise((resolve) => {
       finishPending = resolve;
@@ -96,6 +100,57 @@ try {
   await page.goto(`${base}/studio?source=weather`);
   await page.getByText('6 records', { exact: true }).waitFor();
   assert.equal(await page.locator('[data-block-id]').count(), 5);
+  // Field formatting is a schema overlay, never a refetch or selection reset.
+  const requestsBeforeFormatting = weatherRequests;
+  await page.getByLabel('Search rows', { exact: true }).fill('New York');
+  const trendPlot = page.locator('[data-block-id="trend"] [role="application"]');
+  await trendPlot.focus();
+  await trendPlot.press('Home');
+  await trendPlot.press('Enter');
+  await page.getByRole('button', { name: 'Clear Forecast time filter', exact: true }).waitFor();
+  await page.locator('.st-formatting > summary').click();
+  await page.getByLabel('Display locale', { exact: true }).fill('de-DE');
+  await page.getByLabel('Display time zone', { exact: true }).fill('UTC');
+  await page.getByRole('button', { name: 'Apply display settings', exact: true }).click();
+  await page.getByLabel('Formatting field', { exact: true }).selectOption('temperatureC');
+  await page.locator('.st-format-advanced > summary').click();
+  const display = {
+    format: { type: 'number', minimumFractionDigits: 2, maximumFractionDigits: 2, suffix: ' °C' },
+    axisFormat: { type: 'number', maximumFractionDigits: 0 },
+    tooltipFormat: {
+      type: 'number',
+      minimumFractionDigits: 3,
+      maximumFractionDigits: 3,
+      suffix: ' °C',
+    },
+    description: 'Hourly air temperature at 2 m.',
+  };
+  await page.getByLabel('Field formatting JSON', { exact: true }).fill(JSON.stringify(display));
+  await page.getByRole('button', { name: 'Apply field JSON', exact: true }).click();
+  await page.waitForFunction(() =>
+    document.querySelector('[data-block-id="average"]')?.textContent.includes('12,00 °C'),
+  );
+  await page.getByRole('button', { name: 'Clear Forecast time filter', exact: true }).waitFor();
+  assert.equal(weatherRequests, requestsBeforeFormatting, 'Formatting does not refetch source');
+  assert.equal(
+    await page.getByLabel('Search rows', { exact: true }).inputValue(),
+    'New York',
+    'Formatting preserves the table view',
+  );
+  await page
+    .getByLabel('Field formatting JSON', { exact: true })
+    .fill('{"format":{"type":"number","notation":"invalid"}}');
+  await page.getByRole('button', { name: 'Apply field JSON', exact: true }).click();
+  await page.getByRole('alert').filter({ hasText: 'Not applied' }).waitFor();
+  assert(
+    (await page.locator('[data-block-id="average"]').innerText()).includes('12,00 °C'),
+    'Invalid draft keeps applied values',
+  );
+  await page.getByLabel('Field formatting JSON', { exact: true }).fill(JSON.stringify(display));
+  await page.getByRole('button', { name: 'Apply field JSON', exact: true }).click();
+  await page.getByRole('button', { name: 'Clear Forecast time filter', exact: true }).click();
+  await page.locator('.st-formatting > summary').click();
+
   await page.getByRole('button', { name: 'Configure Temperature · °C', exact: true }).click();
   await page.getByLabel('Y axis', { exact: true }).selectOption('');
   await page
@@ -124,6 +179,9 @@ try {
     JSON.parse(localStorage.getItem('quartile-studio-project-v1')),
   );
   assert.equal(saved.blocks.length, 7);
+  assert.equal(saved.formatting.locale, 'de-DE');
+  assert.equal(saved.formatting.timeZone, 'UTC');
+  assert.equal(saved.formatting.fields.temperatureC.format.suffix, ' °C');
   assert(!('rows' in saved));
   await page.getByLabel('Project name', { exact: true }).fill('Temporary title');
   await page.getByRole('button', { name: 'Restore draft', exact: true }).click();
@@ -137,6 +195,12 @@ try {
   await page.getByLabel('Search rows', { exact: true }).fill('New York');
   await page.getByRole('button', { name: 'React source', exact: true }).click();
   assert.match(await page.locator('.st-code code').innerText(), /<DataExplorer/);
+  assert(
+    (await page.locator('.st-code code').innerText()).includes('locale={"de-DE"} timeZone={"UTC"}'),
+  );
+  assert(
+    (await page.locator('.st-code code').innerText()).includes('Hourly air temperature at 2 m.'),
+  );
   assert.match(await page.locator('.st-code code').innerText(), /<ScatterPlot/);
   assert.match(await page.locator('.st-code code').innerText(), /<BarChart/);
   const archiveEvent = page.waitForEvent('download');
@@ -164,11 +228,31 @@ try {
   await page.getByText(/Import failed: Unsupported project version/).waitFor();
   assert.equal(await page.locator('[data-block-id]').count(), 7);
   const altered = { ...saved, name: 'Imported analysis', blocks: saved.blocks.slice(0, 3) };
+  // The old project also shows six records. Hold the replacement request so that
+  // readiness must belong to the imported project, rather than its old snapshot.
+  let releaseImport;
+  weatherGate = new Promise((resolve) => {
+    releaseImport = resolve;
+  });
+  const importRequest = page.waitForRequest((request) =>
+    request.url().startsWith('https://api.open-meteo.com/'),
+  );
   await page.getByLabel('Import project JSON', { exact: true }).setInputFiles({
     name: 'project.json',
     mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify(altered)),
   });
+  await importRequest;
+  await page.getByRole('button', { name: 'Cancel request', exact: true }).waitFor();
+  assert.equal(await page.getByLabel('Project name', { exact: true }).inputValue(), altered.name);
+  assert.equal(
+    await page.locator('[data-block-id]').count(),
+    0,
+    'Imported projects never display stale charts while their source reloads',
+  );
+  weatherGate = undefined;
+  releaseImport();
+  await page.waitForFunction(() => document.querySelectorAll('[data-block-id]').length === 3);
   await page.getByText('6 records', { exact: true }).waitFor();
   assert.equal(await page.locator('[data-block-id]').count(), 3);
   await page.getByRole('link', { name: /Event monitoring/ }).click();
@@ -245,6 +329,19 @@ try {
     await page.waitForTimeout(160);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
     assert.equal(overflow, false, `No document overflow at ${width}`);
+    if (width === 375) {
+      await page.locator('.st-formatting > summary').click();
+      await page.locator('.st-format-advanced > summary').click();
+      assert.equal(
+        await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),
+        false,
+        'Open formatting inspector fits mobile',
+      );
+      await page
+        .locator('.st-formatting')
+        .screenshot({ path: `${output}/studio-formatting-mobile.png` });
+      await page.locator('.st-formatting > summary').click();
+    }
   }
   await page.emulateMedia({ reducedMotion: 'reduce' });
   assert.equal(
@@ -266,8 +363,10 @@ try {
           'field/title/width editing',
           'add/reorder with explicit additive measures',
           'table and linked filters survive source mode/reorder; remapping clears selections',
+          'format descriptors/locale/timezone preserve source and selection; invalid drafts retain display',
+          'formatting survives draft/project/React/ZIP export',
           'local draft roundtrip',
-          'project JSON roundtrip/rejection',
+          'project JSON roundtrip/rejection with pending source replacement',
           'native source and ZIP download',
           'duplicate line grain',
           'custom API',

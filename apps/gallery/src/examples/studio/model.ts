@@ -1,4 +1,5 @@
 import type { Schema } from '@quartile/react';
+import { parseFormatting, type StudioFormatting } from './formatting';
 import { type SourceConfig, type SourceId, sourcePresets, validateSourceConfig } from './sources';
 
 export const blockTypes = ['metric', 'line', 'bar', 'scatter', 'histogram', 'table'] as const;
@@ -19,6 +20,8 @@ export interface StudioProject {
   name: string;
   source: SourceConfig;
   blocks: StudioBlock[];
+  /** Display metadata only; records and selection state are never persisted. */
+  formatting?: StudioFormatting;
 }
 export const projectLimit = 64 * 1024;
 export const draftKey = 'quartile-studio-project-v1';
@@ -62,7 +65,7 @@ export function parseProject(input: unknown): StudioProject {
       throw new Error('Project is not valid JSON.');
     }
   }
-  const p = object(input, ['version', 'name', 'source', 'blocks'], 'Project');
+  const p = object(input, ['version', 'name', 'source', 'blocks', 'formatting'], 'Project');
   if (p.version !== 1) throw new Error('Unsupported project version. Expected version 1.');
   if (!Array.isArray(p.blocks) || p.blocks.length > 16)
     throw new Error('A project supports up to 16 components.');
@@ -121,6 +124,7 @@ export function parseProject(input: unknown): StudioProject {
     source: validateSourceConfig(p.source),
     blocks,
   };
+  if (p.formatting !== undefined) result.formatting = parseFormatting(p.formatting);
   if (new TextEncoder().encode(JSON.stringify(result)).byteLength > projectLimit)
     throw new Error('Project exceeds 64 KiB.');
   return result;

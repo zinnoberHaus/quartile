@@ -1,5 +1,5 @@
 import { type KeyboardEvent, useCallback, useState } from 'react';
-import { formatDelta } from '../../data/format';
+import { makeFormatter } from '../../data/format';
 
 /**
  * The chart keyboard model: Tab into the chart, ← → between points, Home and End to jump,
@@ -58,6 +58,7 @@ export function summarizeSeries(
   points: { x: unknown; y: number }[],
   fmtX: (v: unknown) => string,
   fmtY: (v: unknown) => string,
+  locale?: string,
 ): string {
   if (points.length === 0) return `${name}: no data.`;
   const first = points[0];
@@ -73,7 +74,7 @@ export function summarizeSeries(
     Math.abs(change) < 0.01
       ? 'roughly flat'
       : change > 0
-        ? `up ${formatDelta(change).slice(1)}`
-        : `down ${formatDelta(change).slice(1)}`;
+        ? `up ${makeFormatter({ style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 }, { locale })(Math.abs(change))}`
+        : `down ${makeFormatter({ style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 }, { locale })(Math.abs(change))}`;
   return `${name} from ${fmtX(first.x)} to ${fmtX(last.x)}: ${trend}, from ${fmtY(first.y)} to ${fmtY(last.y)}. Low ${fmtY(lo.y)} on ${fmtX(lo.x)}; high ${fmtY(hi.y)} on ${fmtX(hi.x)}.`;
 }

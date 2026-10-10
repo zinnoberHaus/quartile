@@ -1,6 +1,6 @@
 import { area as d3area, line as d3line } from 'd3-shape';
 import { type CSSProperties, useMemo } from 'react';
-import { makeFormatter } from '../data/format';
+import { makeFieldFormatter } from '../data/format';
 import { fieldOf, resolveData } from '../data/schema';
 import type { DataInput, Formatter, Row } from '../data/types';
 import { cx } from '../lib/cx';
@@ -66,7 +66,7 @@ export function Sparkline<R extends Row = Row>(props: SparklineProps<R>) {
     errorCode,
     empty,
   } = props;
-  const { locale } = useQuartile();
+  const { locale, timeZone } = useQuartile();
   const source = useSourceId();
   const numeric = Array.isArray(data) && data.length > 0 && typeof data[0] === 'number';
   const resolved = useMemo(
@@ -104,14 +104,14 @@ export function Sparkline<R extends Row = Row>(props: SparklineProps<R>) {
   }, [rows, resolved.schema, x, y, compare, numeric]);
 
   const fmtY = useMemo(
-    () => makeFormatter(format ?? model.yField.format, { currency: model.yField.currency, locale }),
-    [format, model.yField, locale],
+    () => makeFieldFormatter(model.yField, { locale, timeZone }, format),
+    [format, model.yField, locale, timeZone],
   );
   const fmtX = useMemo(() => {
     if (!x || numeric) return (v: unknown) => `point ${Number(v) + 1}`;
     const xField = fieldOf(resolved.schema, x, rows);
-    return makeFormatter(xField.format, { locale });
-  }, [x, numeric, resolved.schema, rows, locale]);
+    return makeFieldFormatter(xField, { locale, timeZone });
+  }, [x, numeric, resolved.schema, rows, locale, timeZone]);
 
   const present = model.values.filter((v): v is number => v != null);
   const status = statusOf({ loading, error }, present.length);
@@ -174,6 +174,7 @@ export function Sparkline<R extends Row = Row>(props: SparklineProps<R>) {
     model.values.flatMap((v, i) => (v == null ? [] : [{ x: model.xsRaw[i], y: v }])),
     fmtX,
     fmtY,
+    locale,
   );
 
   return (

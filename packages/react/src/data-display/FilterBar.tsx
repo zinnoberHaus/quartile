@@ -9,13 +9,8 @@ import {
   useRef,
   useState,
 } from 'react';
-import { formatField, makeFormatter } from '../data/format';
-import {
-  applyPredicates,
-  type Predicate,
-  type Primitive,
-  predicateValueLabel,
-} from '../data/predicates';
+import { makeFieldFormatter, makeFormatter } from '../data/format';
+import { applyPredicates, type Predicate, type Primitive } from '../data/predicates';
 import { humanize, inferSchema, resolveData } from '../data/schema';
 import type { DataInput, Row, Schema } from '../data/types';
 import { IconCheck, IconChevronDown, IconPlus, IconX } from '../icons';
@@ -368,6 +363,7 @@ function FilterChip({
   onToggle: (value: Primitive) => void;
   onClear: () => void;
 }) {
+  const { locale, timeZone } = useQuartile();
   const anchor = useRef<HTMLSpanElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const p = chip.predicate;
@@ -375,6 +371,7 @@ function FilterChip({
   const values = selectedValues(p);
   const keys = new Set(values.map(valueKey));
   let valueText = 'All';
+  const fmt = makeFieldFormatter(schema[chip.field], { locale, timeZone });
   if (p) {
     const match =
       values.length === 1
@@ -383,7 +380,13 @@ function FilterChip({
     valueText =
       match?.label != null && typeof match.label === 'string'
         ? match.label
-        : predicateValueLabel(p, schema);
+        : p.op === 'eq'
+          ? fmt(p.value)
+          : p.op === 'between'
+            ? `${fmt(p.value[0])} – ${fmt(p.value[1])}`
+            : p.value.length === 1
+              ? fmt(p.value[0])
+              : `${makeFormatter('integer', { locale })(p.value.length)} selected`;
   }
   const close = useCallback(
     (refocus: boolean) => {
@@ -444,9 +447,7 @@ function FilterChip({
                 <span className="q-filterbar-option-check">
                   {checked && <IconCheck size={14} strokeWidth={2} />}
                 </span>
-                <span className="q-filterbar-option-text">
-                  {o.label ?? formatField(schema[chip.field], o.value)}
-                </span>
+                <span className="q-filterbar-option-text">{o.label ?? fmt(o.value)}</span>
                 {o.meta != null && <span className="q-filterbar-option-meta">{o.meta}</span>}
               </button>
             );

@@ -36,6 +36,11 @@ const AssistantWorkbench = lazy(() =>
 const StudioPage = lazy(() =>
   import('./examples/studio/StudioPage').then((m) => ({ default: m.StudioPage })),
 );
+const FormattingWorkbench = lazy(() =>
+  import('./examples/formatting/FormattingWorkbench').then((m) => ({
+    default: m.FormattingWorkbench,
+  })),
+);
 
 // The scratch page is for local development only and is left out of production builds.
 const Scratch = import.meta.env.DEV
@@ -130,7 +135,9 @@ export function App() {
       <Suspense fallback={<InitialLoading />}>
         <RouteErrorBoundary key={path + location.search} location={location}>
           <RouteFrame key={path + location.search} location={location}>
-            {path === '/studio' ? (
+            {path === '/examples/formatting' ? (
+              <FormattingWorkbench />
+            ) : path === '/studio' ? (
               <StudioPage />
             ) : path.startsWith('/examples/storefront') ? (
               <StorefrontExample />

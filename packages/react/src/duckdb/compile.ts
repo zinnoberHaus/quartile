@@ -194,14 +194,11 @@ export function compileQuery(plan: QueryPlan, schema: Schema, relation: string):
       const expression = measureSQL(measure, schema);
       const original = measure.field === undefined ? undefined : schema[measure.field];
       output[measure.as] = {
+        ...(measure.aggregate !== 'count' ? original : undefined),
         name: measure.as,
         type: 'quantitative',
         label: original?.label ?? measure.as,
         format: measure.aggregate === 'count' ? 'integer' : (original?.format ?? 'number'),
-        ...(original?.currency && measure.aggregate !== 'count'
-          ? { currency: original.currency }
-          : {}),
-        ...(original?.unit && measure.aggregate !== 'count' ? { unit: original.unit } : {}),
       };
       columns.push(`${expression} AS ${quoteIdentifier(measure.as)}`);
     }
@@ -221,7 +218,8 @@ export function compileQuery(plan: QueryPlan, schema: Schema, relation: string):
     };
   }
   if (plan.kind === 'histogram') {
-    if (field(schema, plan.field).type !== 'quantitative')
+    const sourceField = field(schema, plan.field);
+    if (sourceField.type !== 'quantitative')
       throw new Error('A histogram requires a quantitative field.');
     const { edges } = plan;
     if (
@@ -240,10 +238,11 @@ export function compileQuery(plan: QueryPlan, schema: Schema, relation: string):
     });
     for (const name of ['x0', 'x1', 'count'])
       output[name] = {
+        ...(name !== 'count' ? sourceField : undefined),
         name,
         type: 'quantitative',
         label: name,
-        format: name === 'count' ? 'integer' : 'number',
+        format: name === 'count' ? 'integer' : sourceField.format,
       };
     const col = column(schema, plan.field, false);
     return {

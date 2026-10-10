@@ -1,4 +1,4 @@
-import { formatField } from './format';
+import { type FormatOptions, formatField, makeFormatter } from './format';
 import { finiteNumber } from './number';
 import { toComparable } from './schema';
 import type { Row, Schema } from './types';
@@ -59,9 +59,13 @@ export function applyPredicates<R extends Row>(
 }
 
 /** `date ∈ [Aug 30, Sep 12]`, `category = "Footwear"`, `region ∈ {Europe, Asia}`. */
-export function describePredicate(p: Predicate, schema: Schema = {}): string {
+export function describePredicate(
+  p: Predicate,
+  schema: Schema = {},
+  opts: FormatOptions = {},
+): string {
   const f = schema[p.field];
-  const fmt = (v: unknown) => (typeof v === 'string' && !f ? `"${v}"` : formatField(f, v));
+  const fmt = (v: unknown) => (typeof v === 'string' && !f ? `"${v}"` : formatField(f, v, opts));
   switch (p.op) {
     case 'eq':
       return `${p.field} = ${fmt(p.value)}`;
@@ -73,14 +77,20 @@ export function describePredicate(p: Predicate, schema: Schema = {}): string {
 }
 
 /** Short value-only text for chips: "Europe", "Aug 30 – Sep 12", "3 selected". */
-export function predicateValueLabel(p: Predicate, schema: Schema = {}): string {
+export function predicateValueLabel(
+  p: Predicate,
+  schema: Schema = {},
+  opts: FormatOptions = {},
+): string {
   const f = schema[p.field];
   switch (p.op) {
     case 'eq':
-      return formatField(f, p.value);
+      return formatField(f, p.value, opts);
     case 'in':
-      return p.value.length === 1 ? formatField(f, p.value[0]) : `${p.value.length} selected`;
+      return p.value.length === 1
+        ? formatField(f, p.value[0], opts)
+        : `${makeFormatter('integer', opts)(p.value.length)} selected`;
     case 'between':
-      return `${formatField(f, p.value[0])} – ${formatField(f, p.value[1])}`;
+      return `${formatField(f, p.value[0], opts)} – ${formatField(f, p.value[1], opts)}`;
   }
 }

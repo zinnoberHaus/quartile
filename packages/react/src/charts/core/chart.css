@@ -118,6 +118,8 @@
   position: absolute;
   z-index: 3;
   min-width: 170px;
+  width: max-content;
+  box-sizing: border-box;
   padding: 10px 12px;
   border-radius: 10px;
   background: var(--q-inverse);
@@ -126,7 +128,8 @@
   line-height: 1.4;
   box-shadow: var(--q-shadow-tooltip);
   pointer-events: none;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .q-chart-tooltip-title {
@@ -138,7 +141,8 @@
 .q-chart-tooltip-row {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
+  gap: 4px 16px;
+  flex-wrap: wrap;
 }
 
 .q-chart-tooltip-row + .q-chart-tooltip-row {
@@ -146,6 +150,8 @@
 }
 
 .q-chart-tooltip-label {
+  min-width: 0;
+  max-width: 100%;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -156,6 +162,9 @@
 }
 
 .q-chart-tooltip-value {
+  min-width: 0;
+  max-width: 100%;
+  margin-left: auto;
   font: 500 12px var(--q-font-mono);
   font-variant-numeric: tabular-nums;
 }
@@ -179,6 +188,7 @@
 }
 
 .q-chart-tooltip-swatch {
+  flex: none;
   width: 8px;
   height: 8px;
   border-radius: 2px;
@@ -425,4 +435,24 @@ button.q-legend-item:focus-visible {
   text-align: right;
   font-family: var(--q-font-mono);
   font-variant-numeric: tabular-nums;
+}
+
+.q-chart-tooltip-description,
+.q-chart-tooltip-note {
+  display: block;
+  max-width: 28ch;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font: 400 11px / 1.45 var(--q-font-sans);
+  color: var(--q-inverse-text-2);
+}
+
+.q-chart-tooltip-description {
+  margin-top: 2px;
+}
+
+.q-chart-tooltip-note {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid color-mix(in srgb, var(--q-inverse-text) 20%, transparent);
 }

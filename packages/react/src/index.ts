@@ -3,15 +3,7 @@
 // Charts, interface components, data display, specs
 export * from './charts';
 export * from './components';
-export type { DeltaKind, FormatOptions } from './data/format';
-export {
-  compactNumber,
-  deltaTone,
-  formatDelta,
-  formatField,
-  MINUS,
-  makeFormatter,
-} from './data/format';
+export * from './data/format.exports';
 export type { Predicate, Primitive } from './data/predicates';
 export {
   applyPredicates,

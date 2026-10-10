@@ -12,6 +12,70 @@ const orders = [
 ];
 
 describe('SpecView', () => {
+  it('shows format validation errors while keeping neighboring valid cards usable', () => {
+    render(
+      <SpecView
+        data={{ orders }}
+        spec={{
+          layout: [
+            {
+              component: 'KPI',
+              data: 'orders',
+              label: 'Invalid',
+              value: 'amount',
+              format: { type: 'date', timeZone: 'Mars/Olympus' },
+            },
+            {
+              component: 'KPI',
+              data: 'orders',
+              label: 'Localized revenue',
+              value: {
+                field: 'amount',
+                format: { type: 'number', style: 'currency', currency: 'EUR', locale: 'de-DE' },
+              },
+            },
+          ],
+        }}
+      />,
+    );
+    expect(screen.getByRole('alert').textContent).toContain('Invalid time zone');
+    expect(screen.getByRole('group', { name: 'Localized revenue' }).textContent).toContain(
+      new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(45),
+    );
+  });
+
+  it('preserves date-zone field overrides in rendered exact values', () => {
+    render(
+      <SpecView
+        data={{ readings: [{ time: '2026-10-10T00:30:00Z', value: 1 }] }}
+        spec={{
+          component: 'LineChart',
+          data: 'readings',
+          x: {
+            field: 'time',
+            type: 'temporal',
+            format: { type: 'date', year: 'numeric', month: '2-digit', day: '2-digit' },
+            timeZone: 'America/New_York',
+          },
+          y: {
+            field: 'value',
+            format: { type: 'number', minimumFractionDigits: 3, maximumFractionDigits: 3 },
+          },
+        }}
+      />,
+    );
+    const row = within(screen.getByRole('table')).getAllByRole('row')[1];
+    expect(row.textContent).toContain(
+      new Intl.DateTimeFormat('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        timeZone: 'America/New_York',
+      }).format(new Date('2026-10-10T00:30:00Z')),
+    );
+    expect(row.textContent).toContain('1.000');
+  });
+
   it('applies filters before aggregation once, including filters on the measure itself', () => {
     function Controls() {
       const selection = useSelection();

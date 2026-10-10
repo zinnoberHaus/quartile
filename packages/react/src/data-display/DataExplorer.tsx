@@ -1,12 +1,14 @@
 import { type ReactNode, useCallback, useId, useMemo, useRef, useState } from 'react';
 import { Button } from '../components/button/Button';
 import { TextField } from '../components/inputs/text-field/TextField';
+import { makeFieldFormatter, makeFormatter } from '../data/format';
 import { fieldOf, resolveData } from '../data/schema';
 import { typedValueKey } from '../data/typed-key';
 import type { DataInput, Row, Schema } from '../data/types';
 import { IconColumns, IconDownload, IconFilter, IconSearch } from '../icons';
 import { cx } from '../lib/cx';
 import { useControllable } from '../lib/useControllable';
+import { useQuartile } from '../provider/QuartileProvider';
 import { useLinkedRows, useSourceId } from '../selection/Selection';
 import { DataTable, type DataTableColumn, type DataTableProps } from './DataTable';
 import {
@@ -59,6 +61,8 @@ export interface DataExplorerProps<R extends Row = Row>
   onViewChange?: (view: TableViewState) => void;
   /** Defaults to rows.csv. Export includes all filtered rows and visible columns, not only this page. */
   exportFileName?: string;
+  /** Raw cell values by default. Formatted uses field/column formats, not custom cell JSX. */
+  csvFormat?: 'raw' | 'formatted';
   /** Overrides the browser download, useful for controlled export destinations. */
   onExport?: (result: DataExplorerExport) => void;
 }
@@ -125,7 +129,9 @@ function FilterBuilder({
   onCancel: () => void;
 }) {
   const id = useId();
+  const { locale, timeZone } = useQuartile();
   const [field, setField] = useState(initial?.field ?? columns[0]?.field ?? '');
+  const formatValue = makeFieldFormatter(fieldOf(schema, field, rows), { locale, timeZone });
   const inferType = (name: string): TableFilter['type'] => {
     const t = fieldOf(schema, name, rows).type;
     return t === 'quantitative'
@@ -270,7 +276,7 @@ function FilterBuilder({
           >
             {categories.map((v, i) => (
               <option key={i} value={i}>
-                {v === null ? '(empty)' : `${String(v)} · ${typeof v}`}
+                {v === null ? '(empty)' : `${formatValue(v)} · ${typeof v}`}
               </option>
             ))}
           </select>
@@ -340,6 +346,7 @@ export function DataExplorer<R extends Row = Row>({
   defaultView,
   onViewChange,
   exportFileName = 'rows.csv',
+  csvFormat = 'raw',
   onExport,
   className,
   style,
@@ -351,6 +358,8 @@ export function DataExplorer<R extends Row = Row>({
   toolbar,
   ...tableProps
 }: DataExplorerProps<R>) {
+  const { locale, timeZone } = useQuartile();
+  const fmtCount = useMemo(() => makeFormatter('integer', { locale }), [locale]);
   const source = useSourceId(id);
   const panelId = useId();
   const initial = useRef<TableViewState | null>(null);
@@ -428,7 +437,7 @@ export function DataExplorer<R extends Row = Row>({
   };
   const exportRows = () => {
     try {
-      const csv = tableToCSV(result, visible);
+      const csv = tableToCSV(result, visible, { mode: csvFormat, schema, locale, timeZone });
       if (onExport) onExport({ csv, rows: result, columns: visible, view });
       else {
         const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
@@ -438,9 +447,7 @@ export function DataExplorer<R extends Row = Row>({
         a.click();
         setTimeout(() => URL.revokeObjectURL(url), 0);
       }
-      setExportMessage(
-        `Exported ${result.length.toLocaleString('en-US')} ${view.groupBy ? 'groups' : 'rows'}.`,
-      );
+      setExportMessage(`Exported ${fmtCount(result.length)} ${view.groupBy ? 'groups' : 'rows'}.`);
     } catch (e) {
       setExportMessage(e instanceof Error ? e.message : 'Export failed.');
     }
@@ -469,14 +476,18 @@ export function DataExplorer<R extends Row = Row>({
       setViewMessage(e instanceof Error ? e.message : 'Invalid saved view.');
     }
   };
-  const filterDescription = (f: TableFilter): ReactNode => (
-    <>
-      {schema[f.field]?.label ?? f.field} · {OPS[f.type].find(([op]) => op === f.op)?.[1]}
-      {'value' in f
-        ? ` ${Array.isArray(f.value) ? f.value.map((v) => (v === null ? '…' : String(v))).join(' · ') : String(f.value)}`
-        : ''}
-    </>
-  );
+  const filterDescription = (f: TableFilter): ReactNode => {
+    const format =
+      f.type === 'text' ? String : makeFieldFormatter(schema[f.field], { locale, timeZone });
+    return (
+      <>
+        {schema[f.field]?.label ?? f.field} · {OPS[f.type].find(([op]) => op === f.op)?.[1]}
+        {'value' in f
+          ? ` ${Array.isArray(f.value) ? f.value.map((v) => (v === null ? '…' : format(v))).join(' · ') : format(f.value)}`
+          : ''}
+      </>
+    );
+  };
   return (
     <div className={cx('q-explorer', className)} style={style}>
       {(title != null || caption != null || toolbar != null) && (
@@ -876,8 +887,8 @@ export function DataExplorer<R extends Row = Row>({
       )}
       <div className="q-explorer-context">
         <span aria-live="polite">
-          {filtered.length.toLocaleString('en-US')} of {rows.length.toLocaleString('en-US')} source
-          rows{view.groupBy ? ` · ${result.length.toLocaleString('en-US')} groups · read-only` : ''}
+          {fmtCount(filtered.length)} of {fmtCount(rows.length)} source rows
+          {view.groupBy ? ` · ${fmtCount(result.length)} groups · read-only` : ''}
         </span>
         <label>
           Rows per page

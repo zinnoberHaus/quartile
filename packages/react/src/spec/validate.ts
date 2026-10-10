@@ -1,3 +1,5 @@
+import { makeFormatter } from '../data/format';
+import type { Formatter } from '../data/types';
 import { quartileSchema, SPEC_COMPONENTS } from './schema';
 
 export interface SpecError {
@@ -35,7 +37,9 @@ function article(t: string) {
 }
 
 function show(v: unknown): string {
-  return typeof v === 'string' ? `"${v}"` : JSON.stringify(v);
+  if (typeof v === 'string') return `"${v}"`;
+  if (typeof v === 'bigint') return `${v}n`;
+  return JSON.stringify(v) ?? String(v);
 }
 
 function resolve(schema: Schema): Schema {
@@ -70,6 +74,7 @@ function componentConst(schema: Schema): string | undefined {
 
 function validate(value: unknown, schema: Schema, path: string, errors: SpecError[]): void {
   const s = resolve(schema);
+  const errorsBefore = errors.length;
 
   if (Array.isArray(s.oneOf)) {
     validateOneOf(value, s.oneOf as Schema[], path, errors);
@@ -158,6 +163,24 @@ function validate(value: unknown, schema: Schema, path: string, errors: SpecErro
       }
     }
   }
+
+  // Structural JSON validation cannot express every Intl constraint (currency/unit names,
+  // locale syntax, time zones, styles mixed with date components, rounding combinations).
+  // Use the same constructor path as rendering, only after the option shape is valid.
+  if (errors.length === errorsBefore && (s['x-quartile-format'] || s['x-quartile-time-zone'])) {
+    try {
+      if (s['x-quartile-time-zone']) {
+        new Intl.DateTimeFormat('en-US', { timeZone: value as string });
+      } else {
+        makeFormatter(value as Formatter);
+      }
+    } catch (error) {
+      errors.push({
+        path,
+        message: `Invalid ${s['x-quartile-time-zone'] ? 'time zone' : 'format options'}: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
+  }
 }
 
 /**
@@ -165,6 +188,19 @@ function validate(value: unknown, schema: Schema, path: string, errors: SpecErro
  * right component; other unions report the branch whose type matches the value.
  */
 function validateOneOf(value: unknown, branches: Schema[], path: string, errors: SpecError[]) {
+  // Typed format descriptors share the object type. Dispatch on their discriminator so a
+  // bad date option is reported at that option, rather than against an unrelated branch.
+  if (typeOf(value) === 'object') {
+    const kind = (value as Record<string, unknown>).type;
+    const branch = branches.find((candidate) => {
+      const props = resolve(candidate).properties as Record<string, Schema> | undefined;
+      return kind !== undefined && props?.type?.const === kind;
+    });
+    if (branch) {
+      validate(value, branch, path, errors);
+      return;
+    }
+  }
   const names = branches.map(componentConst);
   if (names.every((n) => n !== undefined)) {
     if (typeOf(value) !== 'object') {
@@ -232,6 +268,13 @@ export function validateSpec(spec: unknown): SpecValidation {
   } else {
     validate(spec, isDashboardLike(spec) ? DEFS.Dashboard : DEFS.Spec, '', errors);
   }
+  return { valid: errors.length === 0, errors };
+}
+
+/** Validates one serializable formatter, including runtime Intl option constraints. */
+export function validateFormat(format: unknown): SpecValidation {
+  const errors: SpecError[] = [];
+  validate(format, DEFS.Format, '', errors);
   return { valid: errors.length === 0, errors };
 }
 

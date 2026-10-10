@@ -1,7 +1,7 @@
 import { bisectCenter } from 'd3-array';
 import { area as d3area, line as d3line } from 'd3-shape';
 import { type PointerEvent, useId, useMemo, useRef, useState } from 'react';
-import { formatDelta, makeFormatter } from '../data/format';
+import { formatDelta, makeFieldFormatter } from '../data/format';
 import { finiteNumber } from '../data/number';
 import type { Predicate } from '../data/predicates';
 import { fieldOf, resolveData, toComparable, toDate } from '../data/schema';
@@ -28,6 +28,7 @@ import {
   tickFormatter,
   valueScale,
 } from './core/scales';
+import { seriesFormatters } from './core/trends-format';
 
 export interface LineChartProps<R extends Row = Row> extends ChartBaseProps {
   /** Rows to plot, or a dataset with a schema attached. */
@@ -101,7 +102,7 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
     height = 240,
     ...frame
   } = props;
-  const { locale } = useQuartile();
+  const { locale, timeZone } = useQuartile();
   const source = useSourceId(id);
   const gradientId = useId().replace(/:/g, '');
   const { rows: allRows, schema } = useMemo(() => resolveData(data), [data]);
@@ -137,8 +138,11 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
     const series: Series[] = [];
     if (color && yFields.length === 1) {
       const groups = new Map<string, (number | null)[]>();
+      const groupLabels = new Map<string, string>();
+      const fmtGroup = makeFieldFormatter(fieldOf(schema, color, allRows), { locale, timeZone });
       for (const r of sorted) {
         const g = String(r[color]);
+        groupLabels.set(g, fmtGroup(r[color]));
         if (!groups.has(g)) groups.set(g, blank());
         const vals = groups.get(g)!;
         const at = indexOf.get(toComparable(r[x]) as number | string)!;
@@ -148,7 +152,13 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
       }
       let i = 0;
       for (const [g, values] of groups) {
-        series.push({ key: g, label: g, color: seriesColor(i++), field: yFields[0], values });
+        series.push({
+          key: g,
+          label: groupLabels.get(g)!,
+          color: seriesColor(i++),
+          field: yFields[0],
+          values,
+        });
       }
     } else {
       yFields.forEach((f, i) => {
@@ -174,7 +184,7 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
         key: compare,
         label: compareLabel,
         color: 'var(--q-series-muted)',
-        field: series[0].field,
+        field: fieldOf(schema, compare, rows),
         values,
         dashed: true,
       };
@@ -186,21 +196,26 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
       );
     }
     return { xField, yFields, xsRaw, series, compareSeries };
-  }, [rows, schema, x, y, color, compare, compareLabel]);
+  }, [rows, schema, x, y, color, compare, compareLabel, allRows, locale, timeZone]);
 
   const { xField, xsRaw, series, compareSeries } = model;
   const valueField = series[0]?.field ?? model.yFields[0];
-  const fmtY = useMemo(
-    () => makeFormatter(format ?? valueField?.format, { currency: valueField?.currency, locale }),
-    [format, valueField, locale],
-  );
   const fmtX = useMemo(
-    () => makeFormatter(xFormat ?? xField.format, { locale }),
-    [xFormat, xField, locale],
+    () => makeFieldFormatter(xField, { locale, timeZone }, xFormat),
+    [xFormat, xField, locale, timeZone],
   );
   const fmtXLong = useMemo(
-    () => (xField.type === 'temporal' && !xFormat ? makeFormatter('weekday', { locale }) : fmtX),
-    [xField, xFormat, fmtX, locale],
+    () => makeFieldFormatter(xField, { locale, timeZone, surface: 'tooltip' }, xFormat),
+    [xField, xFormat, locale, timeZone],
+  );
+  const formats = useMemo(
+    () =>
+      seriesFormatters(
+        [...series, ...(compareSeries ? [compareSeries] : [])],
+        { locale, timeZone },
+        format,
+      ),
+    [series, compareSeries, locale, timeZone, format],
   );
   const shown = series.filter((s) => !hidden.has(s.key));
   // A linked filter may remove every visible group. Keep surviving groups discoverable.
@@ -236,20 +251,24 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
             s.label,
             s.values.flatMap((v, i) => (v == null ? [] : [{ x: xsRaw[i], y: v }])),
             fmtX,
-            fmtY,
+            formats.get(s.key)!.value,
+            locale,
           ),
         )
         .join(' '),
-    [series, xsRaw, fmtX, fmtY],
+    [series, xsRaw, fmtX, formats, locale],
   );
 
   const table = useMemo<ChartTable>(() => {
     const cols = [...series, ...(compareSeries ? [compareSeries] : [])];
     return {
       columns: [xField.label, ...cols.map((s) => s.label)],
-      rows: xsRaw.map((xv, i) => [fmtXLong(xv), ...cols.map((s) => fmtY(s.values[i]))]),
+      rows: xsRaw.map((xv, i) => [
+        fmtX(xv),
+        ...cols.map((s) => formats.get(s.key)!.value(s.values[i])),
+      ]),
     };
-  }, [series, compareSeries, xField, xsRaw, fmtXLong, fmtY]);
+  }, [series, compareSeries, xField, xsRaw, fmtX, formats]);
 
   return (
     <ChartFrame
@@ -266,17 +285,14 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
         );
         const yScale = valueScale(all.length ? all : [0], [plotHeight - MARGIN.bottom, MARGIN.top]);
         const yTickVals = yScale.ticks(4);
-        const fmtTick = tickFormatter(
-          { ...valueField, format: format ?? valueField.format },
-          locale,
-        );
+        const fmtTick = tickFormatter(valueField, locale, timeZone, format);
         const yTicks = yTickVals.map((v) => ({ y: yScale(v), label: fmtTick(v) }));
         const left = Math.ceil(Math.max(...yTicks.map((t) => monoTextWidth(t.label)), 16)) + 12;
         const x0 = left;
         const x1 = width - MARGIN.right;
         const xs = continuousX(xField, xsRaw, [x0, x1]);
         const px = xsRaw.map((v) => xs.value(v));
-        const fmtXTick = tickFormatter({ ...xField, format: xFormat ?? xField.format }, locale);
+        const fmtXTick = tickFormatter(xField, locale, timeZone, xFormat);
         const xTicks = spacedIndices(
           xsRaw.length,
           Math.max(2, Math.min(6, Math.floor((x1 - x0) / 90))),
@@ -351,7 +367,8 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
                 .filter((s) => s.values[tip] != null)
                 .map((s) => ({
                   label: s.label,
-                  value: fmtY(s.values[tip]),
+                  value: formats.get(s.key)!.tooltip(s.values[tip]),
+                  description: s.field.description,
                   color: series.length > 1 ? s.color : undefined,
                 }));
         let tipFooter: TooltipRow | undefined;
@@ -363,11 +380,16 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
         ) {
           const cur = visible[0].values[tip] as number;
           const prev = compareSeries.values[tip] as number;
-          tipRows.push({ label: compareSeries.label, value: fmtY(prev), tone: 'muted' });
+          tipRows.push({
+            label: compareSeries.label,
+            value: formats.get(compareSeries.key)!.tooltip(prev),
+            description: compareSeries.field.description,
+            tone: 'muted',
+          });
           const change = prev ? cur / prev - 1 : 0;
           tipFooter = {
             label: 'Change',
-            value: formatDelta(change),
+            value: formatDelta(change, 'percent', 1, { locale }),
             tone: change >= 0 ? 'positive' : 'negative',
           };
         }
@@ -384,7 +406,7 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
                       key: s.key,
                       label: s.label,
                       color: s.color,
-                      value: last != null ? fmtTick(last) : undefined,
+                      value: last != null ? formats.get(s.key)!.axis(last) : undefined,
                       inactive: shown.length > 0 && hidden.has(s.key),
                     };
                   }),
@@ -537,6 +559,10 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
                 aria-label={`${frame['aria-label'] ?? 'Line chart'}. Use arrow keys to move between points${brush ? ', Enter to select' : ''}.`}
                 role="application"
                 {...keyboardProps}
+                onKeyDown={(event) => {
+                  setHover(null);
+                  keyboardProps.onKeyDown(event);
+                }}
                 onFocus={(e) => {
                   // Start the keyboard cursor only for keyboard focus, not a pointer click.
                   if (e.currentTarget.matches(':focus-visible')) {
@@ -550,6 +576,7 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
               />
               {tip != null && tipRows.length > 0 && (
                 <ChartTooltip
+                  note={frame.tooltipNote}
                   x={px[tip]}
                   width={width}
                   title={fmtXLong(xsRaw[tip])}
@@ -559,7 +586,7 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
               )}
               <div className="q-visually-hidden" aria-live="polite">
                 {active != null && tipRows.length > 0
-                  ? `${fmtXLong(xsRaw[active])}: ${tipRows.map((r) => `${r.label} ${r.value}`).join(', ')}`
+                  ? `${fmtXLong(xsRaw[active])}: ${tipRows.map((r) => `${r.label} ${r.value}${r.description ? `. ${r.description}` : ''}`).join(', ')}`
                   : ''}
               </div>
             </div>

@@ -4,6 +4,7 @@ import {
   type ReactNode,
   type UIEvent,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -11,7 +12,8 @@ import {
 } from 'react';
 import { ChartState, type ChartStateProps } from '../charts/core/ChartFrame';
 import { Button } from '../components/button/Button';
-import { type DeltaKind, makeFormatter } from '../data/format';
+import { Tooltip } from '../components/overlays/tooltip/Tooltip';
+import { type DeltaKind, makeFieldFormatter, makeFormatter } from '../data/format';
 import { finiteNumber } from '../data/number';
 import type { Predicate, Primitive } from '../data/predicates';
 import { fieldOf, resolveData } from '../data/schema';
@@ -44,6 +46,8 @@ export interface DataTableColumn<R extends Row = Row> {
   key?: string;
   /** Header text. Defaults to the field's schema label. */
   label?: ReactNode;
+  /** Field explanation shown on header hover/focus. Defaults to the schema description. */
+  description?: string;
   /** Value format. Defaults to the field's schema format. */
   format?: Formatter;
   align?: 'left' | 'center' | 'right';
@@ -63,6 +67,8 @@ export interface DataTableColumn<R extends Row = Row> {
   tones?: Record<string, Tone>;
   /** Delta cells: ratio ("percent") or points ("pt"). */
   deltaKind?: DeltaKind;
+  /** Delta decimal places, an integer from 0 to 20. Defaults to 1 for percent/number, 2 for pt. */
+  deltaDigits?: number;
   /** Delta cells: down is good. */
   invert?: boolean;
   /** Bar cells: label shows the value's share of the column total instead of the value. */
@@ -187,6 +193,7 @@ interface ColumnModel {
   label: ReactNode;
   field: FieldDef;
   fmt: (v: unknown) => string;
+  secondaryFmt?: (v: unknown) => string;
   shareFmt: (v: unknown) => string;
   max: number;
   total: number;
@@ -239,7 +246,8 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
     empty,
     'aria-label': ariaLabel,
   } = props;
-  const { locale } = useQuartile();
+  const { locale, timeZone } = useQuartile();
+  const descriptionId = useId();
   const source = useSourceId(id);
   const { rows: allRows, schema } = useMemo(() => resolveData(data), [data]);
   const { rows: linked, selection: sel } = useLinkedRows(allRows, { selection, source });
@@ -308,6 +316,18 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
       if (kind === 'text') firstText = false;
       const fmtName: Formatter =
         col.format ?? (col.aggregate === 'count' ? 'integer' : field.format);
+      const fmt = makeFieldFormatter(field, { locale, timeZone }, fmtName);
+      if (col.width == null && kind === 'number') {
+        // Bound auto-sizing work for virtual tables. Longer unsampled values retain an
+        // ellipsis and full-value title instead of silently clipping their leading digits.
+        const samples = [...shown.slice(0, 200), ...shown.slice(-1)];
+        const label = typeof col.label === 'string' ? col.label : field.label;
+        const characters = Math.max(
+          [...label].length + 3,
+          ...samples.map((row) => [...fmt(row[key])].length),
+        );
+        track = `${Math.max(100, Math.min(480, characters * 8 + 16))}px`;
+      }
       let max = 0;
       let total = 0;
       if (kind === 'bar') {
@@ -328,7 +348,10 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
         sortable: col.sortable ?? kind !== 'sparkline',
         label: col.label ?? field.label,
         field,
-        fmt: makeFormatter(fmtName, { currency: field.currency, locale }),
+        fmt,
+        secondaryFmt: col.secondary
+          ? makeFieldFormatter(fieldOf(schema, col.secondary, allRows), { locale, timeZone })
+          : undefined,
         shareFmt: makeFormatter(
           { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 },
           { locale },
@@ -337,7 +360,7 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
         total,
       };
     });
-  }, [columns, schema, allRows, shown, locale]);
+  }, [columns, schema, allRows, shown, locale, timeZone]);
 
   // Selection state
   const interactive = !!(select && sel) || !!onRowClick;
@@ -559,7 +582,11 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
       case 'custom':
         return (c.col.cell as (row: Row, index: number) => ReactNode)(r, i);
       case 'number':
-        return <span className="q-dt-num">{c.fmt(v)}</span>;
+        return (
+          <span className="q-dt-num" title={c.fmt(v)}>
+            {c.fmt(v)}
+          </span>
+        );
       case 'bar': {
         const n = finiteNumber(v) ?? Number.NaN;
         const w = c.max && Number.isFinite(n) ? (Math.abs(n) / c.max) * 100 : 0;
@@ -587,6 +614,7 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
           <DeltaPill
             value={finiteNumber(v)}
             kind={c.col.deltaKind ?? 'percent'}
+            digits={c.col.deltaDigits}
             invert={c.col.invert}
           />
         );
@@ -612,7 +640,7 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
           >
             <span className="q-dt-primary">{c.fmt(v)}</span>
             {second != null && second !== '' && (
-              <span className="q-dt-secondary">{String(second)}</span>
+              <span className="q-dt-secondary">{c.secondaryFmt?.(second)}</span>
             )}
           </span>
         );
@@ -717,6 +745,34 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
                     ? 'descending'
                     : 'ascending'
                   : undefined;
+                const description = c.col.description ?? c.field.description;
+                const header = c.sortable ? (
+                  <button
+                    type="button"
+                    className="q-dt-sort"
+                    title={
+                      multiSort ? 'Click to sort. Shift-click to add a sort priority.' : undefined
+                    }
+                    onClick={(e) => onHeaderSort(c, e.shiftKey)}
+                  >
+                    <span className="q-dt-sort-label">{c.label}</span>
+                    {active && (
+                      <span className="q-dt-sort-icon" aria-hidden="true">
+                        {activeSort.desc ? <IconArrowDown size={11} /> : <IconArrowUp size={11} />}
+                      </span>
+                    )}
+                    {active && multiSort && activeSorts.length > 1 && (
+                      <span className="q-dt-sort-priority">
+                        <span className="q-visually-hidden">Sort priority </span>
+                        {sortIndex + 1}
+                      </span>
+                    )}
+                  </button>
+                ) : (
+                  <span className="q-dt-sort-label" tabIndex={description ? 0 : undefined}>
+                    {c.label}
+                  </span>
+                );
                 return (
                   // biome-ignore lint/a11y/useFocusableInteractive: the sort button inside is the focus stop
                   <span
@@ -724,41 +780,17 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
                     className="q-dt-hcell"
                     role="columnheader"
                     aria-sort={c.sortable ? (ariaSort ?? 'none') : undefined}
+                    aria-describedby={description ? `${descriptionId}-${ci}` : undefined}
                     data-align={c.align}
                     data-active={active || undefined}
                     data-pinned={c.col.pinned}
                     style={pinnedStyle(ci)}
                   >
-                    {c.sortable ? (
-                      <button
-                        type="button"
-                        className="q-dt-sort"
-                        title={
-                          multiSort
-                            ? 'Click to sort. Shift-click to add a sort priority.'
-                            : undefined
-                        }
-                        onClick={(e) => onHeaderSort(c, e.shiftKey)}
-                      >
-                        <span className="q-dt-sort-label">{c.label}</span>
-                        {active && (
-                          <span className="q-dt-sort-icon" aria-hidden="true">
-                            {activeSort.desc ? (
-                              <IconArrowDown size={11} />
-                            ) : (
-                              <IconArrowUp size={11} />
-                            )}
-                          </span>
-                        )}
-                        {active && multiSort && activeSorts.length > 1 && (
-                          <span className="q-dt-sort-priority">
-                            <span className="q-visually-hidden">Sort priority </span>
-                            {sortIndex + 1}
-                          </span>
-                        )}
-                      </button>
-                    ) : (
-                      <span className="q-dt-sort-label">{c.label}</span>
+                    {description ? <Tooltip content={description}>{header}</Tooltip> : header}
+                    {description && (
+                      <span id={`${descriptionId}-${ci}`} hidden>
+                        {description}
+                      </span>
                     )}
                   </span>
                 );

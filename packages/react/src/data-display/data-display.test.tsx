@@ -132,7 +132,7 @@ describe('KPI', () => {
       />,
     );
     const card = screen.getByRole('group', { name: 'Net revenue' });
-    expect(card.textContent).toContain('$1.32M');
+    expect(card.textContent).toContain('$1,320,000.00');
     expect(card.textContent).toContain('+4.6%');
     expect(card.textContent).toContain('vs. previous 30 days');
     expect(card.textContent).toContain('USD');

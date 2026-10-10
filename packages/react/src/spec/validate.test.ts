@@ -1,5 +1,5 @@
 import { quartileSchema, SPEC_COMPONENTS } from './schema';
-import { validateSpec } from './validate';
+import { validateFormat, validateSpec } from './validate';
 
 const line = { component: 'LineChart', data: 'daily', x: 'date', y: 'revenue' };
 
@@ -31,6 +31,140 @@ describe('quartileSchema', () => {
 });
 
 describe('validateSpec', () => {
+  it('exposes the same validation for standalone format editors', () => {
+    expect(
+      validateFormat({ type: 'number', notation: 'engineering', maximumSignificantDigits: 4 }),
+    ).toEqual({ valid: true, errors: [] });
+    expect(validateFormat({ type: 'date', timeZone: 'Mars/Olympus' }).errors[0].path).toBe(
+      '/timeZone',
+    );
+    expect(
+      validateFormat({ type: 'number', minimumFractionDigits: 5, maximumFractionDigits: 2 })
+        .errors[0].path,
+    ).toBe('');
+    expect(validateFormat(() => 'custom').valid).toBe(false);
+  });
+  it('accepts serializable formats at component, field and column boundaries', () => {
+    const formats = [
+      'scientific',
+      'engineering',
+      'bytes',
+      'bytes-binary',
+      'duration',
+      { style: 'currency', currency: 'JPY' },
+      {
+        type: 'number',
+        style: 'currency',
+        locale: 'fr-FR',
+        currency: 'EUR',
+        currencySign: 'accounting',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+        missing: 'Unavailable',
+        prefix: '≈ ',
+        suffix: ' net',
+        scale: 0.001,
+      },
+      { type: 'number', style: 'currency' },
+      { type: 'number', notation: 'engineering', maximumSignificantDigits: 4 },
+      { type: 'number', style: 'unit', unit: 'meter-per-second' },
+      {
+        type: 'number',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+        roundingIncrement: 5,
+        roundingMode: 'halfEven',
+      },
+      {
+        type: 'date',
+        dateStyle: 'medium',
+        timeStyle: 'short',
+        timeZone: 'America/New_York',
+        locale: 'en-GB',
+      },
+      { type: 'bytes', base: 1024, maximumFractionDigits: 1 },
+      { type: 'duration', unit: 'second', maximumFractionDigits: 3 },
+    ];
+    for (const format of formats) {
+      expect(validateSpec({ ...line, format }).errors).toEqual([]);
+      expect(
+        validateSpec({
+          ...line,
+          y: {
+            field: 'revenue',
+            format,
+            axisFormat: format,
+            tooltipFormat: format,
+            description: 'Net revenue',
+            currency: 'EUR',
+            unit: 'EUR',
+            timeZone: 'UTC',
+          },
+        }).errors,
+      ).toEqual([]);
+      expect(
+        validateSpec({
+          component: 'DataTable',
+          data: 'daily',
+          columns: [{ field: 'revenue', format, description: 'Net revenue after refunds' }],
+        }).errors,
+      ).toEqual([]);
+    }
+    expect(validateSpec({ ...line, tooltipNote: 'Provisional observations' }).valid).toBe(true);
+    expect(
+      validateSpec({ component: 'Sparkline', data: 'daily', y: 'revenue', tooltipNote: 'Unused' })
+        .valid,
+    ).toBe(false);
+  });
+
+  it('rejects invalid format shapes with precise paths', () => {
+    const cases: [unknown, string][] = [
+      [{ type: 'number', scale: Infinity }, '/format/scale'],
+      [{ type: 'number', scale: '100' }, '/format/scale'],
+      [{ type: 'number', notation: 'exponential' }, '/format/notation'],
+      [{ type: 'number', precision: 3 }, '/format/precision'],
+      [{ type: 'number', roundingIncrement: 3 }, '/format/roundingIncrement'],
+      [{ type: 'bytes', base: 2 }, '/format/base'],
+      [{ type: 'bytes', maximumFractionDigits: 21 }, '/format/maximumFractionDigits'],
+      [{ type: 'duration', unit: 'hour' }, '/format/unit'],
+      [{ type: 'duration', maximumFractionDigits: -1 }, '/format/maximumFractionDigits'],
+      [{ type: 'duration', maximumFractionDigits: 1.5 }, '/format/maximumFractionDigits'],
+      [{ type: 'date', hour12: 'yes' }, '/format/hour12'],
+      [{ type: 'date', fractionalSecondDigits: 4 }, '/format/fractionalSecondDigits'],
+      [{ type: 'number', style: 1n }, '/format/style'],
+    ];
+    for (const [format, path] of cases) {
+      const result = validateSpec({ ...line, format });
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((error) => error.path === path)).toBe(true);
+    }
+    expect(validateSpec({ ...line, format: () => 'callback' }).valid).toBe(false);
+  });
+
+  it('validates Intl constructor constraints before a spec can render', () => {
+    const formats = [
+      { style: 'currency', currency: 'US dollars' },
+      { minimumFractionDigits: 4, maximumFractionDigits: 2 },
+      { type: 'number', minimumSignificantDigits: 5, maximumSignificantDigits: 3 },
+      { type: 'number', style: 'unit', unit: 'bananas' },
+      { type: 'number', style: 'unit' },
+      { type: 'number', locale: 'not_a_locale' },
+      { type: 'number', roundingIncrement: 5, maximumSignificantDigits: 3 },
+      { type: 'date', timeZone: 'Mars/Olympus' },
+      { type: 'date', dateStyle: 'long', year: 'numeric' },
+      { type: 'date', locale: 'not_a_locale' },
+      { type: 'bytes', locale: 'not_a_locale' },
+      { type: 'duration', locale: 'not_a_locale' },
+    ];
+    for (const format of formats) {
+      const result = validateSpec({ layout: [{ ...line, format }] });
+      expect(result.valid).toBe(false);
+      expect(result.errors[0].path).toMatch(/^\/layout\/0\/format/);
+    }
+    const field = validateSpec({ ...line, x: { field: 'date', timeZone: 'Mars/Olympus' } });
+    expect(field.errors[0].path).toBe('/x/timeZone');
+  });
+
   it('accepts a minimal component spec', () => {
     expect(validateSpec(line)).toEqual({ valid: true, errors: [] });
   });

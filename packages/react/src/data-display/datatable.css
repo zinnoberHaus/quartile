@@ -182,6 +182,14 @@
   text-align: right;
 }
 
+/* A caller can choose a narrow track; never let that silently cut off a sign or leading digit. */
+.q-dt-num {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .q-dt-cell[data-align="center"] {
   justify-content: center;
 }

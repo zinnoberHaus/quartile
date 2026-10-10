@@ -1,5 +1,8 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "types": ["vitest/globals"] },
+  "compilerOptions": {
+    "types": ["vitest/globals"],
+    "paths": { "@quartile/react": ["./src/index.ts"] }
+  },
   "include": ["src", "test", "scripts"]
 }

@@ -13,6 +13,12 @@ const Workbench = lazy(() =>
 const ScaleWorkbench = lazy(() =>
   import('./examples/scale/ScaleWorkbench').then((m) => ({ default: m.ScaleWorkbench })),
 );
+const ScienceWorkbench = lazy(() =>
+  import('./examples/science/ScienceWorkbench').then((m) => ({ default: m.ScienceWorkbench })),
+);
+const AssistantWorkbench = lazy(() =>
+  import('./examples/science/AssistantWorkbench').then((m) => ({ default: m.AssistantWorkbench })),
+);
 
 // The scratch page is for local development only and is left out of production builds.
 const Scratch = import.meta.env.DEV
@@ -35,6 +41,10 @@ export function App() {
         <StorefrontExample />
       ) : path === '/examples/scale' ? (
         <ScaleWorkbench />
+      ) : path === '/examples/assistant' ? (
+        <AssistantWorkbench />
+      ) : kind === 'explore' || kind === 'cohorts' || kind === 'model-evaluation' ? (
+        <ScienceWorkbench key={kind} kind={kind} />
       ) : path.startsWith('/examples/') &&
         (kind === 'saas' || kind === 'operations' || kind === 'ai-dashboard') ? (
         <Workbench key={kind} kind={kind} />

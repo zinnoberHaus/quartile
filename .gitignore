@@ -8,3 +8,5 @@ coverage/
 .vercel/
 *.tsbuildinfo
 artifacts/
+__pycache__/
+*.pyc

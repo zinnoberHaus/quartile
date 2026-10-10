@@ -29,6 +29,9 @@ export default defineConfig({
   plugins: [react(), reloadOnNewStylesheet()],
   resolve: {
     alias: {
+      '@quartile/react/ai': fileURLToPath(
+        new URL('../../packages/react/src/ai/index.ts', import.meta.url),
+      ),
       '@quartile/react/query': fileURLToPath(
         new URL('../../packages/react/src/query/index.ts', import.meta.url),
       ),

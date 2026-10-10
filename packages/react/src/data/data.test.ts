@@ -83,6 +83,26 @@ describe('formats', () => {
     expect(makeFormatter('month')('2026-03-01')).toBe('Mar ’26');
     expect(makeFormatter('integer')(null)).toBe('—');
   });
+  it('renders missing and invalid temporal cells without throwing during table rendering', () => {
+    for (const format of ['date', 'date-short', 'month', 'weekday', 'datetime', 'time'] as const) {
+      const display = makeFormatter(format);
+      for (const value of [
+        undefined,
+        null,
+        '',
+        'invalid',
+        '2026-99-99T00:00:00Z',
+        new Date(NaN),
+        Infinity,
+      ])
+        expect(display(value)).toBe('—');
+      expect(display(0)).not.toBe('—');
+      expect(display('2026-09-07')).not.toBe('—');
+    }
+    expect(makeFormatter(undefined)(new Date(NaN))).toBe('—');
+    expect(makeFormatter('text')(new Date(NaN))).toBe('—');
+    expect(makeFormatter('text')('invalid')).toBe('invalid');
+  });
   it('signs deltas with a typographic minus', () => {
     expect(formatDelta(0.124)).toBe('+12.4%');
     expect(formatDelta(-0.031)).toBe(`${MINUS}3.1%`);

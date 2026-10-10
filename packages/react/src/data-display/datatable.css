@@ -382,3 +382,109 @@
   gap: 6px;
   font-family: var(--q-font-sans);
 }
+
+.q-dt-sort-priority {
+  min-width: 1.3em;
+  padding: 2px;
+  border-radius: var(--q-radius-xs);
+  background: var(--q-signal-soft);
+  color: var(--q-signal-ink);
+  text-align: center;
+  font-size: 9px;
+}
+
+.q-dt-cell[data-pinned],
+.q-dt-hcell[data-pinned] {
+  --q-dt-pinned-bg: var(--q-surface);
+  position: sticky;
+  z-index: 1;
+  align-self: stretch;
+  background: var(--q-dt-pinned-bg);
+  box-shadow:
+    calc(-1 * var(--q-space-2)) 0 0 var(--q-dt-pinned-bg),
+    var(--q-space-2) 0 0 var(--q-dt-pinned-bg);
+}
+
+.q-dt-hcell[data-pinned] {
+  --q-dt-pinned-bg: var(--q-muted);
+  z-index: 2;
+}
+
+.q-dt-row[data-interactive]:where(:hover) .q-dt-cell[data-pinned] {
+  --q-dt-pinned-bg: var(--q-muted);
+}
+
+.q-dt-row[aria-selected="true"] .q-dt-cell[data-pinned],
+.q-dt-row[aria-selected="true"]:hover .q-dt-cell[data-pinned] {
+  --q-dt-pinned-bg: var(--q-signal-soft);
+}
+
+.q-dt-edit-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: inherit;
+  gap: var(--q-space-2);
+  min-width: 0;
+  width: 100%;
+  padding: var(--q-space-1) 0;
+  border: 0;
+  border-radius: var(--q-radius-xs);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.q-dt-edit-trigger:focus-visible {
+  outline: none;
+  box-shadow: var(--q-focus-ring);
+}
+
+.q-dt-edit-mark {
+  flex: none;
+  margin-left: auto;
+  color: var(--q-text-3);
+  font-size: 11px;
+}
+
+.q-dt-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--q-space-3);
+  min-width: 0;
+  font-size: 13px;
+}
+
+.q-dt-editor-input {
+  min-width: 0;
+  width: 100%;
+  height: var(--q-control-h);
+  padding: 0 var(--q-space-2);
+  border: 1px solid var(--q-line-input);
+  border-radius: var(--q-radius-sm);
+  background: var(--q-surface);
+  color: var(--q-text);
+  font: inherit;
+}
+
+.q-dt-editor-input:focus-visible {
+  outline: none;
+  border-color: var(--q-signal);
+  box-shadow: var(--q-input-ring);
+}
+
+.q-dt-editor-input[aria-invalid="true"] {
+  border-color: var(--q-danger);
+}
+
+.q-dt-editor-error {
+  color: var(--q-negative-ink);
+  font-size: 12px;
+}
+
+.q-dt-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--q-space-2);
+}

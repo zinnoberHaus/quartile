@@ -23,6 +23,7 @@ import { useElementSize } from '../lib/useElementSize';
 import { useQuartile } from '../provider/QuartileProvider';
 import { useLinkedRows, useSourceId } from '../selection/Selection';
 import { type AggregateName, DeltaPill, type Tone, TrendLine, valueKey } from './shared';
+import { type DataTableEdit, type DataTableEditor, TableCellEditor } from './TableCellEditor';
 import {
   type CellKind,
   columnKey,
@@ -72,6 +73,10 @@ export interface DataTableColumn<R extends Row = Row> {
    * of this field. A delta compares the later half of that series with the earlier half.
    */
   over?: string;
+  /** Keep this column visible while scrolling horizontally. Pinned columns use a fixed pixel track. */
+  pinned?: 'left' | 'right';
+  /** Editable only when onCellEdit and a stable rowKey are supplied, and rows are not grouped. */
+  editable?: boolean | DataTableEditor;
 }
 
 export interface DataTableProps<R extends Row = Row> extends ChartStateProps {
@@ -86,6 +91,10 @@ export interface DataTableProps<R extends Row = Row> extends ChartStateProps {
   sort?: string | null;
   defaultSort?: string;
   onSortChange?: (sort: string | null) => void;
+  /** Ordered multi-sort priorities. When supplied, takes precedence over the single sort prop. */
+  sorts?: readonly SortState[];
+  defaultSorts?: readonly SortState[];
+  onSortsChange?: (sorts: SortState[]) => void;
   /** Rows are already ordered by an external query. Headers still publish onSortChange. */
   manualSort?: boolean;
   /** Preserve physical field identities for prepared query results (including nominal dates). */
@@ -94,6 +103,10 @@ export interface DataTableProps<R extends Row = Row> extends ChartStateProps {
   limit?: number;
   /** Paginates with Previous / Next in the footer. */
   pageSize?: number;
+  /** Controlled zero-based page. */
+  page?: number;
+  defaultPage?: number;
+  onPageChange?: (page: number) => void;
   /** Stable row identity: a field, or a function. */
   rowKey?: string | ((row: Row, index: number) => string);
   /**
@@ -126,6 +139,8 @@ export interface DataTableProps<R extends Row = Row> extends ChartStateProps {
   /** Publisher id. */
   id?: string;
   onRowClick?: (row: Row) => void;
+  /** Controlled write: update the caller's data after accepting this edit. Rejections remain visible. */
+  onCellEdit?: (edit: DataTableEdit) => void | Promise<void>;
   className?: string;
   style?: CSSProperties;
   'aria-label'?: string;
@@ -189,10 +204,16 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
     sort: sortProp,
     defaultSort,
     onSortChange,
+    sorts: sortsProp,
+    defaultSorts,
+    onSortsChange,
     manualSort = false,
     typedSelection = false,
     limit,
     pageSize,
+    page: pageProp,
+    defaultPage = 0,
+    onPageChange,
     rowKey,
     select,
     multiple = true,
@@ -207,6 +228,7 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
     selection,
     id,
     onRowClick,
+    onCellEdit,
     className,
     style,
     loading,
@@ -226,6 +248,14 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
     onSortChange,
   );
   const sortState = parseSort(sortValue);
+  const multiSort =
+    sortsProp !== undefined || defaultSorts !== undefined || onSortsChange !== undefined;
+  const [sorts, setSorts] = useControllable<readonly SortState[]>(
+    sortsProp,
+    defaultSorts ?? [],
+    (next) => onSortsChange?.([...next]),
+  );
+  const activeSorts = multiSort ? sorts : sortState ? [sortState] : [];
 
   const derived: Row[] = useMemo(() => {
     if (transform) return transform(linked);
@@ -235,14 +265,20 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
     if (aliased.length === 0) return linked;
     return linked.map((r) => {
       const row: Row = { ...r };
-      for (const c of aliased) row[columnKey(c)] = r[c.field];
+      for (const c of aliased)
+        Object.defineProperty(row, columnKey(c), {
+          value: r[c.field],
+          enumerable: true,
+          configurable: true,
+          writable: true,
+        });
       return row;
     });
   }, [linked, transform, groupBy, columns]);
 
   const sorted = useMemo(
-    () => (manualSort ? derived : sortRows(derived, parseSort(sortValue))),
-    [derived, sortValue, manualSort],
+    () => (manualSort ? derived : sortRows(derived, multiSort ? sorts : parseSort(sortValue))),
+    [derived, sortValue, manualSort, multiSort, sorts],
   );
   const shown = useMemo(() => (limit != null ? sorted.slice(0, limit) : sorted), [sorted, limit]);
 
@@ -266,6 +302,8 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
             : col.width
           : DEFAULT_WIDTH[kind];
       if (col.width == null && kind === 'text' && firstText) track = 'minmax(160px, 2fr)';
+      if (col.pinned && typeof col.width !== 'number')
+        track = `${Math.max(100, minTrack(track))}px`;
       if (kind === 'text') firstText = false;
       const fmtName: Formatter =
         col.format ?? (col.aggregate === 'count' ? 'integer' : field.format);
@@ -338,9 +376,15 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
   };
 
   // Paging
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useControllable(pageProp, defaultPage, onPageChange);
   const pageCount = pageSize ? Math.max(1, Math.ceil(shown.length / pageSize)) : 1;
-  const safePage = Math.min(page, pageCount - 1);
+  const safePage = Math.max(
+    0,
+    Math.min(Number.isFinite(page) ? Math.floor(page) : 0, pageCount - 1),
+  );
+  useEffect(() => {
+    if (safePage !== page) setPage(safePage);
+  }, [safePage, page, setPage]);
   const virtual =
     virtualize !== false &&
     !pageSize &&
@@ -401,6 +445,7 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
     }
   };
   const onBodyKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest('button,input,select,textarea,a')) return;
     const target = (e.target as HTMLElement).closest<HTMLElement>('[data-index]');
     if (!target) return;
     const i = Number(target.dataset.index);
@@ -434,7 +479,23 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
     e.preventDefault();
   };
 
-  const onHeaderSort = (c: ColumnModel) => {
+  const onHeaderSort = (c: ColumnModel, additive = false) => {
+    if (multiSort) {
+      const current = sorts.find((s) => s.key === c.key);
+      const next = {
+        key: c.key,
+        desc: current ? !current.desc : NUMERIC.includes(c.kind as CellKind),
+      };
+      setSorts(
+        additive
+          ? current
+            ? sorts.map((s) => (s.key === c.key ? next : s))
+            : [...sorts, next]
+          : [next],
+      );
+      setPage(0);
+      return;
+    }
     let next: SortState;
     if (sortState?.key === c.key) next = { key: c.key, desc: !sortState.desc };
     else next = { key: c.key, desc: NUMERIC.includes(c.kind as CellKind) };
@@ -450,6 +511,14 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
   ];
   const minWidth = tracks.reduce((a, t) => a + minTrack(t), 0) + (tracks.length - 1) * 14 + 32;
   const gridStyle = { '--q-dt-cols': tracks.join(' '), minWidth } as CSSProperties;
+  const pinnedStyle = (index: number): CSSProperties | undefined => {
+    const side = cols[index].col.pinned;
+    if (!side) return undefined;
+    const preceding = side === 'left' ? cols.slice(0, index) : cols.slice(index + 1);
+    const pinned = preceding.filter((c) => c.col.pinned === side);
+    const width = pinned.reduce((sum, c) => sum + minTrack(c.track), 0);
+    return { [side]: `calc(var(--q-dt-px) + ${width}px + ${pinned.length} * var(--q-dt-gap))` };
+  };
 
   const keyOf = (r: Row, i: number) =>
     typeof rowKey === 'function'
@@ -634,10 +703,12 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
                   #
                 </span>
               )}
-              {cols.map((c) => {
-                const active = sortState?.key === c.key;
+              {cols.map((c, ci) => {
+                const sortIndex = activeSorts.findIndex((s) => s.key === c.key);
+                const activeSort = activeSorts[sortIndex];
+                const active = !!activeSort;
                 const ariaSort = active
-                  ? sortState?.desc
+                  ? activeSort.desc
                     ? 'descending'
                     : 'ascending'
                   : undefined;
@@ -650,17 +721,34 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
                     aria-sort={c.sortable ? (ariaSort ?? 'none') : undefined}
                     data-align={c.align}
                     data-active={active || undefined}
+                    data-pinned={c.col.pinned}
+                    style={pinnedStyle(ci)}
                   >
                     {c.sortable ? (
-                      <button type="button" className="q-dt-sort" onClick={() => onHeaderSort(c)}>
+                      <button
+                        type="button"
+                        className="q-dt-sort"
+                        title={
+                          multiSort
+                            ? 'Click to sort. Shift-click to add a sort priority.'
+                            : undefined
+                        }
+                        onClick={(e) => onHeaderSort(c, e.shiftKey)}
+                      >
                         <span className="q-dt-sort-label">{c.label}</span>
                         {active && (
                           <span className="q-dt-sort-icon" aria-hidden="true">
-                            {sortState?.desc ? (
+                            {activeSort.desc ? (
                               <IconArrowDown size={11} />
                             ) : (
                               <IconArrowUp size={11} />
                             )}
+                          </span>
+                        )}
+                        {active && multiSort && activeSorts.length > 1 && (
+                          <span className="q-dt-sort-priority">
+                            <span className="q-visually-hidden">Sort priority </span>
+                            {sortIndex + 1}
                           </span>
                         )}
                       </button>
@@ -713,7 +801,16 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
                       aria-selected={interactive && select ? selected : undefined}
                       tabIndex={interactive ? (i === focusAt ? 0 : -1) : undefined}
                       data-interactive={interactive || undefined}
-                      onClick={interactive ? () => toggleRow(r) : undefined}
+                      onClick={
+                        interactive
+                          ? (e) => {
+                              if (
+                                !(e.target as HTMLElement).closest('button,input,select,textarea,a')
+                              )
+                                toggleRow(r);
+                            }
+                          : undefined
+                      }
                       onFocus={interactive ? () => setFocusIndex(i) : undefined}
                     >
                       {showCheck && (
@@ -735,15 +832,32 @@ export function DataTable<R extends Row = Row>(props: DataTableProps<R>) {
                           {offset + i + 1}
                         </span>
                       )}
-                      {cols.map((c) => (
+                      {cols.map((c, ci) => (
                         <span
                           key={c.key}
                           className="q-dt-cell"
                           role={interactive ? 'gridcell' : 'cell'}
                           data-kind={c.kind}
                           data-align={c.align}
+                          data-pinned={c.col.pinned}
+                          style={pinnedStyle(ci)}
                         >
-                          {renderCell(c, r, offset + i)}
+                          {c.col.editable && onCellEdit && rowKey && !groupBy ? (
+                            <TableCellEditor
+                              editor={typeof c.col.editable === 'object' ? c.col.editable : {}}
+                              fieldType={c.field.type}
+                              row={r}
+                              rowKey={keyOf(r, offset + i)}
+                              field={c.col.field}
+                              columnKey={c.key}
+                              label={typeof c.label === 'string' ? c.label : c.key}
+                              onEdit={onCellEdit}
+                            >
+                              {renderCell(c, r, offset + i)}
+                            </TableCellEditor>
+                          ) : (
+                            renderCell(c, r, offset + i)
+                          )}
                         </span>
                       ))}
                     </div>

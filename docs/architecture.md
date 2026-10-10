@@ -1,6 +1,6 @@
 # Architecture and conventions
 
-Quartile is one React package, `@quartile/react`, plus a gallery app that renders the design system and an example app from source. Read this before adding or changing a component.
+Quartile is one React package, `@quartile/react`, plus a gallery app that renders the design system and runnable analytical workspaces from source. Read this before adding or changing a component.
 
 ## Layout
 
@@ -13,15 +13,16 @@ packages/react/            @quartile/react
   src/lib/                 cx, useControllable, useElementSize, floating (Portal, useFloating, useDismiss)
   src/icons/               16px stroke icons
   src/components/          interface components (buttons, inputs, navigation, feedback, overlays)
-  src/data-display/        KPI, FilterBar, DataTable: the layer between charts and UI
+  src/data-display/        KPI, FilterBar, DataTable, DataExplorer and local table state
   src/charts/              charts and the chart core (frame, states, scales, guides, a11y)
   src/spec/                JSON Schema for components and the spec renderer
   src/query/               optional bounded query protocol, React hook and prepared view boundary
   src/duckdb/              optional Arrow/DuckDB adapter, typed plan compiler and ownership
-apps/gallery/              design system page (/), example app (/examples/storefront)
+  src/ai/                  optional bounded profiling/context, proposal validation and review/apply
+apps/gallery/              design system (/), commerce, operations, scale and science examples
 ```
 
-`npm run build` in `packages/react` writes the default entry, optional `query/index` and `duckdb/index` entries, shared chunks and declarations, `dist/styles.css` (every `src/**/*.css`, foundations first), and `dist/schema.json`. Keep shared contexts in shared chunks: bundling separate copies would disconnect selection across entries. The default import must not load Arrow or DuckDB. Package checks exercise all entries in clean consumers.
+`npm run build` in `packages/react` writes the default entry, optional `query/index`, `duckdb/index` and `ai/index` entries, shared chunks and declarations, `dist/styles.css` (every `src/**/*.css`, foundations first), and `dist/schema.json`. Keep shared contexts in shared chunks: bundling separate copies would disconnect selection across entries. The default import must not load Arrow, DuckDB, or the optional AI integration. Package checks exercise entries in clean consumers.
 
 ## Styling
 
@@ -52,9 +53,17 @@ Every chart and data-display component follows the same contract:
 4. Publish with `selection.set(field, value, { op, source })` (brush: `op: 'between'`; click: `selection.toggle(field, value, { source })`). Clear with `selection.clear(field)`.
 5. Format values with `makeFormatter(field.format, { currency, locale })` and axis ticks with `tickFormatter(field)`.
 6. Built-in states: accept `ChartStateProps` (`loading`, `error`, `errorCode`, `onRetry`, `empty`) and render through `ChartFrame`, which keeps the size so layouts never jump.
-7. Accessibility: `useChartKeyboard` for arrow-key navigation, an `aria-live` announcement for the focused point, an auto-written summary via `summarizeSeries` or an equivalent, and a formatted `ChartTable` passed to `ChartFrame` as `table`. Screen readers always get the table; `view="table"` shows it at the chart's size.
+7. Accessibility: `useChartKeyboard` for arrow-key navigation, an `aria-live` announcement for the focused point, an auto-written summary via `summarizeSeries` or an equivalent, and a formatted `ChartTable` passed to `ChartFrame` as `table`. Smaller charts expose a hidden table; ScatterPlot above 200 visible points exposes exact values through a lazy table in pages of 50, avoiding an unbounded hidden DOM. `view="table"` opens the table directly.
 
 `LineChart` is the reference implementation of this contract.
+
+## Local table state and reviewed analysis
+
+`DataExplorer` composes DataTable with local typed filters/search, grouping, multi-sort, column controls, view JSON and CSV export. Shared Selection filters run first; explorer filters remain local. `TableViewState` stores configuration, not records or permissions. Editing is a controlled callback with stable row identity; the caller owns persistence and authorization. See [tables](guides/tables.md).
+
+The optional AI entry separates a bounded metadata/profile context from `AnalysisPlan` proposals. Validation checks fields, types and action limits. The hook cancels/invalidates stale proposals and requires explicit Apply; the pure reducer returns view state without querying, mutating Selection, or executing code. An adapter may call an application-owned server, but provider credentials and model execution stay outside the library. See [AI assistance](guides/ai-assistance.md).
+
+Scientist examples keep retention and classification calculations in `apps/gallery/src/examples/science`, with unit tests under `packages/react/test`. They illustrate application math rather than enlarging the component package into a training engine. Python snapshot and local model-server examples live under `examples/` and have separate runtime requirements.
 
 ## Honesty rules
 

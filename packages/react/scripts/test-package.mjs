@@ -19,15 +19,23 @@ try {
   );
   writeFileSync(
     join(temporary, 'consumer.tsx'),
-    `import { DataTable, KPI, LineChart, QuartileProvider, Selection, dataset } from '@quartile/react';
+    `import { DataExplorer, DataTable, KPI, LineChart, QuartileProvider, Selection, dataset } from '@quartile/react';
 import { QueryKPI, type QuerySource } from '@quartile/react/query';
+import { AssistantPanel, createAnalysisContext, profileDataset, useAnalysisAssistant, type AssistantAdapter } from '@quartile/react/ai';
 import '@quartile/react/styles.css';
 export const RemoteMetric = ({ source }: { source: QuerySource }) => <QueryKPI data={source} label="Remote count" aggregate="count" />;
 const data = dataset([{ date: '2026-09-01', region: 'Europe', amount: 120 }]);
+const adapter: AssistantAdapter = { id: 'consumer', label: 'Consumer', mode: 'live', generate: async () => ({}) };
+export function Assistant() {
+  const context = createAnalysisContext({ schema: data.schema, source: { id: 'rows', version: '1' }, profile: profileDataset(data) });
+  const assistant = useAnalysisAssistant({ adapter, context, onApply: () => {} });
+  return <AssistantPanel assistant={assistant} />;
+}
 export function App() {
   return <QuartileProvider><Selection>
     <KPI data={data} label="Revenue" value="amount" />
     <LineChart data={data} x="date" y="amount" brush />
+    <DataExplorer data={data} rowKey="region" columns={[{ field: 'region' }, { field: 'amount', editable: true }]} />
     <DataTable data={data} columns={[{ field: 'region' }, { field: 'amount' }]} />
   </Selection></QuartileProvider>;
 }
@@ -39,8 +47,16 @@ export function App() {
 import { existsSync, readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
-import { DataTable, KPI, LineChart, QuartileProvider, Selection, dataset, validateSpec } from '@quartile/react';
+import { DataExplorer, DataTable, KPI, LineChart, QuartileProvider, Selection, dataset, validateSpec } from '@quartile/react';
 import { QueryKPI } from '@quartile/react/query';
+import { AssistantPanel, createAnalysisContext, profileDataset, useAnalysisAssistant, validateAnalysisPlan } from '@quartile/react/ai';
+const adapter = { id: 'consumer', label: 'Consumer', mode: 'live', generate: async () => { throw new Error('SSR must not invoke a model'); } };
+function Assistant() {
+  const context = createAnalysisContext({ schema: data.schema, source: { id: 'rows', version: '1' }, profile: profileDataset(data) });
+  assert(validateAnalysisPlan({ version: 1, title: 'Inspect', summary: 'Inspect rows', actions: [{ type: 'table', fields: ['region'], limit: 10 }] }, context).valid);
+  const assistant = useAnalysisAssistant({ adapter, context, onApply: () => { throw new Error('SSR must not apply a plan'); } });
+  return createElement(AssistantPanel, { assistant });
+}
 assert(!existsSync(new URL('./node_modules/apache-arrow', import.meta.url)), 'ordinary consumers must not install Arrow');
 assert(!existsSync(new URL('./node_modules/@duckdb/duckdb-wasm', import.meta.url)), 'ordinary consumers must not install DuckDB');
 const data = dataset([{ date: '2026-09-01', region: 'Europe', amount: 120 }]);
@@ -50,6 +66,8 @@ const html = renderToString(createElement(QuartileProvider, {}, createElement(Se
   createElement(QueryKPI, { data: {kind: 'query-source', id: 'server', version: 'v1', schema: {}, query: async () => { throw new Error('SSR must not start queries'); }, dispose: async () => {} }, label: 'Remote count', aggregate: 'count' }),
   createElement(KPI, { data, value: 'amount', label: 'Revenue' }),
   createElement(LineChart, { data, x: 'date', y: 'amount' }),
+  createElement(Assistant),
+  createElement(DataExplorer, { data, rowKey: 'region', columns: [{ field: 'region' }, { field: 'amount' }] }),
   createElement(DataTable, { data, columns: [{ field: 'region' }, { field: 'amount' }] }),
 )));
 assert.match(html, /Revenue/);
@@ -59,6 +77,8 @@ assert.deepEqual(warnings, [], 'SSR should not emit React warnings');
 const css = readFileSync(new URL(import.meta.resolve('@quartile/react/styles.css')), 'utf8');
 assert.match(css, /--q-/);
 assert.match(css, /q-chart/);
+assert.match(css, /q-explorer/);
+assert.match(css, /q-assistant/);
 const schema = JSON.parse(readFileSync(new URL(import.meta.resolve('@quartile/react/schema.json')), 'utf8'));
 assert(schema.$defs.LineChart);
 assert(validateSpec({ component: 'LineChart', data: 'rows', x: 'date', y: 'amount' }).valid);

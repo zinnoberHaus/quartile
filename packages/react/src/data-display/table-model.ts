@@ -1,4 +1,5 @@
-import type { Row } from '../data/types';
+import { typedValueKey } from '../data/typed-key';
+import type { Row, Schema } from '../data/types';
 import {
   type AggregateName,
   aggregateRows,
@@ -41,19 +42,28 @@ export function formatSort(s: SortState | null): string | null {
 }
 
 /** Stable sort by one key. Empty values always sort last. */
-export function sortRows<R extends Row>(rows: readonly R[], sort: SortState | null): R[] {
-  if (!sort) return rows as R[];
-  const { key, desc } = sort;
+export function sortRows<R extends Row>(
+  rows: readonly R[],
+  sort: SortState | readonly SortState[] | null,
+): R[] {
+  const sorts = sort ? (Array.isArray(sort) ? sort : [sort as SortState]) : [];
+  if (!sorts.length) return rows as R[];
   return rows
     .map((r, i) => ({ r, i }))
     .sort((a, b) => {
-      const av = a.r[key];
-      const bv = b.r[key];
-      const aEmpty = av == null || av === '' || (typeof av === 'number' && Number.isNaN(av));
-      const bEmpty = bv == null || bv === '' || (typeof bv === 'number' && Number.isNaN(bv));
-      if (aEmpty || bEmpty) return aEmpty === bEmpty ? a.i - b.i : aEmpty ? 1 : -1;
-      const c = compareValues(av, bv);
-      return (desc ? -c : c) || a.i - b.i;
+      for (const { key, desc } of sorts) {
+        const av = a.r[key];
+        const bv = b.r[key];
+        const aEmpty = av == null || av === '' || (typeof av === 'number' && Number.isNaN(av));
+        const bEmpty = bv == null || bv === '' || (typeof bv === 'number' && Number.isNaN(bv));
+        if (aEmpty || bEmpty) {
+          if (aEmpty !== bEmpty) return aEmpty ? 1 : -1;
+          continue;
+        }
+        const c = compareValues(av, bv);
+        if (c) return desc ? -c : c;
+      }
+      return a.i - b.i;
     })
     .map((x) => x.r);
 }
@@ -87,10 +97,13 @@ export function groupRows(
   rows: readonly Row[],
   groupBy: string,
   columns: readonly ModelColumn[],
+  options?: { typed?: boolean; schema?: Schema },
 ): Row[] {
   const groups = new Map<string, Row[]>();
   for (const r of rows) {
-    const k = valueKey(r[groupBy]);
+    const k = options?.typed
+      ? typedValueKey(r[groupBy], options.schema?.[groupBy]?.type)
+      : valueKey(r[groupBy]);
     const g = groups.get(k);
     if (g) g.push(r);
     else groups.set(k, [r]);
@@ -108,14 +121,21 @@ export function groupRows(
     for (const c of columns) {
       const key = columnKey(c);
       const kind = typeof c.cell === 'string' ? c.cell : undefined;
+      let value: unknown;
       if (c.over && (kind === 'sparkline' || kind === 'delta')) {
         const series = seriesBy(g, c.over, c.field, c.aggregate ?? 'sum', domains.get(c.over));
-        row[key] = kind === 'sparkline' ? series : halfChange(series);
+        value = kind === 'sparkline' ? series : halfChange(series);
       } else if (c.aggregate) {
-        row[key] = aggregateRows(g, c.field, c.aggregate);
+        value = aggregateRows(g, c.field, c.aggregate);
       } else {
-        row[key] = first[c.field];
+        value = first[c.field];
       }
+      Object.defineProperty(row, key, {
+        value,
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      });
     }
     out.push(row);
   }

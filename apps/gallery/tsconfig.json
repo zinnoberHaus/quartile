@@ -4,6 +4,7 @@
     "types": ["vite/client"],
     "paths": {
       "@quartile/react": ["../../packages/react/src/index.ts"],
+      "@quartile/react/ai": ["../../packages/react/src/ai/index.ts"],
       "@quartile/react/query": ["../../packages/react/src/query/index.ts"],
       "@quartile/react/duckdb": ["../../packages/react/src/duckdb/index.ts"]
     }

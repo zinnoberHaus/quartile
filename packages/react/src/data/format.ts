@@ -140,6 +140,14 @@ function numberFormatter(
 }
 
 const CIVIL_DATE = /^\d{4}-\d{2}-\d{2}$/;
+// ICU versions differ on AM/PM and range separator spaces, even for explicit locale/zone.
+// Canonicalize only Intl date literals so server/client markup agrees; retain bidi marks,
+// number grouping and application-owned text (callbacks, missing labels, prefix/suffix).
+function dateParts(parts: FormatPart[]): FormatPart[] {
+  return parts.map((part) =>
+    part.type === 'literal' ? { ...part, value: part.value.replace(/[\u00a0\u202f]/g, ' ') } : part,
+  );
+}
 function dateValue(value: unknown): { date: Date; civil: boolean } | null {
   if (value == null || value === '' || typeof value === 'boolean') return null;
   const parsed = toDate(value);
@@ -158,7 +166,7 @@ function dateFormatter(
   const parts = (value: unknown) => {
     const parsed = dateValue(value);
     return parsed
-      ? (parsed.civil ? civilFormatter() : formatter).formatToParts(parsed.date)
+      ? dateParts((parsed.civil ? civilFormatter() : formatter).formatToParts(parsed.date))
       : literal(missing);
   };
   return {
@@ -171,7 +179,9 @@ function dateFormatter(
       const left = join(parts(start));
       const right = join(parts(end));
       if (left === right && a.date.getTime() !== b.date.getTime()) return `${left} – ${right}`;
-      return (a.civil ? civilFormatter() : formatter).formatRange(a.date, b.date);
+      return join(
+        dateParts((a.civil ? civilFormatter() : formatter).formatRangeToParts(a.date, b.date)),
+      );
     },
   };
 }

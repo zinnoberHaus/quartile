@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   compactNumber,
   deltaTone,
@@ -136,7 +136,9 @@ describe('scientific and international display contract', () => {
       expect(makeFormatter(format, { locale: 'en-US', timeZone })(instant)).toBe(
         new Intl.DateTimeFormat('en-US', { dateStyle: 'full', timeStyle: 'long', timeZone })
           .formatToParts(new Date(instant))
-          .map((part) => part.value)
+          .map((part) =>
+            part.type === 'literal' ? part.value.replace(/[\u00a0\u202f]/g, ' ') : part.value,
+          )
           .join(''),
       );
       expect(makeFormatter('date', { timeZone })('2026-01-01')).toBe('Jan 1, 2026');
@@ -149,6 +151,55 @@ describe('scientific and international display contract', () => {
     ).toBe('01:30');
     expect(dataset([{ observed: instant }]).schema.observed.format).toBe('datetime');
     expect(dataset([{ day: '2026-01-01' }]).schema.day.format).toBe('date-short');
+  });
+  it('keeps server/browser date spacing stable without rewriting application text or bidi marks', () => {
+    const format: Formatter = { type: 'date', timeStyle: 'long', timeZone: 'UTC' };
+    const start = '2026-10-10T00:30:00Z';
+    const end = '2026-10-10T03:30:00Z';
+    const nativeParts = Intl.DateTimeFormat.prototype.formatToParts;
+    const nativeRangeParts = Intl.DateTimeFormat.prototype.formatRangeToParts;
+    const outputs = [];
+    for (const space of [' ', '\u00a0', '\u202f']) {
+      const replace = <T extends { type: string; value: string }>(parts: T[]) =>
+        parts.map((part) =>
+          part.type === 'literal'
+            ? { ...part, value: part.value.replace(/[ \u00a0\u202f]/g, space) }
+            : part,
+        );
+      const single = vi
+        .spyOn(Intl.DateTimeFormat.prototype, 'formatToParts')
+        .mockImplementation(function (this: Intl.DateTimeFormat, value) {
+          return replace(nativeParts.call(this, value));
+        });
+      const range = vi
+        .spyOn(Intl.DateTimeFormat.prototype, 'formatRangeToParts')
+        .mockImplementation(function (this: Intl.DateTimeFormat, a, b) {
+          return replace(nativeRangeParts.call(this, a, b));
+        });
+      try {
+        outputs.push({
+          single: makeFormatter(format)(start),
+          parts: formatParts(format, start),
+          range: makeRangeFormatter(format)(start, end),
+        });
+      } finally {
+        single.mockRestore();
+        range.mockRestore();
+      }
+    }
+    expect(outputs[0].single).toBe('12:30:00 AM UTC');
+    expect(outputs[1]).toEqual(outputs[0]);
+    expect(outputs[2]).toEqual(outputs[0]);
+    const arabic = formatParts({ type: 'date', dateStyle: 'short', timeZone: 'UTC' }, start, {
+      locale: 'ar-EG',
+    });
+    expect(arabic.some((part) => /\u200f/.test(part.value))).toBe(true);
+    const custom = 'Keep\u00a0this\u202fspacing';
+    expect(makeFormatter(() => custom)(1)).toBe(custom);
+    expect(makeFormatter({ type: 'date', missing: custom })(null)).toBe(custom);
+    expect(makeFormatter({ type: 'number', prefix: custom, suffix: custom })(1)).toBe(
+      `${custom}1${custom}`,
+    );
   });
   it('handles SI/binary byte boundaries and elapsed time without 24-hour rollover', () => {
     expect(makeFormatter('bytes')(1000)).toBe('1 kB');

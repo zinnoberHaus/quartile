@@ -99,6 +99,23 @@ test('provider schema is a strict root object with supported union branches', ()
   assert.ok(schema.properties.actions.items.anyOf.length > 1);
   assert.ok(!JSON.stringify(schema).includes('oneOf'));
   assert.ok(!JSON.stringify(schema).includes('uniqueItems'));
+  const actions = schema.properties.actions.items.anyOf;
+  const sort = actions.find((action) => action.properties.type.enum[0] === 'sort');
+  const multiChart = actions.find((action) => action.properties.chart?.enum.includes('scatter'));
+  assert.deepEqual(sort.properties.direction, { type: 'string', enum: ['asc', 'desc'] });
+  assert.deepEqual(multiChart.properties.chart, {
+    type: 'string',
+    enum: ['scatter', 'bar', 'line'],
+  });
+  const checkEnums = (node) => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node.enum)) {
+      assert.ok(node.type, 'Every translated enum needs an explicit type.');
+      assert.ok(node.enum.every((value) => typeof value === node.type));
+    }
+    for (const child of Object.values(node)) checkEnums(child);
+  };
+  checkEnums(schema);
 });
 
 test('valid browser request calls the real provider endpoint contract and returns only a validated plan', async () => {

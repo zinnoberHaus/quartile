@@ -7,7 +7,7 @@ Quartile is one React package, `@quartile/react`, plus a gallery app that render
 ```
 packages/react/            @quartile/react
   src/styles/              tokens.css (every --q-* variable) and base.css (scoped base, type scale)
-  src/provider/            QuartileProvider: theme, density, locale, portal layer
+  src/provider/            QuartileProvider: theme, density, locale, time zone, portal layer
   src/data/                data model: schema inference, formats, predicates
   src/selection/           <Selection>, useSelection, useLinkedRows: the shared selection store
   src/lib/                 cx, useControllable, useElementSize, floating (Portal, useFloating, useDismiss)
@@ -51,7 +51,7 @@ Every chart and data-display component follows the same contract:
 2. `resolveData(data)` gives rows and a schema; `fieldOf(schema, name, rows)` gives a field with its type, label and format.
 3. `useLinkedRows(rows, { selection, source })` returns rows filtered by every predicate in the nearest `<Selection>` except the ones this component published. `source` comes from `useSourceId(props.id)`.
 4. Publish with `selection.set(field, value, { op, source })` (brush: `op: 'between'`; click: `selection.toggle(field, value, { source })`). Clear with `selection.clear(field)`.
-5. Format values with `makeFormatter(field.format, { currency, locale })` and axis ticks with `tickFormatter(field)`.
+5. Format values with `makeFieldFormatter(field, { locale, timeZone, surface })`; use `surface: 'axis'` or `'tooltip'` where appropriate and pass explicit component overrides as its third argument. Axis ticks go through `tickFormatter`. Field-specific formats and time zones are preserved; full exact-table values use the base field format. `makeRangeFormatter` and `formatParts` support ranges and rich presentation. See [formatting](guides/formatting.md).
 6. Built-in states: accept `ChartStateProps` (`loading`, `error`, `errorCode`, `onRetry`, `empty`) and render through `ChartFrame`, which keeps the size so layouts never jump.
 7. Accessibility: `useChartKeyboard` for arrow-key navigation, an `aria-live` announcement for the focused point, an auto-written summary via `summarizeSeries` or an equivalent, and a formatted `ChartTable` passed to `ChartFrame` as `table`. Smaller charts expose a hidden table; ScatterPlot above 200 visible points exposes exact values through a lazy table in pages of 50, avoiding an unbounded hidden DOM. `view="table"` opens the table directly.
 

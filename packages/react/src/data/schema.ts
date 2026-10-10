@@ -74,7 +74,12 @@ function inferType(values: unknown[]): FieldType {
 function inferField(name: string, values: unknown[]): FieldDef {
   const type = inferType(values);
   const label = humanize(name);
-  if (type === 'temporal') return { name, type, label, format: 'date-short' };
+  if (type === 'temporal') {
+    const hasTime = values.some(
+      (value) => value instanceof Date || (typeof value === 'string' && value.length > 10),
+    );
+    return { name, type, label, format: hasTime ? 'datetime' : 'date-short' };
+  }
   if (type === 'quantitative') {
     const nums = values.filter((v): v is number => typeof v === 'number');
     if (CURRENCY_NAME.test(name))

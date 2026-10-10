@@ -1,6 +1,6 @@
 import { scaleBand } from 'd3-scale';
 import { type MouseEvent, useMemo, useState } from 'react';
-import { makeFormatter } from '../data/format';
+import { makeFieldFormatter } from '../data/format';
 import type { Predicate } from '../data/predicates';
 import { fieldOf, resolveData } from '../data/schema';
 import type { DataInput, Formatter, Row } from '../data/types';
@@ -19,6 +19,7 @@ import {
 import { bandScale, monoTextWidth, spacedIndices, tickFormatter, valueScale } from './core/scales';
 import type { SortOrder } from './core/trends-aggregate';
 import { isKeyboardFocus } from './core/trends-focus';
+import { seriesFormatters } from './core/trends-format';
 import { useToggleSelect } from './core/trends-select';
 import { pivotSeries, stackSeries } from './core/trends-series';
 
@@ -105,7 +106,7 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
   } = props;
   const split = group ?? color;
   const horizontal = orientation === 'horizontal';
-  const { locale } = useQuartile();
+  const { locale, timeZone } = useQuartile();
   const source = useSourceId(id);
   const { rows: allRows, schema } = useMemo(() => resolveData(data), [data]);
   const { rows, selection: sel } = useLinkedRows(allRows, { selection, source });
@@ -114,7 +115,15 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
   const model = useMemo(() => {
     const xField = fieldOf(schema, x, rows);
     const yFields = (Array.isArray(y) ? y : [y]).map((f) => fieldOf(schema, f, rows));
-    const pivot = pivotSeries(rows, { x, yFields, color: split, colors });
+    const pivot = pivotSeries(rows, {
+      x,
+      yFields,
+      color: split,
+      colors,
+      formatGroup: split
+        ? makeFieldFormatter(fieldOf(schema, split, allRows), { locale, timeZone })
+        : undefined,
+    });
     let order = pivot.xsRaw.map((_, i) => i);
     const ordinal = xField.type === 'temporal' || xField.type === 'quantitative';
     if (sort !== 'none' && !ordinal) {
@@ -126,17 +135,29 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
     const xsRaw = order.map((i) => pivot.xsRaw[i]);
     const series = pivot.series.map((s) => ({ ...s, values: order.map((i) => s.values[i]) }));
     return { xField, yFields, xsRaw, series };
-  }, [rows, schema, x, y, split, colors, sort]);
+  }, [rows, schema, x, y, split, colors, sort, allRows, locale, timeZone]);
 
   const { xField, xsRaw, series } = model;
   const valueField = series[0]?.field ?? model.yFields[0];
   const fmtY = useMemo(
-    () => makeFormatter(format ?? valueField?.format, { currency: valueField?.currency, locale }),
-    [format, valueField, locale],
+    () => makeFieldFormatter(valueField, { locale, timeZone }, format),
+    [format, valueField, locale, timeZone],
   );
   const fmtX = useMemo(
-    () => makeFormatter(xFormat ?? xField.format, { locale }),
-    [xFormat, xField, locale],
+    () => makeFieldFormatter(xField, { locale, timeZone }, xFormat),
+    [xFormat, xField, locale, timeZone],
+  );
+  const fmtXTip = useMemo(
+    () => makeFieldFormatter(xField, { locale, timeZone, surface: 'tooltip' }, xFormat),
+    [xField, locale, timeZone, xFormat],
+  );
+  const fmtXTick = useMemo(
+    () => tickFormatter(xField, locale, timeZone, xFormat),
+    [xField, locale, timeZone, xFormat],
+  );
+  const formats = useMemo(
+    () => seriesFormatters(series, { locale, timeZone }, format),
+    [series, locale, timeZone, format],
   );
   const shown = series.filter((s) => !hidden.has(s.key));
   // A linked filter may remove every visible group. Keep surviving groups discoverable.
@@ -161,18 +182,17 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
   );
   const summary = useMemo(() => {
     if (xsRaw.length === 0) return '';
-    let hi = 0;
-    let lo = 0;
-    totals.forEach((t, i) => {
-      if (t > totals[hi]) hi = i;
-      if (t < totals[lo]) lo = i;
-    });
-    const groups =
-      series.length > 1
-        ? ` across ${series.length} groups (${series.map((s) => s.label).join(', ')})`
-        : '';
-    return `${xsRaw.length} bars${groups}. Highest ${fmtX(xsRaw[hi])} at ${fmtY(totals[hi])}; lowest ${fmtX(xsRaw[lo])} at ${fmtY(totals[lo])}.`;
-  }, [xsRaw, series, totals, fmtX, fmtY]);
+    return series
+      .map((s) => {
+        const observed = s.values.flatMap((value, i) => (value == null ? [] : [{ value, i }]));
+        if (!observed.length) return `${s.label}: no data.`;
+        const hi = observed.reduce((a, b) => (a.value > b.value ? a : b));
+        const lo = observed.reduce((a, b) => (a.value < b.value ? a : b));
+        const fmt = formats.get(s.key)!.value;
+        return `${series.length > 1 ? `${s.label}: ` : ''}${xsRaw.length} bars. Highest ${fmtX(xsRaw[hi.i])} at ${fmt(hi.value)}; lowest ${fmtX(xsRaw[lo.i])} at ${fmt(lo.value)}.`;
+      })
+      .join(' ');
+  }, [xsRaw, series, fmtX, formats]);
 
   const table = useMemo<ChartTable>(() => {
     const withTotal = stack && series.length > 1;
@@ -180,11 +200,11 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
       columns: [xField.label, ...series.map((s) => s.label), ...(withTotal ? ['Total'] : [])],
       rows: xsRaw.map((xv, i) => [
         fmtX(xv),
-        ...series.map((s) => fmtY(s.values[i])),
+        ...series.map((s) => formats.get(s.key)!.value(s.values[i])),
         ...(withTotal ? [fmtY(totals[i])] : []),
       ]),
     };
-  }, [series, stack, xField, xsRaw, totals, fmtX, fmtY]);
+  }, [series, stack, xField, xsRaw, totals, fmtX, fmtY, formats]);
 
   const kind = horizontal ? 'Bar chart' : 'Column chart';
 
@@ -202,10 +222,7 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
         const values = stacks
           ? stacks.flatMap((s) => [...s.y0, ...s.y1])
           : visible.flatMap((s) => s.values.filter((v): v is number => v != null));
-        const fmtTick = tickFormatter(
-          { ...valueField, format: format ?? valueField.format },
-          locale,
-        );
+        const fmtTick = tickFormatter(valueField, locale, timeZone, format);
         const groupKeys = visible.map((s) => s.key);
         const grouped = !stacks && visible.length > 1;
 
@@ -215,7 +232,7 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
         let labelW = 0;
         const vMargin = { top: 10, bottom: 24 };
         if (horizontal) {
-          const labels = xsRaw.map((v) => fmtX(v));
+          const labels = xsRaw.map((v) => fmtXTick(v));
           labelW = Math.min(
             width * 0.4,
             Math.ceil(Math.max(...labels.map((l) => l.length * 6.6), 24)) + 12,
@@ -281,7 +298,7 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
                 2,
                 Math.floor(
                   (catRange[1] - catRange[0]) /
-                    (Math.max(...xsRaw.map((v) => monoTextWidth(fmtX(v)))) + 12),
+                    (Math.max(...xsRaw.map((v) => monoTextWidth(fmtXTick(v)))) + 12),
                 ),
               ),
             );
@@ -303,7 +320,8 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
                 .filter((s) => s.values[tip] != null)
                 .map((s) => ({
                   label: s.label,
-                  value: fmtY(s.values[tip]),
+                  value: formats.get(s.key)!.tooltip(s.values[tip]),
+                  description: s.field.description,
                   color: series.length > 1 ? s.color : undefined,
                 }));
         const tipFooter: TooltipRow | undefined =
@@ -390,7 +408,7 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
                       return (
                         <g key={i} data-dim={!isSelected(i) || undefined}>
                           <text className="q-bar-category" x={0} y={cy} dy="0.32em">
-                            {fmtX(v)}
+                            {fmtXTick(v)}
                           </text>
                           {visible.length > 0 && (stacks || visible.length === 1) && (
                             <text
@@ -410,7 +428,7 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
                   <AxisBottom
                     ticks={catTickIdx.map((i) => ({
                       x: (band(String(i)) ?? 0) + band.bandwidth() / 2,
-                      label: fmtX(xsRaw[i]),
+                      label: fmtXTick(xsRaw[i]),
                     }))}
                     y={plotHeight - vMargin.bottom + 8}
                     x0={-Infinity}
@@ -433,6 +451,10 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
                 aria-label={`${frame['aria-label'] ?? kind}. Use arrow keys to move between bars${select ? ', Enter to select' : ''}.`}
                 role="application"
                 {...keyboardProps}
+                onKeyDown={(event) => {
+                  setHover(null);
+                  keyboardProps.onKeyDown(event);
+                }}
                 onFocus={(e) => {
                   if (isKeyboardFocus(e.currentTarget)) setActive((a) => a ?? 0);
                 }}
@@ -448,17 +470,18 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
               />
               {tip != null && tipRows.length > 0 && (
                 <ChartTooltip
+                  note={frame.tooltipNote}
                   x={tipX}
                   width={width}
                   top={tipTop}
-                  title={fmtX(xsRaw[tip])}
+                  title={fmtXTip(xsRaw[tip])}
                   rows={tipRows}
                   footer={tipFooter}
                 />
               )}
               <div className="q-visually-hidden" aria-live="polite">
                 {active != null && tipRows.length > 0
-                  ? `${fmtX(xsRaw[active])}: ${tipRows.map((r) => `${r.label} ${r.value}`).join(', ')}${select && picker.has(xsRaw[active]) ? ', selected' : ''}`
+                  ? `${fmtXTip(xsRaw[active])}: ${tipRows.map((r) => `${r.label} ${r.value}${r.description ? `. ${r.description}` : ''}`).join(', ')}${select && picker.has(xsRaw[active]) ? ', selected' : ''}`
                   : ''}
               </div>
             </div>

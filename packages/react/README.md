@@ -62,6 +62,9 @@ export function OrdersExplorer() {
 Click a region or brush a date range to filter the other views. The publishing view excludes its
 own predicate, so other categories remain available. Rows sharing an x value are summed by
 the trend charts. Use `dataset(rows, fields)` to override inferred field types, labels and formats.
+The [formatting guide](https://github.com/zinnoberHaus/quartile/blob/main/docs/guides/formatting.md)
+covers numeric precision and notation, time zones, exact display boundaries, field explanations,
+separate axis/tooltip formats and optional FormatJS/math.js adapters.
 
 ## Included
 

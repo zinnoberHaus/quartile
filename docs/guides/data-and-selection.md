@@ -2,6 +2,8 @@
 
 Pass plain row objects or `dataset(rows, overrides)`. Use stable field names across related views. A dataset attaches labels, types, formats, currencies, and units once so axes, tables, and KPIs agree.
 
+Use [field formatting](formatting.md) for explicit precision, scientific/engineering notation, locale and time-zone control. `axisFormat` and `tooltipFormat` override only their display surfaces; `description` adds explanatory context. These settings do not convert raw units or alter aggregation, sorting or selection identity.
+
 ```tsx
 const events = dataset(rows, {
   timestamp: { type: 'temporal', label: 'Time', format: 'datetime' },

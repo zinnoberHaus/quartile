@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { MINUS, makeFormatter } from '../data/format';
+import { MINUS, makeFieldFormatter, makeFormatter } from '../data/format';
 import { fieldOf, isDataset, resolveData } from '../data/schema';
 import type { DataInput, Formatter, Row } from '../data/types';
 import { useQuartile } from '../provider/QuartileProvider';
@@ -53,7 +53,7 @@ export function Funnel<R extends Row = Row>(props: FunnelProps<R>) {
     style,
     ...frame
   } = props;
-  const { locale } = useQuartile();
+  const { locale, timeZone } = useQuartile();
   const source = useSourceId();
   const { rows: allRows, schema } = useMemo(() => resolveData(data), [data]);
   const { rows } = useLinkedRows(allRows, { selection, source });
@@ -63,15 +63,23 @@ export function Funnel<R extends Row = Row>(props: FunnelProps<R>) {
     () => aggregateBy(rows, step, { value, aggregate: 'sum', sort: 'none' }),
     [rows, step, value],
   );
+  const valueOverride = format ?? (isDataset(data) ? undefined : 'integer');
   const fmtV = useMemo(
-    () =>
-      makeFormatter(format ?? (isDataset(data) ? valueField.format : 'integer'), {
-        currency: valueField.currency,
-        locale,
-      }),
-    [format, valueField, locale, data],
+    () => makeFieldFormatter(valueField, { locale, timeZone }, valueOverride),
+    [valueField, locale, timeZone, valueOverride],
   );
-  const fmtS = useMemo(() => makeFormatter(stepField.format, { locale }), [stepField, locale]);
+  const fmtTip = useMemo(
+    () => makeFieldFormatter(valueField, { locale, timeZone, surface: 'tooltip' }, valueOverride),
+    [valueField, locale, timeZone, valueOverride],
+  );
+  const fmtS = useMemo(
+    () => makeFieldFormatter(stepField, { locale, timeZone }),
+    [stepField, locale, timeZone],
+  );
+  const fmtSTip = useMemo(
+    () => makeFieldFormatter(stepField, { locale, timeZone, surface: 'tooltip' }),
+    [stepField, locale, timeZone],
+  );
   const fmtPct = useMemo(() => makeFormatter(SHARE, { locale }), [locale]);
   const fmtPct2 = useMemo(
     () =>
@@ -103,8 +111,8 @@ export function Funnel<R extends Row = Row>(props: FunnelProps<R>) {
 
   const describe = (i: number) => {
     const m = model[i];
-    if (i === 0) return `${m.label}: ${fmtV(m.value)}, first step`;
-    return `${m.label}: ${fmtV(m.value)}, ${fmtPct(m.ofPrev)} of ${model[i - 1].label}, ${fmtPct(m.ofFirst)} of ${model[0].label}, ${fmtV(m.dropped)} dropped off`;
+    if (i === 0) return `${fmtSTip(m.raw)}: ${fmtTip(m.value)}, first step`;
+    return `${fmtSTip(m.raw)}: ${fmtTip(m.value)}, ${fmtPct(m.ofPrev)} of ${model[i - 1].label}, ${fmtPct(m.ofFirst)} of ${model[0].label}, ${fmtTip(m.dropped)} dropped off`;
   };
   const summary =
     model.length > 0
@@ -155,6 +163,10 @@ export function Funnel<R extends Row = Row>(props: FunnelProps<R>) {
             role="list"
             aria-label={`${frame['aria-label'] ?? kind}. Use arrow keys to move between steps.`}
             {...keyboardProps}
+            onKeyDown={(event) => {
+              setHover(null);
+              keyboardProps.onKeyDown(event);
+            }}
             onFocus={(e) => {
               if (e.target === e.currentTarget && isKeyboardFocus(e.currentTarget))
                 setActive((a) => a ?? 0);
@@ -211,12 +223,17 @@ export function Funnel<R extends Row = Row>(props: FunnelProps<R>) {
                   )}
                   {focus === i && (
                     <ChartTooltip
+                      note={frame.tooltipNote}
                       x={end}
                       width={width}
                       top={align === 'center' ? 26 : 30}
-                      title={m.label}
+                      title={fmtSTip(m.raw)}
                       rows={[
-                        { label: valueField.label, value: fmtV(m.value) },
+                        {
+                          label: valueField.label,
+                          value: fmtTip(m.value),
+                          description: valueField.description,
+                        },
                         ...(i > 0
                           ? [
                               {
@@ -234,7 +251,7 @@ export function Funnel<R extends Row = Row>(props: FunnelProps<R>) {
                         i > 0
                           ? {
                               label: 'Dropped off',
-                              value: `${MINUS}${fmtV(m.dropped)}`,
+                              value: `${MINUS}${fmtTip(m.dropped)}`,
                               tone: 'negative',
                             }
                           : undefined

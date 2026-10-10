@@ -1,5 +1,6 @@
-import type { CSSProperties, ReactNode } from 'react';
+import { type CSSProperties, type ReactNode, useRef } from 'react';
 import { cx } from '../../lib/cx';
+import { useElementSize } from '../../lib/useElementSize';
 
 /** Horizontal hairline gridlines at the given y positions. */
 export function GridRows({ ys, x0, x1 }: { ys: number[]; x0: number; x1: number }) {
@@ -54,6 +55,8 @@ export function AxisBottom({
 export interface TooltipRow {
   label: ReactNode;
   value: ReactNode;
+  /** Plain-text context for this measure. */
+  description?: string;
   color?: string;
   /** Renders the swatch as a dashed line (comparison series). */
   dashed?: boolean;
@@ -62,7 +65,7 @@ export interface TooltipRow {
 
 /**
  * The dark chart tooltip, same surface as every overlay. Positioned inside the chart frame;
- * flips to the left of the point past 60% of the width.
+ * prefers the left of points past 60% of the width and clamps to the chart bounds.
  */
 export function ChartTooltip({
   x,
@@ -70,6 +73,7 @@ export function ChartTooltip({
   title,
   rows,
   footer,
+  note,
   top = 6,
 }: {
   x: number;
@@ -77,16 +81,26 @@ export function ChartTooltip({
   title?: ReactNode;
   rows: TooltipRow[];
   footer?: TooltipRow;
+  note?: string;
   top?: number;
 }) {
-  const flip = x > width * 0.6;
+  const ref = useRef<HTMLDivElement>(null);
+  const size = useElementSize(ref);
+  const maxWidth = Math.max(1, width - 8);
+  const measured = Math.min(size.width || maxWidth, maxWidth);
+  const preferred = x > width * 0.6 ? x - measured - 14 : x + 14;
+  const left = Math.max(4, Math.min(preferred, width - measured - 4));
+  // The CSS bound also applies between ResizeObserver measurements, so a longer
+  // value or responsive resize cannot push the tooltip beyond its plot.
+  const available = `calc(100% - ${left + 4}px)`;
   const style: CSSProperties = {
-    left: x,
+    left,
     top,
-    transform: flip ? 'translateX(calc(-100% - 14px))' : 'translateX(14px)',
+    maxWidth: available,
+    minWidth: `min(170px, ${available})`,
   };
   return (
-    <div className="q-chart-tooltip" style={style} role="presentation">
+    <div ref={ref} className="q-chart-tooltip" style={style} role="presentation">
       {title && <div className="q-chart-tooltip-title">{title}</div>}
       {rows.map((r, i) => (
         <div key={i} className="q-chart-tooltip-row" data-tone={r.tone}>
@@ -98,17 +112,30 @@ export function ChartTooltip({
                 style={{ [r.dashed ? 'borderColor' : 'background']: r.color } as CSSProperties}
               />
             )}
-            {r.label}
+            <span>
+              {r.label}
+              {r.description && (
+                <span className="q-chart-tooltip-description">{r.description}</span>
+              )}
+            </span>
           </span>
           <span className="q-chart-tooltip-value">{r.value}</span>
         </div>
       ))}
       {footer && (
         <div className="q-chart-tooltip-row q-chart-tooltip-footer" data-tone={footer.tone}>
-          <span className="q-chart-tooltip-label">{footer.label}</span>
+          <span className="q-chart-tooltip-label">
+            <span>
+              {footer.label}
+              {footer.description && (
+                <span className="q-chart-tooltip-description">{footer.description}</span>
+              )}
+            </span>
+          </span>
           <span className="q-chart-tooltip-value">{footer.value}</span>
         </div>
       )}
+      {note && <div className="q-chart-tooltip-note">{note}</div>}
     </div>
   );
 }

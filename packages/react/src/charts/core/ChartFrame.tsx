@@ -29,6 +29,8 @@ export interface ChartBaseProps extends ChartStateProps {
    * Large lazy tables expose a data-view control rather than mounting every hidden row.
    */
   view?: 'chart' | 'table';
+  /** Plain-text context shown with tooltips and included in the accessible chart description. */
+  tooltipNote?: string;
 }
 
 /** The data behind a chart, already formatted. Every chart provides one as its table fallback. */
@@ -72,6 +74,7 @@ export function ChartFrame({
   className,
   style,
   summary,
+  tooltipNote,
   kind,
   table,
   view = 'chart',
@@ -108,7 +111,9 @@ export function ChartFrame({
         ? children({ width, height: contentHeight })
         : null}
       {status !== 'ready' && <ChartState status={status} {...state} />}
-      {summary && status === 'ready' ? <p className="q-visually-hidden">{summary}</p> : null}
+      {(summary || tooltipNote) && status === 'ready' ? (
+        <p className="q-visually-hidden">{[summary, tooltipNote].filter(Boolean).join(' ')}</p>
+      ) : null}
       {table && status === 'ready' && (!paginated || showTable) ? (
         paginated ? (
           <div style={{ height: contentHeight, position: 'relative' }}>

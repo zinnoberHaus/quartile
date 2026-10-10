@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { makeFormatter } from '../data/format';
+import { makeFieldFormatter, makeFormatter } from '../data/format';
 import { finiteNumber } from '../data/number';
 import type { Predicate, Primitive } from '../data/predicates';
 import { fieldOf, resolveData, toComparable } from '../data/schema';
@@ -117,7 +117,7 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
     height = 240,
     ...frame
   } = props;
-  const { locale } = useQuartile();
+  const { locale, timeZone } = useQuartile();
   const source = useSourceId(id);
   const { rows: allRows, schema } = useMemo(() => resolveData(data), [data]);
   const { rows, selection: sel } = useLinkedRows(allRows, { selection, source });
@@ -130,12 +130,33 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
     [size, schema, allRows],
   );
   const fmtX = useMemo(
-    () => makeFormatter(xFormat ?? xField.format, { currency: xField.currency, locale }),
-    [xFormat, xField, locale],
+    () => makeFieldFormatter(xField, { locale, timeZone }, xFormat),
+    [xFormat, xField, locale, timeZone],
   );
   const fmtY = useMemo(
-    () => makeFormatter(format ?? yField.format, { currency: yField.currency, locale }),
-    [format, yField, locale],
+    () => makeFieldFormatter(yField, { locale, timeZone }, format),
+    [format, yField, locale, timeZone],
+  );
+
+  const fmtXTip = useMemo(
+    () => makeFieldFormatter(xField, { locale, timeZone, surface: 'tooltip' }, xFormat),
+    [xField, locale, timeZone, xFormat],
+  );
+  const fmtYTip = useMemo(
+    () => makeFieldFormatter(yField, { locale, timeZone, surface: 'tooltip' }, format),
+    [yField, locale, timeZone, format],
+  );
+  const colorField = useMemo(
+    () => (color ? fieldOf(schema, color, allRows) : undefined),
+    [schema, color, allRows],
+  );
+  const fmtColor = useMemo(
+    () => makeFieldFormatter(colorField, { locale, timeZone }),
+    [colorField, locale, timeZone],
+  );
+  const groupLabels = useMemo(
+    () => new Map(color ? allRows.map((r) => [String(r[color]), fmtColor(r[color])]) : []),
+    [color, allRows, fmtColor],
   );
 
   const groups = useMemo(
@@ -257,6 +278,7 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
   );
   const onKeyDown = (e: KeyboardEvent) => {
     setHover(null);
+    setHover(null);
     multi.current = e.shiftKey;
     keyboardProps.onKeyDown(e);
   };
@@ -264,9 +286,14 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
   const focus = hover ?? active;
 
   const titleOf = (p: Point) => {
-    if (label) return String(p.row[label] ?? '');
-    if (color) return String(p.row[color] ?? '');
-    return `${fmtX(p.x)}, ${fmtY(p.y)}`;
+    const titleField = label ?? color;
+    if (titleField)
+      return makeFieldFormatter(fieldOf(schema, titleField, allRows), {
+        locale,
+        timeZone,
+        surface: 'tooltip',
+      })(p.row[titleField]);
+    return `${fmtXTip(p.x)}, ${fmtYTip(p.y)}`;
   };
   const tipRowsOf = (p: Point): TooltipRow[] => {
     const keys = Object.keys(p.row);
@@ -276,9 +303,14 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
       if (!label && k === color) continue;
       const f = fieldOf(schema, k, allRows);
       const fmt =
-        k === x ? fmtX : k === y ? fmtY : makeFormatter(f.format, { currency: f.currency, locale });
+        k === x
+          ? fmtXTip
+          : k === y
+            ? fmtYTip
+            : makeFieldFormatter(f, { locale, timeZone, surface: 'tooltip' });
       out.push({
         label: f.label,
+        description: f.description,
         value: fmt(p.row[k]),
         color: k === color && p.group != null ? p.color : undefined,
       });
@@ -298,10 +330,10 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
       color ? ` in ${groups.length} groups` : ''
     }${sizeField ? `, sized by ${sizeField.label}` : ''}. ${xField.label} from ${fmtX(x0)} to ${fmtX(x1)}; ${yField.label} from ${fmtY(y0)} to ${fmtY(y1)}.${
       r != null
-        ? ` ${strength(r)[0].toUpperCase()}${strength(r).slice(1)} (r = ${r.toFixed(2)}).`
+        ? ` ${strength(r)[0].toUpperCase()}${strength(r).slice(1)} (r = ${makeFormatter({ minimumFractionDigits: 2, maximumFractionDigits: 2 }, { locale })(r)}).`
         : ''
     }`;
-  }, [points, xField, yField, sizeField, color, groups, fmtX, fmtY]);
+  }, [points, xField, yField, sizeField, color, groups, fmtX, fmtY, locale]);
 
   const table = useMemo<ChartTable>(() => {
     const fields = [label, color, x, y, size].filter((f): f is string => !!f);
@@ -310,7 +342,7 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
       if (field === x) return fmtX;
       if (field === y) return fmtY;
       const definition = fieldOf(schema, field, allRows);
-      return makeFormatter(definition.format, { currency: definition.currency, locale });
+      return makeFieldFormatter(definition, { locale, timeZone });
     });
     const formatRow = (point: Point) =>
       unique.map((field, index) => formatters[index](point.row[field]));
@@ -328,7 +360,7 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
         fieldOf(schema, f, allRows).type === 'quantitative' && i > 0 ? [i] : [],
       ),
     };
-  }, [label, color, x, y, size, schema, allRows, points, fmtX, fmtY, locale]);
+  }, [label, color, x, y, size, schema, allRows, points, fmtX, fmtY, locale, timeZone]);
 
   const showLegend = (legend ?? !!color) && groups.length > 0;
   const titlesOn = xTitle !== false || yTitle !== false;
@@ -354,6 +386,7 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
           format={format}
           xFormat={xFormat}
           locale={locale}
+          timeZone={timeZone}
           titlesOn={titlesOn}
         >
           {({ plotHeight, bottom, top, left, right, px, py, xTicks, yTicks, marks, nearest }) => {
@@ -378,7 +411,7 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
                     className="q-chart-legend-top"
                     items={groups.map((g) => ({
                       key: g,
-                      label: g,
+                      label: groupLabels.get(g) ?? g,
                       color: groupColor.get(g) ?? seriesColor(0),
                       inactive: hidden.has(g),
                     }))}
@@ -459,6 +492,7 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
                   />
                   {f && focus != null && (
                     <ChartTooltip
+                      note={frame.tooltipNote}
                       x={px[focus] + f.r - 8}
                       width={width}
                       top={Math.max(
@@ -472,7 +506,10 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
                   <div className="q-visually-hidden" aria-live="polite">
                     {active != null && points[active]
                       ? `${titleOf(points[active])}: ${tipRowsOf(points[active])
-                          .map((r) => `${r.label} ${r.value}`)
+                          .map(
+                            (r) =>
+                              `${r.label} ${r.value}${r.description ? `. ${r.description}` : ''}`,
+                          )
                           .join(', ')}`
                       : ''}
                   </div>

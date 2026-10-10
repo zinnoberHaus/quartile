@@ -12,4 +12,4 @@ export type {
 } from './schema';
 export { quartileSchema, SPEC_COMPONENTS } from './schema';
 export type { SpecError, SpecValidation } from './validate';
-export { validateSpec } from './validate';
+export { validateFormat, validateSpec } from './validate';

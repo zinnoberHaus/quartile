@@ -29,15 +29,40 @@ A newly added bar leaves its measure unset: explicitly choose an additive field 
 
 The preview renders native Quartile components after checking the project and mappings. Compatible chart selections link views through `Selection`. DataExplorer's local search and filters refine its table independently. Switching between canvas and React source preserves the current exploration, as does reordering blocks. Field mapping, block removal and source changes reset affected shared selection. Transient selection and table view settings are not part of the saved Studio project. [Data and selection](data-and-selection.md) and [tables](tables.md) explain that boundary.
 
+## Format the data without changing it
+
+Open **Data formatting** in the project controls. Display locale and display time zone apply across the workspace; a field-level time zone or format descriptor can override them. These settings change labels, not source observations, and applying them preserves the fetched response, shared selections and each table's current search/filter view.
+
+Choose a field and a display surface:
+
+- **Values and table cells** sets its base format, including exact chart tables and KPI values.
+- **Axis labels only** can shorten ticks while keeping exact values detailed.
+- **Tooltip values only** sets hover and keyboard detail independently.
+
+Named presets include numbers, currencies, ratios as percentages, scientific and engineering notation, decimal/binary bytes, durations and dates. Use **Decimal places** for an explicit precision. Percent style expects a 0–1 ratio; weather humidity is already 0–100 and needs a number plus a `%` suffix. Duration presets interpret milliseconds; advanced descriptors can specify seconds. A unit badge labels KPI metadata; it does not convert units or append a suffix to every value.
+
+**Advanced field JSON** accepts the same serializable formats as React and JSON specs, plus field description, currency, unit and time zone. For example:
+
+```json
+{
+  "format": { "type": "number", "maximumFractionDigits": 5, "suffix": " °C", "missing": "Not reported" },
+  "axisFormat": { "type": "number", "maximumFractionDigits": 1 },
+  "tooltipFormat": { "type": "number", "maximumFractionDigits": 5, "suffix": " °C" },
+  "description": "Hourly model forecast for air temperature at 2 m."
+}
+```
+
+Press **Apply field formatting** or **Apply field JSON** to change the display. Invalid JSON, unsupported settings or invalid Intl options leave the last applied values intact. **Reset all formatting** restores source metadata. Missing observations stay missing: a `missing` label changes their display, not their value or aggregate contribution. Formatting does not change a field's declared type, so choosing a date format for a nominal string does not make it a temporal chart axis. See [formatting](formatting.md) for precedence, units, time zones and exact-value behavior.
+
 ## Export and continue in React
 
-A **project JSON** stores version 1 configuration: project name, source and ordered blocks. Import it to continue visual editing. It includes no source rows, credentials or executable expressions. Imports validate allowed properties, unique block IDs and structural bounds; the maximum size is 64 KiB. Field existence is checked against the loaded dataset. A Studio project is not a bare Quartile Dashboard spec.
+A **project JSON** stores version 1 configuration: project name, source, ordered blocks and optional display formatting. Import it to continue visual editing. It includes no source rows, credentials or executable expressions. Imports validate allowed properties, unique block IDs and structural bounds; the maximum size is 64 KiB. Field existence is checked against the loaded dataset. A Studio project is not a bare Quartile Dashboard spec.
 
 Project JSON can preserve structurally valid, unfinished field mappings. Runnable source and starter downloads require a successfully loaded source and valid mappings, including unique rendered x/series coordinates for line charts. Null line values remain gaps.
 
 The **React source** mode shows ordinary Quartile JSX. **Download React source** saves `App.tsx` only; it needs the matching helper and CSS from the **starter ZIP**, which includes:
 
-- `src/App.tsx`, a native component composition with request states and provenance.
+- `src/App.tsx`, a native component composition with request states, provenance, provider locale/time zone and per-field formatting metadata.
 - `src/quartile-data.ts`, the same standalone fetch and normalization helper.
 - `src/quartile-chart.ts`, the schema/mapping and duplicate-coordinate guards used by exported views.
 - `src/app.css`, `src/main.tsx`, HTML, TypeScript and Vite configuration.
@@ -59,7 +84,7 @@ Edit the JSX and helper as normal application code. Reimporting project JSON res
 
 ## Opt-in local drafts
 
-Draft persistence is an explicit browser-local choice. It stores project configuration, including a public source URL, not records or credentials. Restore or remove it with the draft controls, and export JSON for a portable copy. Local storage supplies neither backup nor collaboration.
+Draft persistence is an explicit browser-local choice. It stores project configuration, including formatting and a public source URL, not records or credentials. Restore or remove it with the draft controls, and export JSON for a portable copy. Local storage supplies neither backup nor collaboration.
 
 Use **Save local draft** to save the current configuration; there is no automatic saving. **Restore draft** reloads that saved configuration and requests its source again. **Delete draft** removes it. Choosing a preset starts its default layout and discards unsaved edits. Submitting a custom source starts a count and table after loading. Export or save before switching.
 
@@ -67,6 +92,6 @@ Never put secrets anywhere in a source URL. The helper rejects common credential
 
 ## Scope
 
-Studio offers one bounded dataset, six view types, field mapping and basic responsive layout. It does not provide joins, arbitrary transformations, notebook execution, hosted persistence, shared editing, managed authentication or application hosting. Use React components for those application-specific workflows, and [worker queries](worker-queries.md) for bounded results from larger analytical sources.
+Studio offers one bounded dataset, six view types, field mapping, display formatting and basic responsive layout. It does not provide joins, arbitrary transformations, notebook execution, hosted persistence, shared editing, managed authentication or application hosting. Use React components for those application-specific workflows, and [worker queries](worker-queries.md) for bounded results from larger analytical sources.
 
 The implementation is public: [Studio application](../../apps/gallery/src/examples/studio), [source adapter](../../apps/gallery/src/examples/studio/sources.ts), [project model](../../apps/gallery/src/examples/studio/model.ts) and [React/ZIP export](../../apps/gallery/src/examples/studio/export.ts).

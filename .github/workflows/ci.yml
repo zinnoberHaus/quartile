@@ -38,6 +38,7 @@ jobs:
           done
           node apps/gallery/src/examples/scale/verify.mjs http://127.0.0.1:4178 /tmp/quartile-browser-evidence
           node apps/gallery/src/examples/workbench/verify.mjs http://127.0.0.1:4178 /tmp/quartile-browser-evidence/workbench
+          node apps/gallery/src/examples/formatting/verify.mjs http://127.0.0.1:4178 /tmp/quartile-browser-evidence/formatting
           node apps/gallery/src/examples/science/verify.mjs http://127.0.0.1:4178 /tmp/quartile-browser-evidence/science
           QUARTILE_NAV_BASE_URL=http://127.0.0.1:4178 node apps/gallery/src/shell/verify-navigation.mjs
           node apps/gallery/src/examples/studio/verify.mjs http://127.0.0.1:4178 /tmp/quartile-browser-evidence/studio

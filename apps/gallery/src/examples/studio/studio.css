@@ -733,3 +733,64 @@
   flex-basis: 100%;
   color: #58655a;
 }
+
+.st-formatting {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--q-line);
+}
+.st-formatting > summary {
+  font: 600 13px var(--q-font-sans);
+  cursor: pointer;
+}
+.st-formatting form,
+.st-format-field {
+  display: grid;
+  gap: 10px;
+  margin-block: 14px;
+}
+.st-format-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.st-formatting textarea {
+  width: 100%;
+  min-width: 0;
+  resize: vertical;
+  padding: 8px;
+  border: 1px solid var(--q-line-strong);
+  border-radius: var(--q-radius-sm);
+  background: var(--q-surface);
+  color: var(--q-text);
+  font: 12px / 1.5 var(--q-font-sans);
+}
+.st-format-preview {
+  margin: 0;
+  padding: 10px;
+  border-left: 2px solid var(--q-signal);
+  background: var(--q-surface);
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.st-format-preview output {
+  display: block;
+  font: 12px / 1.6 var(--q-font-mono);
+}
+.st-format-preview small {
+  display: block;
+  margin-top: 6px;
+  color: var(--q-text-2);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.st-format-advanced summary {
+  cursor: pointer;
+  font-size: 12px;
+}
+.st-format-advanced textarea {
+  font-family: var(--q-font-mono);
+}
+.st-format-reset {
+  margin-top: 8px;
+}

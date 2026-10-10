@@ -1,5 +1,5 @@
 import { type MouseEvent, type PointerEvent, useMemo, useState } from 'react';
-import { makeFormatter } from '../data/format';
+import { makeFieldFormatter } from '../data/format';
 import { fieldOf, resolveData } from '../data/schema';
 import type { DataInput, Formatter, Row } from '../data/types';
 import { useQuartile } from '../provider/QuartileProvider';
@@ -83,7 +83,7 @@ export function Heatmap<R extends Row = Row>(props: HeatmapProps<R>) {
     height: heightProp,
     ...frame
   } = props;
-  const { locale } = useQuartile();
+  const { locale, timeZone } = useQuartile();
   const source = useSourceId(id);
   const { rows: allRows, schema } = useMemo(() => resolveData(data), [data]);
   const { rows } = useLinkedRows(allRows, { selection, source });
@@ -92,21 +92,48 @@ export function Heatmap<R extends Row = Row>(props: HeatmapProps<R>) {
   const valueField = value ? fieldOf(schema, value, allRows) : null;
   const how: AggregateOp = aggregate ?? (value ? 'sum' : 'count');
 
+  const measureField = how === 'count' ? undefined : (valueField ?? undefined);
   const fmt = useMemo(
     () =>
-      makeFormatter(format ?? (how === 'count' ? 'integer' : valueField?.format), {
-        currency: valueField?.currency,
-        locale,
-      }),
-    [format, how, valueField, locale],
+      makeFieldFormatter(
+        measureField,
+        { locale, timeZone },
+        format ?? (!measureField ? 'integer' : undefined),
+      ),
+    [measureField, locale, timeZone, format],
+  );
+  const fmtTip = useMemo(
+    () =>
+      makeFieldFormatter(
+        measureField,
+        { locale, timeZone, surface: 'tooltip' },
+        format ?? (!measureField ? 'integer' : undefined),
+      ),
+    [measureField, locale, timeZone, format],
   );
   const fmtX = useMemo(
-    () => makeFormatter(xFormat ?? xField.format, { locale }),
-    [xFormat, xField, locale],
+    () => makeFieldFormatter(xField, { locale, timeZone }, xFormat),
+    [xField, locale, timeZone, xFormat],
   );
   const fmtY = useMemo(
-    () => makeFormatter(yFormat ?? yField.format, { locale }),
-    [yFormat, yField, locale],
+    () => makeFieldFormatter(yField, { locale, timeZone }, yFormat),
+    [yField, locale, timeZone, yFormat],
+  );
+  const fmtXTip = useMemo(
+    () => makeFieldFormatter(xField, { locale, timeZone, surface: 'tooltip' }, xFormat),
+    [xField, locale, timeZone, xFormat],
+  );
+  const fmtYTip = useMemo(
+    () => makeFieldFormatter(yField, { locale, timeZone, surface: 'tooltip' }, yFormat),
+    [yField, locale, timeZone, yFormat],
+  );
+  const fmtXAxis = useMemo(
+    () => makeFieldFormatter(xField, { locale, timeZone, surface: 'axis', short: true }, xFormat),
+    [xField, locale, timeZone, xFormat],
+  );
+  const fmtYAxis = useMemo(
+    () => makeFieldFormatter(yField, { locale, timeZone, surface: 'axis', short: true }, yFormat),
+    [yField, locale, timeZone, yFormat],
   );
 
   // Rows and columns come from every row, so filtering never drops a column.
@@ -131,12 +158,18 @@ export function Heatmap<R extends Row = Row>(props: HeatmapProps<R>) {
   const [hover, setHover] = useState<number | null>(null);
   const focus = hover ?? active;
 
-  const cellTitle = (row: number, col: number) => `${fmtY(ys[row])} ${fmtX(xs[col])}`;
+  const cellTitle = (row: number, col: number) => `${fmtYTip(ys[row])} ${fmtXTip(xs[col])}`;
   const tipFor = (i: number): { title: string; rows: TooltipRow[] } => {
     const row = Math.floor(i / nCols);
     const col = i % nCols;
     const v = cells[row]?.[col] ?? null;
-    const out: TooltipRow[] = [{ label: what, value: v == null ? 'No data' : fmt(v) }];
+    const out: TooltipRow[] = [
+      {
+        label: what,
+        value: v == null ? 'No data' : fmtTip(v),
+        description: measureField?.description,
+      },
+    ];
     if (how !== 'count' && v != null)
       out.push({ label: 'Rows', value: counts[row][col].toLocaleString(locale), tone: 'muted' });
     return { title: cellTitle(row, col), rows: out };
@@ -150,7 +183,7 @@ export function Heatmap<R extends Row = Row>(props: HeatmapProps<R>) {
   const table = useMemo<ChartTable>(
     () => ({
       columns: [yField.label, ...xs.map((v) => fmtX(v))],
-      rows: ys.map((yv, r) => [fmtY(yv), ...cells[r].map((v) => (v == null ? '—' : fmt(v)))]),
+      rows: ys.map((yv, r) => [fmtY(yv), ...cells[r].map((v) => fmt(v))]),
     }),
     [xs, ys, cells, yField, fmtX, fmtY, fmt],
   );
@@ -158,7 +191,7 @@ export function Heatmap<R extends Row = Row>(props: HeatmapProps<R>) {
   const gridH = ys.length * (cellHeight + GAP) - GAP;
   const footOn = legend || showPeak;
   const height = heightProp ?? Math.max(60, gridH + X_LABEL_H + (footOn ? FOOT_H : 0));
-  const rowLabels = ys.map((v) => fmtY(v));
+  const rowLabels = ys.map((v) => fmtYAxis(v));
   const labelW = Math.max(30, Math.ceil(Math.max(0, ...rowLabels.map((l) => l.length)) * 6) + 10);
 
   return (
@@ -175,7 +208,7 @@ export function Heatmap<R extends Row = Row>(props: HeatmapProps<R>) {
         const step = colW + GAP;
         const xOf = (col: number) => labelW + col * step;
         const yOf = (row: number) => row * (cellHeight + GAP);
-        const labelText = xs.map((v, i) => (xLabels ? xLabels(v, i) : fmtX(v)));
+        const labelText = xs.map((v, i) => (xLabels ? xLabels(v, i) : fmtXAxis(v)));
         const widest = Math.max(1, ...labelText.map((l) => l.length)) * 6 + 8;
         // Sparse, evenly stepped labels (every 6th of 24 hours at card widths).
         const every =
@@ -252,12 +285,17 @@ export function Heatmap<R extends Row = Row>(props: HeatmapProps<R>) {
               aria-label={`${frame['aria-label'] ?? 'Heatmap'}. Arrow keys move between cells.`}
               role="application"
               {...keyboardProps}
+              onKeyDown={(event) => {
+                setHover(null);
+                keyboardProps.onKeyDown(event);
+              }}
               onFocus={() => setActive((a) => a ?? (peak ? peak.row * nCols + peak.col : 0))}
               onPointerMove={(e) => setHover(indexAt(e))}
               onPointerLeave={() => setHover(null)}
             />
             {tip && focus != null && (
               <ChartTooltip
+                note={frame.tooltipNote}
                 x={xOf(fCol) + colW}
                 width={width}
                 top={clamp(yOf(fRow) - 10, 0, Math.max(0, gridH - 30))}
@@ -268,7 +306,9 @@ export function Heatmap<R extends Row = Row>(props: HeatmapProps<R>) {
             <div className="q-visually-hidden" aria-live="polite">
               {active != null
                 ? `${tipFor(active).title}: ${tipFor(active)
-                    .rows.map((r) => `${r.label} ${r.value}`)
+                    .rows.map(
+                      (r) => `${r.label} ${r.value}${r.description ? `. ${r.description}` : ''}`,
+                    )
                     .join(', ')}`
                 : ''}
             </div>

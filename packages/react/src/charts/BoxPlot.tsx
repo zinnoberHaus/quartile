@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { makeFormatter } from '../data/format';
+import { makeFieldFormatter } from '../data/format';
 import { finiteNumber } from '../data/number';
 import type { Predicate, Primitive } from '../data/predicates';
 import { fieldOf, resolveData, toComparable } from '../data/schema';
@@ -79,15 +79,32 @@ export function BoxPlot<R extends Row = Row>(props: BoxPlotProps<R>) {
     height: heightProp,
     ...frame
   } = props;
-  const { locale } = useQuartile();
+  const { locale, timeZone } = useQuartile();
   const source = useSourceId(id);
   const { rows: allRows, schema } = useMemo(() => resolveData(data), [data]);
   const { rows, selection: sel } = useLinkedRows(allRows, { selection, source });
   const valueField = fieldOf(schema, value, allRows);
   const catField = fieldOf(schema, category, allRows);
   const fmt = useMemo(
-    () => makeFormatter(format ?? valueField.format, { currency: valueField.currency, locale }),
-    [format, valueField, locale],
+    () => makeFieldFormatter(valueField, { locale, timeZone }, format),
+    [format, valueField, locale, timeZone],
+  );
+
+  const fmtTip = useMemo(
+    () => makeFieldFormatter(valueField, { locale, timeZone, surface: 'tooltip' }, format),
+    [valueField, locale, timeZone, format],
+  );
+  const fmtC = useMemo(
+    () => makeFieldFormatter(catField, { locale, timeZone }),
+    [catField, locale, timeZone],
+  );
+  const fmtCTip = useMemo(
+    () => makeFieldFormatter(catField, { locale, timeZone, surface: 'tooltip' }),
+    [catField, locale, timeZone],
+  );
+  const fmtCAxis = useMemo(
+    () => makeFieldFormatter(catField, { locale, timeZone, surface: 'axis', short: true }),
+    [catField, locale, timeZone],
   );
 
   const groups = useMemo(() => {
@@ -152,6 +169,7 @@ export function BoxPlot<R extends Row = Row>(props: BoxPlotProps<R>) {
     toggle(groups[i], multi.current),
   );
   const onKeyDown = (e: KeyboardEvent) => {
+    setHover(null);
     multi.current = e.shiftKey;
     keyboardProps.onKeyDown(e);
   };
@@ -159,11 +177,11 @@ export function BoxPlot<R extends Row = Row>(props: BoxPlotProps<R>) {
   const focus = hover ?? active;
 
   const tipRows = (g: Group): TooltipRow[] => [
-    { label: 'Max', value: fmt(g.stats.max) },
-    { label: 'Q3', value: fmt(g.stats.q3) },
-    { label: 'Median', value: fmt(g.stats.median) },
-    { label: 'Q1', value: fmt(g.stats.q1) },
-    { label: 'Min', value: fmt(g.stats.min) },
+    { label: 'Max', description: valueField.description, value: fmtTip(g.stats.max) },
+    { label: 'Q3', description: valueField.description, value: fmtTip(g.stats.q3) },
+    { label: 'Median', description: valueField.description, value: fmtTip(g.stats.median) },
+    { label: 'Q1', description: valueField.description, value: fmtTip(g.stats.q1) },
+    { label: 'Min', description: valueField.description, value: fmtTip(g.stats.min) },
     {
       label: 'n',
       value: g.stats.n.toLocaleString(locale),
@@ -188,14 +206,14 @@ export function BoxPlot<R extends Row = Row>(props: BoxPlotProps<R>) {
     )[0];
     const hi = byMedian[0];
     const lo = byMedian[byMedian.length - 1];
-    return `${valueField.label} by ${catField.label}, ${groups.length} groups. Highest median: ${hi.key} (${fmt(hi.stats.median)}). Lowest median: ${lo.key} (${fmt(lo.stats.median)}). Widest middle half: ${widest.key} (${fmt(widest.stats.q1)} to ${fmt(widest.stats.q3)}).`;
-  }, [groups, valueField, catField, fmt]);
+    return `${valueField.label} by ${catField.label}, ${groups.length} groups. Highest median: ${fmtC(hi.raw)} (${fmt(hi.stats.median)}). Lowest median: ${fmtC(lo.raw)} (${fmt(lo.stats.median)}). Widest middle half: ${fmtC(widest.raw)} (${fmt(widest.stats.q1)} to ${fmt(widest.stats.q3)}).`;
+  }, [groups, valueField, catField, fmt, fmtC]);
 
   const table = useMemo<ChartTable>(
     () => ({
       columns: [catField.label, 'Min', 'Q1', 'Median', 'Q3', 'Max', 'n'],
       rows: groups.map((g) => [
-        g.key,
+        fmtC(g.raw),
         fmt(g.stats.min),
         fmt(g.stats.q1),
         fmt(g.stats.median),
@@ -204,7 +222,7 @@ export function BoxPlot<R extends Row = Row>(props: BoxPlotProps<R>) {
         g.stats.n.toLocaleString(locale),
       ]),
     }),
-    [groups, catField, fmt, locale],
+    [groups, catField, fmt, fmtC, locale],
   );
 
   const horizontal = orientation === 'horizontal';
@@ -220,16 +238,13 @@ export function BoxPlot<R extends Row = Row>(props: BoxPlotProps<R>) {
       {...frame}
     >
       {({ width }) => {
-        const fmtTick = tickFormatter(
-          { ...valueField, format: format ?? valueField.format },
-          locale,
-        );
+        const fmtTick = tickFormatter(valueField, locale, timeZone, format);
         const scale = scaleLinear().domain(domain).nice(4);
         const ticks = scale.ticks(4);
         const tickLabels = ticks.map((t) => fmtTick(t));
 
         if (horizontal) {
-          const longest = Math.max(...groups.map((g) => g.key.length), 4);
+          const longest = Math.max(...groups.map((g) => fmtCAxis(g.raw).length), 4);
           const labelW = clamp(Math.ceil(longest * SANS_CHAR), 48, Math.max(48, width * 0.36));
           const x0 = labelW + 10;
           const x1 = width - Math.ceil(monoTextWidth(tickLabels[tickLabels.length - 1] ?? '') / 2);
@@ -261,7 +276,7 @@ export function BoxPlot<R extends Row = Row>(props: BoxPlotProps<R>) {
                   return (
                     <g key={gr.key} className="q-boxplot-group" data-muted={muted(gr) || undefined}>
                       <text className="q-boxplot-label" x={0} y={y} dy="0.34em">
-                        {truncate(gr.key, labelW)}
+                        {truncate(fmtCAxis(gr.raw), labelW)}
                       </text>
                       <line
                         className="q-boxplot-whisker"
@@ -334,14 +349,15 @@ export function BoxPlot<R extends Row = Row>(props: BoxPlotProps<R>) {
               />
               {g && focus != null && (
                 <ChartTooltip
+                  note={frame.tooltipNote}
                   x={scale(g.stats.q3)}
                   width={width}
                   top={clamp(cy(focus) - 40, 0, Math.max(0, height - 150))}
-                  title={g.key}
+                  title={fmtCTip(g.raw)}
                   rows={tipRows(g)}
                 />
               )}
-              <Live groups={groups} active={active} tipRows={tipRows} />
+              <Live groups={groups} active={active} tipRows={tipRows} formatCategory={fmtCTip} />
             </div>
           );
         }
@@ -422,7 +438,7 @@ export function BoxPlot<R extends Row = Row>(props: BoxPlotProps<R>) {
                       dy="0.9em"
                       textAnchor="middle"
                     >
-                      {truncate(gr.key, band - 6)}
+                      {truncate(fmtCAxis(gr.raw), band - 6)}
                     </text>
                   </g>
                 );
@@ -445,14 +461,15 @@ export function BoxPlot<R extends Row = Row>(props: BoxPlotProps<R>) {
             />
             {g && focus != null && (
               <ChartTooltip
+                note={frame.tooltipNote}
                 x={cx(focus) + boxW / 2}
                 width={width}
                 top={clamp(scale(g.stats.q3) - 20, 0, Math.max(0, height - 150))}
-                title={g.key}
+                title={fmtCTip(g.raw)}
                 rows={tipRows(g)}
               />
             )}
-            <Live groups={groups} active={active} tipRows={tipRows} />
+            <Live groups={groups} active={active} tipRows={tipRows} formatCategory={fmtCTip} />
           </div>
         );
       }}
@@ -464,17 +481,19 @@ function Live({
   groups,
   active,
   tipRows,
+  formatCategory,
 }: {
   groups: Group[];
   active: number | null;
   tipRows: (g: Group) => TooltipRow[];
+  formatCategory: (raw: unknown) => string;
 }) {
   const g = active != null ? groups[active] : null;
   return (
     <div className="q-visually-hidden" aria-live="polite">
       {g
-        ? `${g.key}: ${tipRows(g)
-            .map((r) => `${r.label} ${r.value}`)
+        ? `${formatCategory(g.raw)}: ${tipRows(g)
+            .map((r) => `${r.label} ${r.value}${r.description ? `. ${r.description}` : ''}`)
             .join(', ')}`
         : ''}
     </div>

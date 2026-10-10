@@ -1,5 +1,5 @@
 import { type ReactNode, useMemo, useState } from 'react';
-import { makeFormatter } from '../data/format';
+import { makeFieldFormatter, makeFormatter } from '../data/format';
 import type { Predicate } from '../data/predicates';
 import { fieldOf, resolveData } from '../data/schema';
 import type { DataInput, Formatter, Row } from '../data/types';
@@ -81,7 +81,7 @@ export function DonutChart<R extends Row = Row>(props: DonutChartProps<R>) {
     style,
     ...frame
   } = props;
-  const { locale } = useQuartile();
+  const { locale, timeZone } = useQuartile();
   const source = useSourceId(id);
   const { rows: allRows, schema } = useMemo(() => resolveData(data), [data]);
   const { rows, selection: sel } = useLinkedRows(allRows, { selection, source });
@@ -107,15 +107,42 @@ export function DonutChart<R extends Row = Row>(props: DonutChartProps<R>) {
   }, [rows, category, value, aggregate, sort, colors]);
   const total = slices.reduce((s, b) => s + b.value, 0);
 
+  const measureField = aggregate === 'count' ? undefined : valueField;
   const fmtV = useMemo(
     () =>
-      makeFormatter(listFormat(valueField, aggregate, format), {
-        currency: valueField?.currency,
-        locale,
-      }),
-    [valueField, aggregate, format, locale],
+      makeFieldFormatter(
+        measureField,
+        { locale, timeZone },
+        format ?? (!measureField ? 'integer' : undefined),
+      ),
+    [measureField, locale, timeZone, format],
   );
-  const fmtC = useMemo(() => makeFormatter(catField.format, { locale }), [catField, locale]);
+  const fmtLabel = useMemo(
+    () =>
+      makeFieldFormatter(
+        measureField,
+        { locale, timeZone },
+        listFormat(valueField, aggregate, format),
+      ),
+    [measureField, valueField, aggregate, locale, timeZone, format],
+  );
+  const fmtC = useMemo(
+    () => makeFieldFormatter(catField, { locale, timeZone }),
+    [catField, locale, timeZone],
+  );
+  const fmtTip = useMemo(
+    () =>
+      makeFieldFormatter(
+        measureField,
+        { locale, timeZone, surface: 'tooltip' },
+        format ?? (!measureField ? 'integer' : undefined),
+      ),
+    [measureField, locale, timeZone, format],
+  );
+  const fmtCTip = useMemo(
+    () => makeFieldFormatter(catField, { locale, timeZone, surface: 'tooltip' }),
+    [catField, locale, timeZone],
+  );
   const fmtShare = useMemo(
     () =>
       makeFormatter(
@@ -217,11 +244,11 @@ export function DonutChart<R extends Row = Row>(props: DonutChartProps<R>) {
             </svg>
             <div className="q-donut-center">
               <span className="q-donut-value">
-                {shown != null ? fmtV(slices[shown].value) : (centerValue ?? fmtV(total))}
+                {shown != null ? fmtTip(slices[shown].value) : (centerValue ?? fmtLabel(total))}
               </span>
               <span className="q-donut-label">
                 {shown != null
-                  ? fmtC(slices[shown].raw)
+                  ? fmtCTip(slices[shown].raw)
                   : (centerLabel ??
                     `${slices.length} ${pluralLabel(catField.label, slices.length)}`)}
               </span>
@@ -231,6 +258,10 @@ export function DonutChart<R extends Row = Row>(props: DonutChartProps<R>) {
               role="application"
               aria-label={`${frame['aria-label'] ?? kind}. Use arrow keys to move between slices${select ? ', Enter to select' : ''}.`}
               {...keyboardProps}
+              onKeyDown={(event) => {
+                setHover(null);
+                keyboardProps.onKeyDown(event);
+              }}
               onFocus={(e) => {
                 if (isKeyboardFocus(e.currentTarget)) setActive((a) => a ?? 0);
               }}
@@ -284,7 +315,7 @@ export function DonutChart<R extends Row = Row>(props: DonutChartProps<R>) {
           )}
           <div className="q-visually-hidden" aria-live="polite">
             {active != null && slices[active]
-              ? `${fmtC(slices[active].raw)}: ${fmtV(slices[active].value)}, ${fmtShare(slices[active].share)} of total${picker.has(slices[active].raw) ? ', selected' : ''}`
+              ? `${fmtCTip(slices[active].raw)}: ${fmtTip(slices[active].value)}, ${fmtShare(slices[active].share)} of total${picker.has(slices[active].raw) ? ', selected' : ''}`
               : ''}
           </div>
         </div>

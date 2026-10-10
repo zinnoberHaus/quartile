@@ -30,6 +30,8 @@ export function GeneratedView({ orders }: { orders: Order[] }) {
 
 Read the [schema source](../../packages/react/src/spec/schema.ts) or the built `@quartile/react/schema.json`. JSX props and JSON props are not identical: functions, React nodes, and arbitrary style objects are not declarative inputs. Use the schema as the contract, including the allowlisted component names and field encodings.
 
+The [formatting contract](formatting.md) supports named formats, Intl number options and typed number/date/bytes/duration descriptors in JSON. Field encodings can declare separate axis/tooltip formats, a time zone, currency, unit and plain-text description. Table columns can override the value format and description. `validateSpec` checks both structural rules and Intl constructor constraints; an external JSON Schema validator alone cannot verify every locale, time-zone or precision combination. Invalid configurations render inline errors without preventing valid neighboring cards from rendering.
+
 ## Model integration
 
 1. Send the model the supported schema, field metadata, and the user's analytic question. Prefer metadata or small authorized samples over complete private datasets.

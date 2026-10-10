@@ -39,7 +39,7 @@ export function Forecast({ data }: { data: Dataset<Row> }) {
 
 The caller must distinguish idle, loading, success, empty, error and cancellation. Catch rejected requests, expose a retry action, and ignore responses from superseded requests. In React effects, abort and prevent state updates on cleanup. The Studio and its exported app implement this lifecycle; the short fetch fragment above is not a complete request UI.
 
-`fetchedAt` is the client's receipt/validation timestamp, not the provider's publication time. There is no automatic polling. Charts may format UTC instants in the browser's local time zone; label that display choice or supply an explicit formatter. Local DataExplorer filters refine its own table; use shared selection or derive a common filtered dataset for whole-workspace filtering.
+`fetchedAt` is the client's receipt/validation timestamp, not the provider's publication time. There is no automatic polling. Charts format instants using provider/field display settings; set `QuartileProvider timeZone="UTC"` or choose Studio's display time zone when UTC is required. Per-field time zones and date descriptors can override that default; civil date-only strings keep their calendar day. [Formatting](formatting.md) explains this precedence. Local DataExplorer filters refine its own table; use shared selection or derive a common filtered dataset for whole-workspace filtering.
 
 ## Weather
 
@@ -101,7 +101,7 @@ The example URL above is a placeholder. Use an absolute HTTPS URL permitted by i
 
 Records must be flat objects with string, finite safe-range number, boolean or null cells. Nested objects/arrays need application-side flattening. Missing keys become null. Numeric columns become quantitative; boolean columns stay boolean; mixed values and numeric/date-looking strings remain nominal. Encode large identifiers as strings. This adapter does not infer custom date strings as temporal fields or provide an arbitrary transformation editor.
 
-For a custom date column, validate and normalize its timezone in your application, then declare it temporal with `dataset(rows, schema)` in native React. Studio's custom adapter does not expose schema editing. A numeric epoch column can already serve as a numeric x field, but needs an appropriate label and display formatter to communicate time correctly.
+For a custom date column, validate and normalize its timezone in your application, then declare it temporal with `dataset(rows, schema)` in native React. Studio's custom adapter does not expose field-type editing. Its Data formatting panel can override display formats, precision, descriptions and units without changing the field type or source values. A numeric epoch column can already serve as a numeric x field, but needs an appropriate label and display formatter to communicate time correctly.
 
 The request has a **20-second timeout**, a **2 MiB UTF-8 response limit**, at most **5,000 rows** and **64 fields**. Oversize or invalid responses fail without truncation. These are example-adapter limits, not core library capacity claims. Custom strings are bounded to 16,384 characters and field names to 128 characters.
 

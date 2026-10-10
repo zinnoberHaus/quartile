@@ -26,10 +26,12 @@ export function pivotSeries(
     color,
     sortX = true,
     colors,
+    formatGroup,
   }: {
     x: string;
     yFields: FieldDef[];
     color?: string;
+    formatGroup?: (value: unknown) => string;
     /** Sort x ascending (dates, numbers). Strings keep first-seen order either way. */
     sortX?: boolean;
     /** Explicit colors, by series index or by series key. */
@@ -77,7 +79,7 @@ export function pivotSeries(
       const g = String(r[color] ?? '');
       let s = groups.get(g);
       if (!s) {
-        s = { label: g, values: blank() };
+        s = { label: formatGroup ? formatGroup(r[color]) : g, values: blank() };
         groups.set(g, s);
       }
       add(s.values, indexOf.get(keyOf(r[x]))!, r[yFields[0].name]);

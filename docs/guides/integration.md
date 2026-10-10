@@ -3,12 +3,12 @@
 Quartile uses React and plain CSS variables. It does not require Tailwind, shadcn/ui, or a CSS-in-JS provider. Import `@quartile/react/styles.css` once and wrap the analytic surface in `QuartileProvider`.
 
 ```tsx
-<QuartileProvider theme="system" density="compact" locale="en-GB">
+<QuartileProvider theme="system" density="compact" locale="en-GB" timeZone="UTC">
   <YourDashboard />
 </QuartileProvider>
 ```
 
-`theme` supports `light`, `dark`, and `system`. `density` supports `comfortable` and `compact`. Locale controls number/date display. Overlays use a provider-owned portal so they inherit the same theme. Font-family tokens name Schibsted Grotesk and IBM Plex Mono with system fallbacks; the library does not download fonts for you.
+`theme` supports `light`, `dark`, and `system`. `density` supports `comfortable` and `compact`. Locale controls number/date display; `timeZone` controls timestamp display and defaults to the runtime's zone when omitted. Pass both explicitly for reproducible server/client output. Field and descriptor overrides, precision, notation and optional FormatJS/math.js callbacks are covered in [formatting](formatting.md). Overlays use a provider-owned portal so they inherit the same theme. Font-family tokens name Schibsted Grotesk and IBM Plex Mono with system fallbacks; the library does not download fonts for you.
 
 ## Existing design systems
 

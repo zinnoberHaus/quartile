@@ -1,6 +1,6 @@
 import { median as d3median, sum } from 'd3-array';
 import { type KeyboardEvent, type PointerEvent, useMemo, useRef, useState } from 'react';
-import { makeFormatter } from '../data/format';
+import { makeFieldFormatter, makeFormatter } from '../data/format';
 import { finiteNumber } from '../data/number';
 import type { Predicate } from '../data/predicates';
 import { fieldOf, resolveData, toComparable } from '../data/schema';
@@ -15,6 +15,7 @@ import {
   clamp,
   fillBins,
   linearBins,
+  localDayKey,
   type TimeInterval,
   timeBins,
   topRoundedBar,
@@ -29,7 +30,7 @@ export interface HistogramProps<R extends Row = Row> extends ChartBaseProps {
   x: keyof R & string;
   /** Number of equal-width bins over the niced range of a quantitative `x`. */
   bins?: number;
-  /** Calendar bucket for a date `x`. */
+  /** Local-calendar bucket for a date `x`; display timeZone does not rebucket the data. */
   interval?: TimeInterval;
   /** Sums this field per bin instead of counting rows. */
   value?: keyof R & string;
@@ -74,7 +75,7 @@ export function Histogram<R extends Row = Row>(props: HistogramProps<R>) {
     height = 180,
     ...frame
   } = props;
-  const { locale } = useQuartile();
+  const { locale, timeZone } = useQuartile();
   const source = useSourceId(id);
   const { rows: allRows, schema } = useMemo(() => resolveData(data), [data]);
   const { rows, selection: sel } = useLinkedRows(allRows, { selection, source });
@@ -104,26 +105,31 @@ export function Histogram<R extends Row = Row>(props: HistogramProps<R>) {
   const filtered = rows !== allRows;
 
   const fmtX = useMemo(
-    () => makeFormatter(format ?? xField.format, { currency: xField.currency, locale }),
-    [format, xField, locale],
+    () => makeFieldFormatter(xField, { locale, timeZone }, format),
+    [xField, locale, timeZone, format],
   );
+  const fmtXTip = useMemo(
+    () => makeFieldFormatter(xField, { locale, timeZone, surface: 'tooltip' }, format),
+    [xField, locale, timeZone, format],
+  );
+  const valueOverride = valueFormat ?? (!valueField ? 'integer' : undefined);
   const fmtV = useMemo(
+    () => makeFieldFormatter(valueField ?? undefined, { locale, timeZone }, valueOverride),
+    [valueField, locale, timeZone, valueOverride],
+  );
+  const fmtVTip = useMemo(
     () =>
-      makeFormatter(valueFormat ?? valueField?.format ?? 'integer', {
-        currency: valueField?.currency,
-        locale,
-      }),
-    [valueFormat, valueField, locale],
+      makeFieldFormatter(
+        valueField ?? undefined,
+        { locale, timeZone, surface: 'tooltip' },
+        valueOverride,
+      ),
+    [valueField, locale, timeZone, valueOverride],
   );
   const fmtTick = useMemo(
-    () => tickFormatter({ ...xField, format: format ?? xField.format }, locale),
-    [xField, format, locale],
+    () => tickFormatter(xField, locale, timeZone, format),
+    [xField, locale, timeZone, format],
   );
-  const fmtDay = useMemo(() => makeFormatter('weekday', { locale }), [locale]);
-  const fmtShort = useMemo(() => makeFormatter('date-short', { locale }), [locale]);
-  const fmtMonth = useMemo(() => makeFormatter('month', { locale }), [locale]);
-  const monthName = useMemo(() => new Intl.DateTimeFormat(locale, { month: 'short' }), [locale]);
-
   const fmtPct = useMemo(
     () =>
       makeFormatter(
@@ -132,16 +138,18 @@ export function Histogram<R extends Row = Row>(props: HistogramProps<R>) {
       ),
     [locale],
   );
-  const binTitle = useMemo(
-    () => (i: number) => {
+  // Buckets are local calendar intervals. Civil date labels retain their day in every display zone.
+  const binLabel = useMemo(
+    () => (i: number, formatter: (v: unknown) => string) => {
       const b = bins[i];
-      if (!temporal) return `${fmtX(b.x0)} – ${fmtX(b.x1)}`;
-      if (interval === 'month') return fmtMonth(new Date(b.x0));
-      if (interval === 'week') return `Week of ${fmtShort(new Date(b.x0))}`;
-      return fmtDay(new Date(b.x0));
+      if (!temporal) return `${formatter(b.x0)} – ${formatter(b.x1)}`;
+      const date = formatter(localDayKey(new Date(b.x0)));
+      return interval === 'week' ? `Week of ${date}` : date;
     },
-    [bins, temporal, interval, fmtX, fmtMonth, fmtShort, fmtDay],
+    [bins, temporal, interval],
   );
+  const binTitle = useMemo(() => (i: number) => binLabel(i, fmtX), [binLabel, fmtX]);
+  const binTipTitle = useMemo(() => (i: number) => binLabel(i, fmtXTip), [binLabel, fmtXTip]);
 
   // Brush: the selection's own between-predicate, or local state without a Selection.
   const [localRange, setLocalRange] = useState<[number, number] | null>(null);
@@ -185,6 +193,7 @@ export function Histogram<R extends Row = Row>(props: HistogramProps<R>) {
     else commit([i, i]);
   });
   const onKeyDown = (e: KeyboardEvent) => {
+    setHover(null);
     shift.current = e.shiftKey;
     keyboardProps.onKeyDown(e);
   };
@@ -206,7 +215,7 @@ export function Histogram<R extends Row = Row>(props: HistogramProps<R>) {
     const total = sum(counts);
     const what = valueField ? valueField.label : countLabel;
     const span = temporal
-      ? `${fmtShort(new Date(bins[0].x0))} to ${fmtShort(new Date(bins[bins.length - 1].x0))}`
+      ? `${fmtX(localDayKey(new Date(bins[0].x0)))} to ${fmtX(localDayKey(new Date(bins[bins.length - 1].x0)))}`
       : `${fmtX(bins[0].x0)} to ${fmtX(bins[bins.length - 1].x1)}`;
     const head = temporal
       ? `${what} per ${interval} of ${xField.label}, ${span}: total ${fmtV(total)}.`
@@ -220,7 +229,6 @@ export function Histogram<R extends Row = Row>(props: HistogramProps<R>) {
     valueField,
     countLabel,
     temporal,
-    fmtShort,
     fmtX,
     fmtV,
     interval,
@@ -277,13 +285,7 @@ export function Histogram<R extends Row = Row>(props: HistogramProps<R>) {
             const isFirst = i === 0;
             const monthStart = interval === 'month' || d.getDate() === 1;
             if (!isFirst && !(monthStart && (interval !== 'week' || d.getDate() <= 7))) return;
-            const label = isFirst
-              ? interval === 'month'
-                ? fmtMonth(d)
-                : fmtShort(d)
-              : d.getMonth() === 0
-                ? fmtMonth(d)
-                : monthName.format(d);
+            const label = fmtTick(localDayKey(d));
             const lx = i * bw;
             const w = monoTextWidth(label);
             if (lx < lastRight + 14) return;
@@ -350,11 +352,24 @@ export function Histogram<R extends Row = Row>(props: HistogramProps<R>) {
           const what = valueField ? valueField.label : countLabel;
           if (filtered) {
             const shown = inRange(focus) ? linked[focus] : 0;
-            tipRows.push({ label: 'In selection', value: fmtV(shown) });
-            tipRows.push({ label: 'All', value: fmtV(totals[focus]), tone: 'muted' });
+            tipRows.push({
+              label: 'In selection',
+              description: valueField?.description,
+              value: fmtVTip(shown),
+            });
+            tipRows.push({
+              label: 'All',
+              description: valueField?.description,
+              value: fmtVTip(totals[focus]),
+              tone: 'muted',
+            });
           } else {
             const total = sum(totals);
-            tipRows.push({ label: what, value: fmtV(totals[focus]) });
+            tipRows.push({
+              label: what,
+              description: valueField?.description,
+              value: fmtVTip(totals[focus]),
+            });
             if (total > 0)
               tipRows.push({
                 label: 'Share',
@@ -482,16 +497,17 @@ export function Histogram<R extends Row = Row>(props: HistogramProps<R>) {
             />
             {focus != null && tipRows.length > 0 && (
               <ChartTooltip
+                note={frame.tooltipNote}
                 x={focus * bw + barW / 2}
                 width={width}
                 top={Math.max(0, Math.min(yOf(totals[focus]) - 8, baseline - 90))}
-                title={binTitle(focus)}
+                title={binTipTitle(focus)}
                 rows={tipRows}
               />
             )}
             <div className="q-visually-hidden" aria-live="polite">
               {active != null && tipRows.length > 0
-                ? `${binTitle(active)}: ${tipRows.map((r) => `${r.label} ${r.value}`).join(', ')}`
+                ? `${binTipTitle(active)}: ${tipRows.map((r) => `${r.label} ${r.value}${r.description ? `. ${r.description}` : ''}`).join(', ')}`
                 : ''}
             </div>
           </div>

@@ -1,3 +1,4 @@
+import { type FormatOptions, makeFieldFormatter } from '../../data/format';
 import type { FieldDef, Formatter } from '../../data/types';
 import type { Aggregate } from './trends-aggregate';
 
@@ -15,4 +16,26 @@ export function listFormat(
   if (!field || aggregate === 'count') return 'integer';
   if (field.format === 'currency') return 'currency-compact';
   return field.format;
+}
+
+/** Keep each measure's unit across exact values, hover details and compact labels. */
+export function seriesFormatters(
+  series: readonly { key: string; field: FieldDef }[],
+  options: FormatOptions,
+  override?: Formatter,
+) {
+  return new Map(
+    series.map((series) => [
+      series.key,
+      {
+        value: makeFieldFormatter(series.field, options, override),
+        tooltip: makeFieldFormatter(series.field, { ...options, surface: 'tooltip' }, override),
+        axis: makeFieldFormatter(
+          series.field,
+          { ...options, surface: 'axis', short: true },
+          override,
+        ),
+      },
+    ]),
+  );
 }

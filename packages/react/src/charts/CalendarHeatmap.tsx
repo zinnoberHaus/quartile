@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { makeFormatter } from '../data/format';
+import { makeFieldFormatter } from '../data/format';
 import { finiteNumber } from '../data/number';
 import type { Predicate } from '../data/predicates';
 import { fieldOf, resolveData, toComparable, toDate } from '../data/schema';
@@ -34,7 +34,7 @@ import { monoTextWidth } from './core/scales';
 export interface CalendarHeatmapProps<R extends Row = Row> extends ChartBaseProps {
   /** Rows to plot, or a dataset with a schema attached. */
   data: DataInput<R>;
-  /** Date field. Rows are grouped by local calendar day. */
+  /** Date field. Rows are grouped by local calendar day; display timeZone does not rebucket them. */
   date: keyof R & string;
   /** Measure per day. Counts rows when omitted. */
   value?: keyof R & string;
@@ -92,7 +92,7 @@ export function CalendarHeatmap<R extends Row = Row>(props: CalendarHeatmapProps
     style,
     ...frame
   } = props;
-  const { locale } = useQuartile();
+  const { locale, timeZone } = useQuartile();
   const source = useSourceId(id);
   const wrap = useRef<HTMLDivElement>(null);
   const { width: measured } = useElementSize(wrap);
@@ -100,16 +100,30 @@ export function CalendarHeatmap<R extends Row = Row>(props: CalendarHeatmapProps
   const { rows, selection: sel } = useLinkedRows(allRows, { selection, source });
   const valueField = value ? fieldOf(schema, value, allRows) : null;
   const how: AggregateOp = aggregate ?? (value ? 'sum' : 'count');
+  const dateField = fieldOf(schema, date, allRows);
+  const measureField = how === 'count' ? undefined : (valueField ?? undefined);
+  const valueOverride = format ?? (!measureField ? 'integer' : undefined);
   const fmt = useMemo(
-    () =>
-      makeFormatter(format ?? (how === 'count' ? 'integer' : valueField?.format), {
-        currency: valueField?.currency,
-        locale,
-      }),
-    [format, how, valueField, locale],
+    () => makeFieldFormatter(measureField, { locale, timeZone }, valueOverride),
+    [measureField, locale, timeZone, valueOverride],
   );
-  const fmtDay = useMemo(() => makeFormatter('weekday', { locale }), [locale]);
-  const fmtDate = useMemo(() => makeFormatter('date', { locale }), [locale]);
+  const fmtTip = useMemo(
+    () => makeFieldFormatter(measureField, { locale, timeZone, surface: 'tooltip' }, valueOverride),
+    [measureField, locale, timeZone, valueOverride],
+  );
+  const fmtDate = useMemo(() => {
+    const fmt = makeFieldFormatter(dateField, { locale, timeZone });
+    return (date: Date) => fmt(localDayKey(date));
+  }, [dateField, locale, timeZone]);
+  const fmtDay = useMemo(() => {
+    const fmt = makeFieldFormatter(dateField, { locale, timeZone, surface: 'tooltip' });
+    return (date: Date) => fmt(localDayKey(date));
+  }, [dateField, locale, timeZone]);
+  const fmtAxis = useMemo(() => {
+    const fmt = makeFieldFormatter(dateField, { locale, timeZone, surface: 'axis', short: true });
+    return (date: Date) => fmt(localDayKey(date));
+  }, [dateField, locale, timeZone]);
+  // Row/month headers identify positions in the local calendar grid, rather than instants.
   const monthFmt = useMemo(() => new Intl.DateTimeFormat(locale, { month: 'short' }), [locale]);
   const dayFmt = useMemo(() => new Intl.DateTimeFormat(locale, { weekday: 'short' }), [locale]);
 
@@ -220,7 +234,13 @@ export function CalendarHeatmap<R extends Row = Row>(props: CalendarHeatmapProps
     const v = values[i];
     return {
       title: fmtDay(cells[i].date),
-      rows: [{ label: what, value: v == null ? 'No data' : fmt(v) }],
+      rows: [
+        {
+          label: what,
+          value: v == null ? 'No data' : fmtTip(v),
+          description: measureField?.description,
+        },
+      ],
     };
   };
 
@@ -237,15 +257,15 @@ export function CalendarHeatmap<R extends Row = Row>(props: CalendarHeatmapProps
     const total = observed.length ? sum(observed) : Number.NaN;
     const head = `${what} per day from ${fmtDate(cells[0].date)} to ${fmtDate(cells[cells.length - 1].date)}: total ${fmt(total)}.`;
     if (peak < 0) return head;
-    return `${head} Highest ${fmtDay(cells[peak].date)} (${fmt(values[peak])}); lowest ${fmtDay(cells[low].date)} (${fmt(values[low])}).`;
-  }, [span, cells, values, what, fmt, fmtDate, fmtDay]);
+    return `${head} Highest ${fmtDate(cells[peak].date)} (${fmt(values[peak])}); lowest ${fmtDate(cells[low].date)} (${fmt(values[low])}).`;
+  }, [span, cells, values, what, fmt, fmtDate]);
 
   const table = useMemo<ChartTable>(
     () => ({
       columns: ['Date', what],
-      rows: cells.flatMap((c, i) => (values[i] == null ? [] : [[fmtDay(c.date), fmt(values[i])]])),
+      rows: cells.flatMap((c, i) => (values[i] == null ? [] : [[fmtDate(c.date), fmt(values[i])]])),
     }),
-    [cells, values, what, fmt, fmtDay],
+    [cells, values, what, fmt, fmtDate],
   );
 
   return (
@@ -269,8 +289,9 @@ export function CalendarHeatmap<R extends Row = Row>(props: CalendarHeatmapProps
           let lastRight = Number.NEGATIVE_INFINITY;
           for (const c of cells) {
             if (c.date.getDate() !== 1) continue;
-            const label =
-              c.date.getMonth() === 0
+            const label = dateField.axisFormat
+              ? fmtAxis(c.date)
+              : c.date.getMonth() === 0
                 ? `${monthFmt.format(c.date)} ’${String(c.date.getFullYear()).slice(2)}`
                 : monthFmt.format(c.date);
             const w = monoTextWidth(label);
@@ -366,6 +387,10 @@ export function CalendarHeatmap<R extends Row = Row>(props: CalendarHeatmapProps
                 aria-label={`${frame['aria-label'] ?? 'Calendar heatmap'}. Arrow keys move by day and week${select ? ', Enter selects a day, Shift+Enter extends' : ''}.`}
                 role="application"
                 {...keyboardProps}
+                onKeyDown={(event) => {
+                  setHover(null);
+                  keyboardProps.onKeyDown(event);
+                }}
                 onFocus={() => setActive((a) => a ?? cells.length - 1)}
                 onPointerMove={(e) => setHover(indexAt(e))}
                 onPointerLeave={() => setHover(null)}
@@ -376,6 +401,7 @@ export function CalendarHeatmap<R extends Row = Row>(props: CalendarHeatmapProps
               />
               {tip && fc && (
                 <ChartTooltip
+                  note={frame.tooltipNote}
                   x={xOf(fc.col) + cell}
                   width={width}
                   top={clamp(yOf(fc.row) - 12, 0, Math.max(0, gridH - 40))}
@@ -386,7 +412,9 @@ export function CalendarHeatmap<R extends Row = Row>(props: CalendarHeatmapProps
               <div className="q-visually-hidden" aria-live="polite">
                 {active != null && cells[active]
                   ? `${tipFor(active).title}: ${tipFor(active)
-                      .rows.map((r) => `${r.label} ${r.value}`)
+                      .rows.map(
+                        (r) => `${r.label} ${r.value}${r.description ? `. ${r.description}` : ''}`,
+                      )
                       .join(', ')}`
                   : ''}
               </div>

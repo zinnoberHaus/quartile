@@ -163,11 +163,12 @@ describe('formats', () => {
   });
   it('formats currency, percent and dates', () => {
     expect(makeFormatter('currency')(72.35)).toBe('$72.35');
-    expect(makeFormatter('currency')(1_320_000)).toBe('$1.32M');
+    expect(makeFormatter('currency')(1_320_000)).toBe('$1,320,000.00');
+    expect(makeFormatter('currency-compact')(1_320_000)).toBe('$1.32M');
     expect(makeFormatter('currency', { short: true })(60_000)).toBe('$60K');
     expect(makeFormatter('percent')(0.0312)).toBe('3.12%');
     expect(makeFormatter('date-short')('2026-09-07')).toBe('Sep 7');
-    expect(makeFormatter('month')('2026-03-01')).toBe('Mar ’26');
+    expect(makeFormatter('month')('2026-03-01')).toBe('Mar 26');
     expect(makeFormatter('integer')(null)).toBe('—');
   });
   it('renders missing and invalid temporal cells without throwing during table rendering', () => {

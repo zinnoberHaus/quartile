@@ -4,7 +4,13 @@ export type { DataExplorerExport, DataExplorerProps } from './DataExplorer';
 export { DataExplorer } from './DataExplorer';
 export type { DataTableColumn, DataTableProps } from './DataTable';
 export { DataTable } from './DataTable';
-export type { TableFilter, TableScalar, TableSort, TableViewState } from './explorer-model';
+export type {
+  TableCSVOptions,
+  TableFilter,
+  TableScalar,
+  TableSort,
+  TableViewState,
+} from './explorer-model';
 export {
   createTableViewState,
   deriveTableRows,

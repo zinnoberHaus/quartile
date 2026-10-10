@@ -6,7 +6,7 @@ import {
   sankeyLinkHorizontal,
 } from 'd3-sankey';
 import { type KeyboardEvent, useMemo, useRef, useState } from 'react';
-import { makeFormatter } from '../data/format';
+import { makeFieldFormatter, makeFormatter } from '../data/format';
 import { finiteNumber } from '../data/number';
 import type { Predicate, Primitive } from '../data/predicates';
 import { fieldOf, resolveData, toComparable } from '../data/schema';
@@ -81,30 +81,53 @@ export function Sankey<R extends Row = Row>(props: SankeyProps<R>) {
     height = 220,
     ...frame
   } = props;
-  const { locale } = useQuartile();
+  const { locale, timeZone } = useQuartile();
   const source = useSourceId(id);
   const { rows: allRows, schema } = useMemo(() => resolveData(data), [data]);
   const { rows, selection: sel } = useLinkedRows(allRows, { selection, source });
   const valueField = value ? fieldOf(schema, value, allRows) : null;
   const fromField = fieldOf(schema, from, allRows);
   const toField = fieldOf(schema, to, allRows);
+  const valueOverride = format ?? (!valueField ? 'integer' : undefined);
   const fmt = useMemo(
+    () => makeFieldFormatter(valueField ?? undefined, { locale, timeZone }, valueOverride),
+    [valueField, locale, timeZone, valueOverride],
+  );
+  const fmtTip = useMemo(
     () =>
-      makeFormatter(format ?? valueField?.format ?? 'integer', {
-        currency: valueField?.currency,
-        locale,
-      }),
-    [format, valueField, locale],
+      makeFieldFormatter(
+        valueField ?? undefined,
+        { locale, timeZone, surface: 'tooltip' },
+        valueOverride,
+      ),
+    [valueField, locale, timeZone, valueOverride],
   );
   const fmtShort = useMemo(
     () =>
-      makeFormatter(format ?? valueField?.format ?? 'integer', {
-        currency: valueField?.currency,
-        locale,
-        short: true,
-      }),
-    [format, valueField, locale],
+      makeFieldFormatter(valueField ?? undefined, { locale, timeZone, short: true }, valueOverride),
+    [valueField, locale, timeZone, valueOverride],
   );
+  const fmtFrom = useMemo(
+    () => makeFieldFormatter(fromField, { locale, timeZone }),
+    [fromField, locale, timeZone],
+  );
+  const fmtTo = useMemo(
+    () => makeFieldFormatter(toField, { locale, timeZone }),
+    [toField, locale, timeZone],
+  );
+  const fmtFromTip = useMemo(
+    () => makeFieldFormatter(fromField, { locale, timeZone, surface: 'tooltip' }),
+    [fromField, locale, timeZone],
+  );
+  const fmtToTip = useMemo(
+    () => makeFieldFormatter(toField, { locale, timeZone, surface: 'tooltip' }),
+    [toField, locale, timeZone],
+  );
+  const rawFrom = useMemo(
+    () => new Map(allRows.map((r) => [String(r[from]), r[from]])),
+    [allRows, from],
+  );
+  const rawTo = useMemo(() => new Map(allRows.map((r) => [String(r[to]), r[to]])), [allRows, to]);
   const fmtPct = useMemo(
     () =>
       makeFormatter(
@@ -160,22 +183,27 @@ export function Sankey<R extends Row = Row>(props: SankeyProps<R>) {
   const nodeOn = (n: SNode) =>
     !anySel || selFrom.has(n.name) || selTo.has(n.name) || (n.sourceLinks ?? []).some(linkOn);
 
+  const nodeLabel = (node: SNode, tooltip = false) =>
+    (rawFrom.has(node.name) ? (tooltip ? fmtFromTip : fmtFrom) : tooltip ? fmtToTip : fmtTo)(
+      node.raw,
+    );
+
   const total = sum(flows, (f) => f.value);
   const summary = useMemo(() => {
     if (flows.length === 0) return '';
     const top = [...flows].sort((a, b) => b.value - a.value).slice(0, 3);
     return `Flows from ${fromField.label} to ${toField.label}: total ${fmt(total)} across ${flows.length} paths. Largest: ${top
-      .map((f) => `${f.from} → ${f.to} (${fmt(f.value)})`)
+      .map((f) => `${fmtFrom(rawFrom.get(f.from))} → ${fmtTo(rawTo.get(f.to))} (${fmt(f.value)})`)
       .join(', ')}.`;
-  }, [flows, fromField, toField, fmt, total]);
+  }, [flows, fromField, toField, fmt, total, fmtFrom, fmtTo, rawFrom, rawTo]);
 
   const table = useMemo<ChartTable>(
     () => ({
       columns: [fromField.label, toField.label, valueField ? valueField.label : 'Count'],
-      rows: flows.map((f) => [f.from, f.to, fmt(f.value)]),
+      rows: flows.map((f) => [fmtFrom(rawFrom.get(f.from)), fmtTo(rawTo.get(f.to)), fmt(f.value)]),
       numeric: [2],
     }),
-    [flows, fromField, toField, valueField, fmt],
+    [flows, fromField, toField, valueField, fmt, fmtFrom, fmtTo, rawFrom, rawTo],
   );
 
   const [hover, setHover] = useState<Item | null>(null);
@@ -217,6 +245,7 @@ export function Sankey<R extends Row = Row>(props: SankeyProps<R>) {
     },
   );
   const onKeyDown = (e: KeyboardEvent) => {
+    setHover(null);
     multi.current = e.shiftKey;
     keyboardProps.onKeyDown(e);
   };
@@ -286,11 +315,23 @@ export function Sankey<R extends Row = Row>(props: SankeyProps<R>) {
           tip = {
             x: ((s.x1 ?? 0) + (t.x0 ?? 0)) / 2,
             top: clamp(((focusLink.y0 ?? 0) + (focusLink.y1 ?? 0)) / 2 - 30, 0, height - 90),
-            title: `${s.name} → ${t.name}`,
+            title: `${fmtFromTip(s.raw)} → ${fmtToTip(t.raw)}`,
             rows: [
-              { label: valueField ? valueField.label : 'Count', value: fmt(v) },
-              { label: `Share of ${s.name}`, value: fmtPct(v / (s.value || 1)), tone: 'muted' },
-              { label: `Share of ${t.name}`, value: fmtPct(v / (t.value || 1)), tone: 'muted' },
+              {
+                label: valueField ? valueField.label : 'Count',
+                description: valueField?.description,
+                value: fmtTip(v),
+              },
+              {
+                label: `Share of ${fmtFromTip(s.raw)}`,
+                value: fmtPct(v / (s.value || 1)),
+                tone: 'muted',
+              },
+              {
+                label: `Share of ${fmtToTip(t.raw)}`,
+                value: fmtPct(v / (t.value || 1)),
+                tone: 'muted',
+              },
             ],
           };
         } else if (focusNode) {
@@ -300,17 +341,18 @@ export function Sankey<R extends Row = Row>(props: SankeyProps<R>) {
           tip = {
             x: (n.depth ?? 0) === maxDepth ? (n.x0 ?? 0) : (n.x1 ?? 0),
             top: clamp((n.y0 ?? 0) - 6, 0, height - 60 - out.length * 18),
-            title: n.name,
+            title: nodeLabel(n, true),
             rows: [
-              { label: 'Total', value: fmt(n.value ?? 0) },
+              { label: 'Total', description: valueField?.description, value: fmtTip(n.value ?? 0) },
               ...out
                 .slice()
                 .sort((a, b) => b.value - a.value)
                 .map((l) => {
                   const other = (outgoing ? l.target : l.source) as SNode;
                   return {
-                    label: outgoing ? `→ ${other.name}` : `← ${other.name}`,
-                    value: fmt(l.value),
+                    label: outgoing ? `→ ${nodeLabel(other, true)}` : `← ${nodeLabel(other, true)}`,
+                    description: valueField?.description,
+                    value: fmtTip(l.value),
                     color: outgoing ? l.color : (other as SNode).color,
                     tone: 'muted' as const,
                   };
@@ -380,7 +422,8 @@ export function Sankey<R extends Row = Row>(props: SankeyProps<R>) {
                       textAnchor={right ? 'end' : 'start'}
                       data-state={!nodeOn(n) ? 'dim' : undefined}
                     >
-                      {n.name} <tspan className="q-sankey-value">{fmtShort(n.value ?? 0)}</tspan>
+                      {nodeLabel(n)}{' '}
+                      <tspan className="q-sankey-value">{fmtShort(n.value ?? 0)}</tspan>
                     </text>
                   );
                 })}
@@ -398,6 +441,7 @@ export function Sankey<R extends Row = Row>(props: SankeyProps<R>) {
             </svg>
             {tip && (
               <ChartTooltip
+                note={frame.tooltipNote}
                 x={tip.x}
                 width={width}
                 top={tip.top}
@@ -407,7 +451,7 @@ export function Sankey<R extends Row = Row>(props: SankeyProps<R>) {
             )}
             <div className="q-visually-hidden" aria-live="polite">
               {active != null && tip
-                ? `${tip.title}: ${tip.rows.map((r) => `${r.label} ${r.value}`).join(', ')}`
+                ? `${tip.title}: ${tip.rows.map((r) => `${r.label} ${r.value}${r.description ? `. ${r.description}` : ''}`).join(', ')}`
                 : ''}
             </div>
           </div>

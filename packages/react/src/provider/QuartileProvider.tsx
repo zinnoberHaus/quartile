@@ -15,6 +15,7 @@ interface QuartileContextValue {
   theme: 'light' | 'dark';
   density: Density;
   locale: string;
+  timeZone?: string;
   /** Element overlays portal into, so they inherit the theme. */
   portalContainer: HTMLElement | null;
 }
@@ -37,6 +38,8 @@ export interface QuartileProviderProps {
   density?: Density;
   /** BCP 47 locale used by every formatter. */
   locale?: string;
+  /** IANA time zone used to display timestamps. Defaults to the runtime's zone. */
+  timeZone?: string;
   className?: string;
   style?: CSSProperties;
   children?: ReactNode;
@@ -60,6 +63,7 @@ export function QuartileProvider({
   theme = 'light',
   density = 'comfortable',
   locale = 'en-US',
+  timeZone,
   className,
   style,
   children,
@@ -68,7 +72,9 @@ export function QuartileProvider({
   const resolved = theme === 'system' ? system : theme;
   const [portal, setPortal] = useState<HTMLElement | null>(null);
   return (
-    <QuartileContext.Provider value={{ theme: resolved, density, locale, portalContainer: portal }}>
+    <QuartileContext.Provider
+      value={{ theme: resolved, density, locale, timeZone, portalContainer: portal }}
+    >
       <div
         className={cx('q-root', className)}
         data-theme={resolved}

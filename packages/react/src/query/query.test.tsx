@@ -5,6 +5,7 @@ import { BarList } from '../charts/BarList';
 import { applyPredicates } from '../data/predicates';
 import { dataset } from '../data/schema';
 import type { Row } from '../data/types';
+import { QuartileProvider } from '../provider/QuartileProvider';
 import { Selection, type SelectionApi, useSelection } from '../selection/Selection';
 import { QueryResultView } from './QueryResultView';
 import type { QueryOptions, QueryPlan, QueryRequest, QueryResult, QuerySource } from './types';
@@ -248,6 +249,48 @@ describe('linked query views', () => {
     render(<QueryKPI data={source} value="amount" aggregate="count" label="Count" />);
     await screen.findByText('12');
     expect(screen.getByRole('group', { name: 'Count' }).textContent).not.toContain('USD');
+  });
+  it('retains returned alias formatting metadata in a scalar query view without re-filtering it', async () => {
+    const source = sourceWith(async () => []);
+    source.query = vi.fn(async (plan, options): Promise<QueryResult> => {
+      if (plan.kind !== 'aggregate') throw new Error('Expected aggregate');
+      const alias = plan.measures[0].as;
+      return {
+        requestId: options.requestId,
+        sourceVersion: 'v1',
+        totalRows: 1,
+        complete: true,
+        rows: [{ [alias]: Date.parse('2026-10-10T01:00:00Z') }],
+        schema: {
+          [alias]: {
+            name: alias,
+            label: 'Earliest',
+            type: 'quantitative',
+            format: { type: 'date', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' },
+            timeZone: 'UTC',
+            description: 'Earliest observation, shown in UTC.',
+          },
+        },
+      };
+    });
+    render(
+      <QuartileProvider timeZone="America/New_York">
+        <QueryKPI data={source} value="amount" aggregate="min" label="Earliest" />
+      </QuartileProvider>,
+    );
+    await screen.findByText('01:00');
+    const card = screen.getByRole('group', { name: 'Earliest' });
+    expect(document.getElementById(card.getAttribute('aria-describedby')!)?.textContent).toBe(
+      'Earliest observation, shown in UTC.',
+    );
+    expect(source.query).toHaveBeenCalledTimes(1);
+  });
+  it('keeps empty and null scalar results unavailable after attaching their metadata', async () => {
+    const source = sourceWith(async () => []);
+    const { container } = render(
+      <QueryKPI data={source} value="amount" aggregate="sum" label="Amount" />,
+    );
+    await waitFor(() => expect(container.querySelector('.q-kpi-value')?.textContent).toBe('—'));
   });
   it('preserves worker ordering and keyboard focus when a remote table header changes sort', async () => {
     const source = sourceWith(async () => [

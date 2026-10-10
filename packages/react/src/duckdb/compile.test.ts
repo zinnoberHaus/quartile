@@ -105,4 +105,52 @@ describe('bounded DuckDB query compilation', () => {
     expect(compiled.schema.n.format).toBe('integer');
     expect(compiled.schema.n.currency).toBeUndefined();
   });
+
+  it('preserves display metadata on aggregate and histogram aliases, excluding counts', () => {
+    const fields: Schema = {
+      ...schema,
+      value: {
+        ...schema.value,
+        axisFormat: 'compact',
+        tooltipFormat: { type: 'number', minimumFractionDigits: 3 },
+        description: 'Observed transaction amount.',
+        unit: 'EUR',
+        timeZone: 'UTC',
+      },
+    };
+    const aggregate = compileQuery(
+      {
+        kind: 'aggregate',
+        groupBy: [],
+        measures: [
+          { field: 'value', aggregate: 'mean', as: 'average' },
+          { field: 'value', aggregate: 'count', as: 'n' },
+        ],
+        limit: 1,
+        predicates: [],
+      },
+      fields,
+      'input',
+    );
+    expect(aggregate.schema.average).toEqual({ ...fields.value, name: 'average' });
+    expect(aggregate.schema.n).toEqual({
+      name: 'n',
+      type: 'quantitative',
+      label: 'Value',
+      format: 'integer',
+    });
+    const histogram = compileQuery(
+      { kind: 'histogram', field: 'value', edges: [0, 1, 2], predicates: [] },
+      fields,
+      'input',
+    );
+    expect(histogram.schema.x0).toEqual({ ...fields.value, name: 'x0', label: 'x0' });
+    expect(histogram.schema.x1).toEqual({ ...fields.value, name: 'x1', label: 'x1' });
+    expect(histogram.schema.count).toEqual({
+      name: 'count',
+      type: 'quantitative',
+      label: 'count',
+      format: 'integer',
+    });
+  });
 });

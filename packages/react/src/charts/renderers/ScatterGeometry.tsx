@@ -23,6 +23,7 @@ interface GeometryProps {
   format?: Formatter;
   xFormat?: Formatter;
   locale: string;
+  timeZone?: string;
   titlesOn: boolean;
   children: (layout: {
     plotHeight: number;
@@ -52,6 +53,7 @@ export function ScatterGeometry({
   format,
   xFormat,
   locale,
+  timeZone,
   titlesOn,
 }: GeometryProps) {
   const geometry = useMemo(() => {
@@ -60,7 +62,7 @@ export function ScatterGeometry({
     const bottom = Math.max(top + 1, plotHeight - 20 - (titlesOn ? 18 : 0));
     const maxR = points.reduce((value, point) => Math.max(value, point.r), 4.5);
     const ys = scaleLinear().domain(domains.y).nice(4);
-    const fmtYTick = tickFormatter({ ...yField, format: format ?? yField.format }, locale);
+    const fmtYTick = tickFormatter(yField, locale, timeZone, format);
     const yTickVals = ys.ticks(4);
     const left =
       Math.ceil(Math.max(16, ...yTickVals.map((value) => monoTextWidth(fmtYTick(value))))) + 12;
@@ -70,7 +72,7 @@ export function ScatterGeometry({
       .domain(domains.x)
       .nice(5)
       .range([left + maxR * 0.6, right - maxR * 0.6]);
-    const fmtXTick = tickFormatter({ ...xField, format: xFormat ?? xField.format }, locale);
+    const fmtXTick = tickFormatter(xField, locale, timeZone, xFormat);
     const count = Math.max(2, Math.min(6, Math.floor((right - left) / 80)));
     const px = points.map((point) => xs(point.x));
     const py = points.map((point) => ys(point.y));
@@ -91,7 +93,7 @@ export function ScatterGeometry({
       xTicks: xs.ticks(count).map((value) => ({ x: xs(value), label: fmtXTick(value) })),
       yTicks: yTickVals.map((value) => ({ y: ys(value), label: fmtYTick(value) })),
     };
-  }, [points, domains, width, height, xField, yField, format, xFormat, locale, titlesOn]);
+  }, [points, domains, width, height, xField, yField, format, xFormat, locale, timeZone, titlesOn]);
   const marks = useMemo(
     () =>
       geometry.order.map((index) => ({

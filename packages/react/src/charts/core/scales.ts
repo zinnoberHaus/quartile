@@ -8,9 +8,9 @@ import {
   scaleTime,
 } from 'd3-scale';
 import { curveLinear, curveMonotoneX, curveStepAfter } from 'd3-shape';
-import { makeFormatter } from '../../data/format';
+import { makeFieldFormatter } from '../../data/format';
 import { toDate } from '../../data/schema';
-import type { FieldDef } from '../../data/types';
+import type { FieldDef, Formatter } from '../../data/types';
 
 export type Curve = 'linear' | 'monotone' | 'step';
 
@@ -81,8 +81,13 @@ export function continuousX(field: FieldDef, values: unknown[], range: [number, 
 }
 
 /** Axis tick formatter for a field: short numbers, short dates. */
-export function tickFormatter(field: FieldDef, locale?: string) {
-  return makeFormatter(field.format, { short: true, currency: field.currency, locale });
+export function tickFormatter(
+  field: FieldDef,
+  locale?: string,
+  timeZone?: string,
+  override?: Formatter,
+) {
+  return makeFieldFormatter(field, { short: true, surface: 'axis', locale, timeZone }, override);
 }
 
 /** Evenly spaced indices for at most `count` labels, always including first and last. */

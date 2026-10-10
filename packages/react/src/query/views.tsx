@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
 import { BarList, type BarListProps } from '../charts/BarList';
 import { Button } from '../components/button/Button';
+import { makeFormatter } from '../data/format';
 import { DataTable, type DataTableProps } from '../data-display/DataTable';
 import { KPI, type KPIProps } from '../data-display/KPI';
 import type { AggregateName } from '../data-display/shared';
+import { useQuartile } from '../provider/QuartileProvider';
 import { AppliedPredicatesContext } from '../selection/appliedPredicates';
 import { useSelection, useSourceId } from '../selection/Selection';
 import { QueryResultView } from './QueryResultView';
@@ -26,6 +28,8 @@ export function QueryBarList({
   sort = 'desc',
   ...props
 }: QueryBarListProps) {
+  const { locale } = useQuartile();
+  const fmtCount = makeFormatter('integer', { locale });
   // Avoid colliding with any application-owned field, including the grouping key.
   let alias = '__quartile_value';
   const names = new Set(Object.keys(data.schema).map((name) => name.toLowerCase()));
@@ -79,7 +83,8 @@ export function QueryBarList({
       />
       {query.result && !query.result.complete && (
         <p className="q-query-note">
-          Showing {query.result.rows.length} of {query.result.totalRows} categories.
+          Showing {fmtCount(query.result.rows.length)} of {fmtCount(query.result.totalRows)}{' '}
+          categories.
         </p>
       )}
     </AppliedPredicatesContext.Provider>
@@ -114,20 +119,40 @@ export function QueryKPI({
     },
     { id, predicates, selection: props.selection },
   );
-  const field = value ? data.schema[value] : undefined;
   return (
     <QueryResultView query={query} loading={<KPI {...props} loading />}>
-      {(_, result) => (
-        <KPI
-          {...props}
-          format={props.format ?? (aggregate === 'count' ? 'integer' : field?.format)}
-          currency={props.currency ?? (aggregate === 'count' ? undefined : field?.currency)}
-          unit={props.unit ?? (aggregate === 'count' ? undefined : field?.unit)}
-          value={
-            typeof result.rows[0]?.[alias] === 'number' ? (result.rows[0][alias] as number) : null
-          }
-        />
-      )}
+      {(_, result) => {
+        const original = result.schema[alias] ?? (value ? data.schema[value] : undefined);
+        const field = {
+          ...(aggregate !== 'count' ? original : undefined),
+          name: alias,
+          type: 'quantitative' as const,
+          label: aggregate === 'count' ? 'Count' : (original?.label ?? 'Value'),
+          format:
+            aggregate === 'count'
+              ? ('integer' as const)
+              : (original?.format ?? ('number' as const)),
+        };
+        return (
+          <KPI
+            {...props}
+            data={{
+              kind: 'dataset',
+              // One already-aggregated observation. Keep an empty/null result unavailable.
+              rows: [
+                {
+                  [alias]:
+                    typeof result.rows[0]?.[alias] === 'number' ? result.rows[0][alias] : null,
+                },
+              ],
+              schema: { [alias]: field },
+            }}
+            value={alias}
+            aggregate="sum"
+            selection={false}
+          />
+        );
+      }}
     </QueryResultView>
   );
 }
@@ -198,6 +223,8 @@ function QueryTablePage({
   onSortChange: (sort: string | null) => void;
   resetKey: string;
 }) {
+  const { locale } = useQuartile();
+  const fmtCount = makeFormatter('integer', { locale });
   const [paging, setPaging] = useState({ key: resetKey, page: 0 });
   const page = paging.key === resetKey ? paging.page : 0;
   // Reset only the cursor, preserving the focused header when its sort changes.
@@ -238,7 +265,7 @@ function QueryTablePage({
           <>
             <span aria-live="polite">
               {result
-                ? `${result.rows.length ? start + 1 : 0}–${start + result.rows.length} of ${result.totalRows} ${props.noun ?? 'rows'}`
+                ? `${fmtCount(result.rows.length ? start + 1 : 0)}–${fmtCount(start + result.rows.length)} of ${fmtCount(result.totalRows)} ${props.noun ?? 'rows'}`
                 : 'Loading page…'}
             </span>
             {props.footer}

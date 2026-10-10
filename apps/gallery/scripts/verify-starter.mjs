@@ -5,6 +5,7 @@ import { once } from 'node:events';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 import { chromium } from 'playwright';
 
 const zip = resolve(process.argv[2]);
@@ -75,8 +76,10 @@ if (project.source.kind === 'custom' && project.source.url === 'https://example.
         clearTimeout(timeout);
         reject(new Error(`Starter preview exited ${code}`));
       });
+      let output = '';
       server.stdout.on('data', (chunk) => {
-        const match = chunk.toString().match(/http:\/\/127\.0\.0\.1:\d+/);
+        output += chunk.toString();
+        const match = stripVTControlCharacters(output).match(/http:\/\/127\.0\.0\.1:\d+/);
         if (match) {
           clearTimeout(timeout);
           resolveAddress(match[0]);

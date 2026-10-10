@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { matches } from '../data/predicates';
 import { dataset } from '../data/schema';
 import { createAnalysisContext } from './context';
 import { createHttpAssistantAdapter } from './http';
@@ -27,6 +28,31 @@ const plan: AnalysisPlan = {
 };
 
 describe('bounded profiles and analysis context', () => {
+  it('profiles primitive nominal categories by typed identity without inventing numeric statistics', () => {
+    const input = dataset(
+      [1, '1', true, 0, false, null, '', undefined, Infinity, {}].map((category) => ({ category })),
+      { category: { type: 'nominal' } },
+    );
+    const profile = profileDataset(input);
+    expect(profile.fields[0]).toEqual({
+      field: 'category',
+      type: 'nominal',
+      valid: 5,
+      invalid: 2,
+      missing: 3,
+      distinct: 5,
+    });
+    const result = createAnalysisContext({
+      schema: input.schema,
+      source: context.source,
+      profile,
+      selection: [{ field: 'category', op: 'in', value: [1, '1', true, 0, false] }],
+    });
+    expect(result.selection).toEqual([
+      { field: 'category', op: 'in', value: [1, '1', true, 0, false] },
+    ]);
+    expect(Object.isFrozen(result.selection[0].value)).toBe(true);
+  });
   it('reports exact examined-prefix counters, not whole-data estimates or nominal samples', () => {
     const input = dataset(
       [
@@ -156,6 +182,39 @@ describe('bounded profiles and analysis context', () => {
 });
 
 describe('analysis plan validation', () => {
+  it('accepts primitive nominal filters while preserving exact category matches and transport bounds', () => {
+    const values = [1, '1', true, 0, false];
+    const rows = values.map((category) => ({ category }));
+    for (const value of values) {
+      const result = validateAnalysisPlan(
+        { ...plan, actions: [{ type: 'filter', field: 'category', op: 'eq', value }] },
+        context,
+      );
+      expect(result.valid).toBe(true);
+      if (!result.valid) throw new Error('Expected nominal filter to validate');
+      const action = result.plan.actions[0];
+      if (action.type !== 'filter' || action.op !== 'eq') throw new Error('Expected equality');
+      expect(rows.filter((row) => matches(row, action))).toEqual([{ category: value }]);
+      expect(reduceAnalysisPlan(result.plan, { filters: [] }, context).filters).toEqual([
+        { field: 'category', op: 'eq', value },
+      ]);
+    }
+    for (const value of [Infinity, NaN, {}, [], 'x'.repeat(501)]) {
+      expect(
+        validateAnalysisPlan(
+          { ...plan, actions: [{ type: 'filter', field: 'category', op: 'eq', value }] },
+          context,
+        ).valid,
+      ).toBe(false);
+    }
+    expect(() =>
+      createAnalysisContext({
+        schema: data.schema,
+        source: context.source,
+        selection: [{ field: 'category', op: 'in', value: Array(101).fill(1) }],
+      }),
+    ).toThrow(/active selection/);
+  });
   it('validates and immutably reduces a complete declarative plan', () => {
     const result = validateAnalysisPlan(JSON.stringify(plan), context);
     expect(result.valid).toBe(true);

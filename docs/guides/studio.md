@@ -25,7 +25,9 @@ Add up to sixteen blocks. Edit each title and type, map its fields, move it earl
 
 Mappings are checked against loaded field names and types. Incompatible mappings show an error, so remap fields after a source change. Type validity cannot prove that an analysis makes sense: do not sum temperatures or earthquake magnitudes, or label an unweighted mean of twelve countries as global life expectancy.
 
-The preview renders native Quartile components after checking the project and mappings. Compatible chart selections link views through `Selection`. DataExplorer's local search and filters refine its table independently. Transient selection and table view settings are not part of the saved Studio project. [Data and selection](data-and-selection.md) and [tables](tables.md) explain that boundary.
+A newly added bar leaves its measure unset: explicitly choose an additive field before it renders or exports. A new line does not automatically choose a series field; select one when repeated x values represent separate series, such as countries in the development preset.
+
+The preview renders native Quartile components after checking the project and mappings. Compatible chart selections link views through `Selection`. DataExplorer's local search and filters refine its table independently. Switching between canvas and React source preserves the current exploration, as does reordering blocks. Field mapping, block removal and source changes reset affected shared selection. Transient selection and table view settings are not part of the saved Studio project. [Data and selection](data-and-selection.md) and [tables](tables.md) explain that boundary.
 
 ## Export and continue in React
 
@@ -37,7 +39,7 @@ The **React source** mode shows ordinary Quartile JSX. **Download React source**
 
 - `src/App.tsx`, a native component composition with request states and provenance.
 - `src/quartile-data.ts`, the same standalone fetch and normalization helper.
-- `src/quartile-chart.ts`, the duplicate-coordinate guard used by exported line charts.
+- `src/quartile-chart.ts`, the schema/mapping and duplicate-coordinate guards used by exported views.
 - `src/app.css`, `src/main.tsx`, HTML, TypeScript and Vite configuration.
 - `quartile-project.json`, which can be reimported into Studio.
 - A pinned `package.json`, README and the built Apache-2.0 preview tarball under `vendor/`.
@@ -51,7 +53,7 @@ npm run dev
 npm run build
 ```
 
-Quartile is not published to npm. The starter uses its bundled local tarball; other dependencies still install from the registry. Keep the generated lockfile for subsequent reproducible installs. Exporting does not snapshot the API response: the resulting app fetches the provider when it runs. Preserve credits and review data/provider terms independently of the source code's Apache-2.0 license.
+Quartile is not published to npm. The starter uses its bundled local tarball; other dependencies still install from the registry. Keep the generated lockfile for subsequent reproducible installs. Exporting does not snapshot the API response: the resulting app fetches the provider when it runs. Each response is checked against the actual JSX field mappings; missing or incompatible fields show a validation error, and a later valid response can recover on refresh. Preserve credits and review data/provider terms independently of the source code's Apache-2.0 license.
 
 Edit the JSX and helper as normal application code. Reimporting project JSON restores the editor configuration; Studio does not parse your later JSX edits back into a project. For an existing Next.js app, use a client boundary and import the stylesheet once. See [integration](integration.md).
 

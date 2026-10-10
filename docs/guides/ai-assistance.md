@@ -6,6 +6,8 @@ The [assistant example](https://quartile-design.vercel.app/examples/assistant) s
 
 ## Build the context deliberately
 
+In this fragment, `rows` is the bounded sample population supplied by your application.
+
 ```tsx
 import { dataset } from '@quartile/react';
 import { createAnalysisContext, profileDataset } from '@quartile/react/ai';
@@ -41,6 +43,8 @@ const context = createAnalysisContext({
 | `table` | Allowlisted `fields` and explicit `limit` up to 1,000. |
 
 `validateAnalysisPlan(input, context)` checks finite JSON, known keys, action bounds, field existence and compatible encodings. It returns `{ valid, plan?, errors }`. `reduceAnalysisPlan(plan, state, context)` validates the whole plan before returning new `AnalysisViewState`; it does not fetch, write, or mutate a `Selection`. The application maps accepted view state to its charts/table and owns the atomic local commit. Keep record inspection filters and metric populations explicit.
+
+Nominal fields may contain strings, finite numbers or booleans: `1`, `"1"` and `true` retain different category identities in profiling and proposal validation. A numeric identifier declared nominal is not a quantitative measure. Nominal equality/inclusion values preserve those primitive types; strings are bounded to 500 characters. This does not change the documented comparison semantics of every downstream chart or selection consumer.
 
 Payloads are bounded at 64 KiB; prompt text at 8,000 characters; inclusion lists at 100 values; table projections at 24 fields. Unknown actions, executable values and unsafe object shapes are rejected. These restrictions establish a rendering contract, not proof that a model's explanation is correct.
 

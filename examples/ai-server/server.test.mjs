@@ -146,6 +146,34 @@ test('valid browser request calls the real provider endpoint contract and return
   );
 });
 
+test('numeric, string and boolean nominal categories retain their types across request and plan validation', async () => {
+  const values = [1, '1', true];
+  const nominalContext = createAnalysisContext({
+    schema: {
+      category: { name: 'category', label: 'Category', type: 'nominal', format: 'text' },
+    },
+    source: context.source,
+    selection: [{ field: 'category', op: 'in', value: values }],
+  });
+  const nominalPlan = {
+    ...plan,
+    actions: [{ type: 'filter', field: 'category', op: 'in', value: values }],
+  };
+  await withServer(
+    async (url) => {
+      const response = await post(url, { ...payload, context: nominalContext });
+      assert.equal(response.status, 200);
+      assert.deepEqual(await response.json(), nominalPlan);
+    },
+    async (_url, options) => {
+      const body = JSON.parse(options.body);
+      const forwarded = JSON.parse(body.input[1].content).context;
+      assert.deepEqual(forwarded.selection[0].value, values);
+      return complete(nominalPlan);
+    },
+  );
+});
+
 test('origin, media type, unknown path, malformed context and excessive bytes fail before provider calls', async () => {
   let calls = 0;
   await withServer(

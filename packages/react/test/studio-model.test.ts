@@ -1,7 +1,10 @@
 // @vitest-environment node
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
-import { lineDataError } from '../../../apps/gallery/src/examples/studio/chart-data';
+import {
+  blockDataError,
+  lineDataError,
+} from '../../../apps/gallery/src/examples/studio/chart-data';
 import {
   createZip,
   reactSource,
@@ -99,6 +102,8 @@ describe('Studio project boundary', () => {
   it('requires quantitative measures and continuous line/scatter axes, with schema-owned names', () => {
     const data = normalizeSource(custom, [{ amount: 4, other: 9, category: 'a', flag: true }]);
     const block = createBlock('line', data.schema, 'line');
+    expect(block.color).toBeUndefined();
+    expect(createBlock('bar', data.schema, 'bar').y).toBeUndefined();
     expect(blockError(block, data.schema)).toBeNull();
     expect(blockError({ ...block, y: 'category' }, data.schema)).toContain('quantitative');
     expect(blockError({ ...block, x: 'category' }, data.schema)).toContain(
@@ -121,6 +126,22 @@ describe('Studio project boundary', () => {
         data.schema,
       ),
     ).toContain('loaded source');
+  });
+});
+
+describe('Studio live-response validation', () => {
+  it('rejects missing or changed measures and table fields while allowing a count to survive schema changes', () => {
+    const original = normalizeSource(custom, [{ time: 1, amount: 4, category: 'A' }]);
+    const changed = normalizeSource(custom, [{ time: 1, amount: 'unavailable', category: 'A' }]);
+    const missing = normalizeSource(custom, [{ time: 1, category: 'A' }]);
+    const line = { type: 'line', x: 'time', y: 'amount' };
+    expect(blockDataError(original, line)).toBeNull();
+    expect(blockDataError(changed, line)).toContain('quantitative');
+    expect(blockDataError(missing, line)).toContain('loaded source');
+    expect(blockDataError(missing, { type: 'table', columns: ['amount'] })).toContain(
+      'loaded source',
+    );
+    expect(blockDataError(missing, { type: 'metric', aggregate: 'count' })).toBeNull();
   });
 });
 
@@ -221,7 +242,8 @@ describe('native React source export', () => {
     const code = sourceText(files, 'src/App.tsx');
     expect(code).toContain('<LineChart');
     expect(code).toContain('<DataExplorer');
-    expect(code).toContain('lineDataError');
+    expect(code).toContain('blockDataError');
+    expect(code).toContain('children.props');
     expect(code).toContain('controller.abort()');
     expect(code).toContain('result.attribution');
     expect(code).toContain('result.warnings');

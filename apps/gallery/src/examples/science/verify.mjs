@@ -17,6 +17,11 @@ let notifySlow;
 const slowRequested = new Promise((resolve) => {
   notifySlow = resolve;
 });
+let slowAnalysis;
+let notifyAnalysis;
+const analysisRequested = new Promise((resolve) => {
+  notifyAnalysis = resolve;
+});
 const sourceRequests = [];
 const snapshot = JSON.stringify({
   label: 'Connected orders',
@@ -30,8 +35,16 @@ const snapshot = JSON.stringify({
 const sourceServer = createServer((request, response) => {
   sourceRequests.push(request.headers);
   response.setHeader('Access-Control-Allow-Origin', '*');
+  response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  response.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   response.setHeader('Content-Type', 'application/json');
-  if (request.url === '/slow') {
+  if (request.method === 'OPTIONS') {
+    response.writeHead(204);
+    response.end();
+  } else if (request.url === '/analysis-slow') {
+    slowAnalysis = response;
+    notifyAnalysis();
+  } else if (request.url === '/slow') {
     slowResponse = response;
     response.writeHead(200);
     response.write('[');
@@ -66,6 +79,26 @@ try {
   const records = page.getByRole('grid', { name: 'Dataset records' });
   await records.waitFor();
   await equalText(metric('Records in focus'), '180');
+  await page.locator('.q-bar-list-row').filter({ hasText: 'Batch 01' }).click();
+  await equalText(metric('Records in focus'), '30');
+  await page.getByRole('combobox', { name: 'Group', exact: true }).selectOption('material');
+  await equalText(metric('Records in focus'), '180');
+  await page.locator('.q-bar-list-row').filter({ hasText: 'Alloy' }).click();
+  await equalText(metric('Records in focus'), '60');
+  const distribution = page.getByRole('application', { name: /^Temperature distribution\./ });
+  await distribution.focus();
+  await distribution.press('ArrowRight');
+  await distribution.press('Enter');
+  await page.getByText('2 linked selections', { exact: true }).waitFor();
+  await page.getByRole('combobox', { name: 'Measure', exact: true }).selectOption('pressureKpa');
+  await equalText(metric('Records in focus'), '60');
+  await page.getByText('1 linked selections', { exact: true }).waitFor();
+  await page.getByRole('combobox', { name: 'Group', exact: true }).selectOption('batch');
+  await equalText(metric('Records in focus'), '180');
+  await page.getByRole('combobox', { name: 'Measure', exact: true }).selectOption('temperatureC');
+  checked(
+    'Changing a chart mapping removes its obsolete selection and preserves the other chart filter.',
+  );
   await records
     .getByRole('button', { name: /^Edit Temperature, row/ })
     .nth(1)
@@ -125,6 +158,24 @@ try {
     .waitFor();
   checked(
     'Typed dataframe JSON imports preserve string identifiers and replace the analysis dataset.',
+  );
+  await page.locator('input[type=file]').setInputFiles({
+    name: 'sparse.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from('[{"toString":"first","amount":1},{"amount":2}]'),
+  });
+  await page.getByText('sparse.json', { exact: true }).first().waitFor();
+  await equalText(metric('Missing cells'), '1');
+  assert.doesNotMatch(await records.innerText(), /native code/);
+  await page.locator('input[type=file]').setInputFiles({
+    name: 'empty.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from('[]'),
+  });
+  await page.getByText(/Import failed:.*non-empty row array/).waitFor();
+  await equalText(metric('Records in focus'), '2');
+  checked(
+    'Sparse imported fields render as missing cells; a rejected empty import retains the previous snapshot.',
   );
   await page.getByText('Load from a data URL', { exact: true }).click();
   const sourceURL = page.getByRole('textbox', { name: 'Data URL', exact: true });
@@ -241,6 +292,54 @@ try {
   await page.getByRole('checkbox', { name: 'Include field quality and range summaries' }).uncheck();
   assert.equal(await page.getByRole('button', { name: 'Apply changes', exact: true }).count(), 0);
   checked('Changing disclosed context invalidates a pending AI proposal.');
+  await page.getByRole('button', { name: 'Reset analysis', exact: true }).click();
+  await page.getByRole('button', { name: 'Show failed samples', exact: true }).click();
+  await page.getByRole('button', { name: 'Apply changes', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Reset analysis', exact: true }).click();
+  assert.equal(await page.getByRole('button', { name: 'Apply changes', exact: true }).count(), 0);
+  checked('Reset analysis discards a proposal even when the original view has not changed.');
+  const assistantChart = page.getByRole('application', { name: /^Assistant analysis chart\./ });
+  await assistantChart.focus();
+  await assistantChart.press('ArrowRight');
+  await assistantChart.press('Enter');
+  assert.equal(await page.locator('.q-histogram-brush').count(), 1);
+  const selectedBeforePlan = await page.locator('.q-filterbar').innerText();
+  await page.getByRole('button', { name: 'Compare temperature and yield', exact: true }).click();
+  await page.getByRole('button', { name: 'Apply changes', exact: true }).click();
+  await page.getByRole('button', { name: 'Undo last plan', exact: true }).click();
+  assert.equal(await page.locator('.q-histogram-brush').count(), 1);
+  assert.equal(await page.locator('.q-filterbar').innerText(), selectedBeforePlan);
+  checked(
+    'Undo after a chart-type change restores the previous brush and its crossfilter publisher.',
+  );
+
+  await page.getByRole('button', { name: 'Reset analysis', exact: true }).click();
+  await page.getByText('Model connection', { exact: true }).click();
+  const endpoint = page.getByRole('textbox', { name: 'Backend endpoint' });
+  await endpoint.fill(`${sourceOrigin}/failure`);
+  await page.getByRole('button', { name: 'Use backend', exact: true }).click();
+  await prompt.fill('Show failed samples');
+  await page.getByRole('button', { name: 'Propose changes', exact: true }).click();
+  await page.getByRole('alert').filter({ hasText: 'HTTP 503' }).waitFor();
+  await page.getByText('180 samples', { exact: true }).waitFor();
+  await endpoint.fill(`${sourceOrigin}/analysis-slow`);
+  await page.getByRole('button', { name: 'Use backend', exact: true }).click();
+  await page.getByRole('button', { name: 'Propose changes', exact: true }).click();
+  await analysisRequested;
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  slowAnalysis.end(
+    JSON.stringify({
+      version: 1,
+      title: 'Cancelled backend fixture',
+      summary: 'A protocol test response that must never become an applicable proposal.',
+      actions: [{ type: 'filter', field: 'passed', op: 'eq', value: false }],
+    }),
+  );
+  await page.getByText('Cancelled. No pending proposal.', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Apply changes', exact: true }).count(), 0);
+  await page.getByText('180 samples', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Use local rules', exact: true }).click();
+  checked('Backend failure and a cancelled delayed proposal leave the current analysis unchanged.');
   await page.screenshot({ path: `${output}/assistant-desktop.png`, fullPage: true });
 
   for (const route of ['explore', 'cohorts', 'model-evaluation', 'assistant']) {

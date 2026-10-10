@@ -51,7 +51,11 @@ function validValue(value: unknown, field: AnalysisField): value is AnalysisValu
     case 'boolean':
       return typeof value === 'boolean';
     case 'nominal':
-      return typeof value === 'string' && value.length <= 500;
+      return (
+        (typeof value === 'string' && value.length <= 500) ||
+        typeof value === 'boolean' ||
+        (typeof value === 'number' && Number.isFinite(value))
+      );
   }
 }
 

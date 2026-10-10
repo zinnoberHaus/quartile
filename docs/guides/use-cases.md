@@ -11,11 +11,30 @@ Use [Studio](studio.md) for a weather forecast, earthquake event inspection or c
 | Storefront revenue, acquisition, conversion | [Storefront](https://quartile-design.vercel.app/examples/storefront) | [StorefrontExample](../../apps/gallery/src/examples/storefront/StorefrontExample.tsx) |
 | Customer subscription portfolio | [SaaS analytics](https://quartile-design.vercel.app/examples/saas) | [Workbench](../../apps/gallery/src/examples/workbench/Workbench.tsx) |
 | Operations and incident investigation | [Service health](https://quartile-design.vercel.app/examples/operations) | [Workbench](../../apps/gallery/src/examples/workbench/Workbench.tsx) |
-| Model-generated component specs | [JSON dashboard](https://quartile-design.vercel.app/examples/ai-dashboard) | [Spec editor](../../apps/gallery/src/examples/workbench/Workbench.tsx) |
+| Editable dashboard JSON | [JSON dashboard](https://quartile-design.vercel.app/examples/ai-dashboard) | [Spec editor](../../apps/gallery/src/examples/workbench/Workbench.tsx) |
 | Dataset profiling and analytical tables | [Dataset explorer](https://quartile-design.vercel.app/examples/explore) | [Science workspace](../../apps/gallery/src/examples/science) |
 | Exact return activity by acquisition cohort | [Cohort retention](https://quartile-design.vercel.app/examples/cohorts) | [Calculations](../../apps/gallery/src/examples/science/analysis.ts) |
 | Threshold and slice evaluation | [Model evaluation](https://quartile-design.vercel.app/examples/model-evaluation) | [Predictions and calculations](../../apps/gallery/src/examples/science) |
 | Reviewed analysis proposals | [Analysis assistant](https://quartile-design.vercel.app/examples/assistant) | [Assistant workspace](../../apps/gallery/src/examples/science/AssistantWorkbench.tsx) |
+
+## Walk through the examples
+
+Start with the unfiltered view, make one change, inspect both the displayed metric and the exact records, then clear that change. A chart deliberately keeps alternatives visible when it publishes its own selection; a selected account table can therefore retain other matching accounts while sibling views focus on the selection.
+
+| Route | Try this | Check the meaning |
+| --- | --- | --- |
+| `/examples/storefront` | Change the period, select a region, inspect products and export the displayed records. | Comparison periods and aggregate fixture rows are modeled commerce data, not a live shop connection. |
+| `/examples/saas` | Select a plan, inspect account totals, then choose **View charts as tables**. | Exact chart tables are for inspection; return to chart mode or use the Plan filter to change a plan selection. MRR is one snapshot per account. |
+| `/examples/operations` | Select a service, brush a latency interval, then inspect requests and reset. | The selected error rate uses matching requests as its denominator. The heatmap sums the binary failure flag to count failed requests. |
+| `/examples/ai-dashboard` | Change a title and **Validate and render**; then enter an unknown component and validate again. | Invalid edits retain the last valid view. **Reset example** restores the original JSON and selection. This route makes no model call. |
+| `/examples/explore` | Import a small file or URL snapshot, choose a measure/group, search the table, then export CSV. | Profiles/charts follow the explorer's table search and filters. Saved views contain settings; CSV contains the current matching records or grouped summaries. |
+| `/examples/cohorts` | Choose a cohort/channel and an **Inspect interval** month; reconcile membership with the exact calculation. | Only complete calendar months enter retention denominators. The heatmap does not publish cell clicks. Detail-table filters do not recalculate cohort retention. |
+| `/examples/model-evaluation` | Move the decision threshold, choose a segment, then inspect a false-positive confusion cell. | Segment selection changes the metric population; an outcome or detail-table filter only narrows inspected records. |
+| `/examples/assistant` | Request a local example proposal, inspect context and proposed changes, then Apply, Undo or Reset. | Local mode is deterministic. A proposal does not alter the analysis until applied. Connect the separate server only with your own configured model account. |
+| `/examples/scale` | Initialize a small source, change a shared filter, inspect the page/point counts and download measurements. | Source records, matching records, returned rows and plotted marks differ. Scatter uses bounded first matching IDs, not representative sampling. |
+| `/studio` | Load a preset, change a mapping, switch canvas/source, then download a project and React starter. | Requests are real; source changes can fail. Project JSON saves configuration, while the starter fetches data again when run. |
+
+See [connecting data](connecting-data.md), [science calculations](data-science.md), [AI integration](ai-assistance.md), [worker queries](worker-queries.md) and [Studio exports](studio.md) for the specific contracts. None of these local examples supplies application authentication or hosted persistence.
 
 ## Storefront analytics
 
@@ -39,7 +58,7 @@ For embedding, scope a provider and selection to the widget, map brand tokens, a
 
 Question: which services and regions explain slow or failed requests?
 
-The example has 360 request records. `BoxPlot` compares latency distributions by service; `Histogram` allows brushing the slow tail; `Heatmap` counts requests by service and region. The table lists the slowest matching requests. The error-rate KPI is the mean of a binary error field, equivalent to errors divided by requests.
+The example has 360 request records. `BoxPlot` compares latency distributions by service; `Histogram` allows brushing the slow tail; `Heatmap` sums the binary failure flag to count failed requests by service and region. The table lists the slowest matching requests. The error-rate KPI is the mean of a binary error field, equivalent to errors divided by requests.
 
 On real telemetry, bound the time window and sample/aggregate server-side. Keep denominators explicit: filtering to `status = Error` makes the selected subset's error rate 100%, which is correct but different from the service's unfiltered overall error rate. If an overall reference KPI is needed, render it with `selection={false}` and label it clearly. Means do not reveal tail latency; use distributions or a separately computed percentile.
 

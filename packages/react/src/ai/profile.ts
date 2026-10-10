@@ -51,7 +51,9 @@ export function profileDataset<R extends Row>(
               : NaN;
       const valid =
         type === 'nominal'
-          ? typeof value === 'string'
+          ? typeof value === 'string' ||
+            typeof value === 'boolean' ||
+            (typeof value === 'number' && Number.isFinite(value))
           : type === 'boolean'
             ? typeof value === 'boolean'
             : typeof value === 'number' &&

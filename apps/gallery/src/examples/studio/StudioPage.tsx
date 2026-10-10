@@ -18,7 +18,7 @@ import license from '../../../../../LICENSE?raw';
 import { Link, useLocation } from '../../router';
 import { Wordmark } from '../../shell/Logo';
 import { links } from '../../shell/links';
-import { lineDataError } from './chart-data';
+import { blockDataError } from './chart-data';
 import chartRuntime from './chart-data.ts?raw';
 import { createZip, reactSource, starterFiles } from './export';
 import {
@@ -85,9 +85,7 @@ function BlockView({
   data: Dataset<Row>;
   rowIds: Map<Row, string>;
 }) {
-  const error =
-    blockError(block, data.schema) ||
-    (block.type === 'line' ? lineDataError(data, block.x!, block.color) : null);
+  const error = blockDataError(data, block);
   if (error)
     return <p className="st-inline-error">{error} Select this component to configure it.</p>;
   switch (block.type) {
@@ -431,10 +429,8 @@ export function StudioPage() {
   } catch (error) {
     configurationError = message(error);
   }
-  const invalidBlock = project.blocks.find(
-    (block) =>
-      blockError(block, schema) ||
-      (result && block.type === 'line' && lineDataError(result.data, block.x!, block.color)),
+  const invalidBlock = project.blocks.find((block) =>
+    result ? blockDataError(result.data, block) : blockError(block, schema),
   );
   const exportReady = !!result && !configurationError && !invalidBlock;
 
@@ -674,8 +670,8 @@ export function StudioPage() {
                           'Template reset. Loading its source.',
                         );
                     }}
-                    className={!custom && project.source.kind === preset.id ? 'is-active' : ''}
-                    aria-current={!custom && project.source.kind === preset.id ? 'true' : undefined}
+                    className={project.source.kind === preset.id ? 'is-active' : ''}
+                    aria-current={project.source.kind === preset.id ? 'true' : undefined}
                   >
                     <span>
                       {preset.id === 'weather' ? '01' : preset.id === 'earthquakes' ? '02' : '03'}
@@ -701,15 +697,22 @@ export function StudioPage() {
                 ))}
                 <button
                   type="button"
-                  className={custom ? 'is-active' : ''}
+                  className={project.source.kind === 'custom' ? 'is-active' : ''}
+                  aria-expanded={custom}
+                  aria-controls="studio-custom-source"
                   onClick={() => setCustom((value) => !value)}
                 >
                   + Connect a public JSON API
                 </button>
               </div>
+              <p className="st-help">
+                Choosing a source starts a new layout. Save a local draft or export your project
+                before switching.
+              </p>
               {custom && (
                 <form
                   className="st-custom"
+                  id="studio-custom-source"
                   onSubmit={(event) => {
                     event.preventDefault();
                     try {
@@ -913,7 +916,7 @@ export function StudioPage() {
                   )}
                 </div>
               )}
-              {mode === 'code' ? (
+              {mode === 'code' && (
                 <div className="st-code">
                   <div>
                     <span>src/App.tsx</span>
@@ -933,90 +936,85 @@ export function StudioPage() {
                     <code>{code}</code>
                   </pre>
                 </div>
-              ) : (
-                <>
-                  {phase === 'loading' && (
-                    <div className="st-loading" role="status">
-                      <span className="st-loading-line" />
-                      Requesting and validating the public API…
-                      <small>The workspace appears when real records arrive.</small>
-                      <div aria-hidden="true" />
-                    </div>
-                  )}
-                  {phase === 'error' && (
-                    <div className="st-empty" role="alert">
-                      <strong>We couldn’t load this source.</strong>
-                      <p>{error}</p>
-                      <button type="button" onClick={() => setRevision((n) => n + 1)}>
-                        Try again
-                      </button>
-                    </div>
-                  )}
-                  {phase === 'cancelled' && (
-                    <div className="st-empty">
-                      <strong>Request cancelled.</strong>
-                      <p>No source records are loaded.</p>
-                      <button type="button" onClick={() => setRevision((n) => n + 1)}>
-                        Load source
-                      </button>
-                    </div>
-                  )}
-                  {result &&
-                    (result.data.rows.length === 0 ? (
-                      <div className="st-empty" role="status">
-                        This source returned no records. Choose another source or reload later.
-                      </div>
-                    ) : (
-                      <Selection key={result.fetchedAt} id="studio-analysis">
-                        <ResetChartSelections
-                          signature={JSON.stringify(
-                            project.blocks.map(({ id, type, x, y, color }) => ({
-                              id,
-                              type,
-                              x,
-                              y,
-                              color,
-                            })),
-                          )}
-                        />
-                        <FilterBar data={result.data} fields={filters} />
-                        <div className="st-block-grid">
-                          {project.blocks.map((block) => (
-                            <section
-                              key={block.id}
-                              className="st-block"
-                              data-selected={selected === block.id || undefined}
-                              data-block-id={block.id}
-                              style={{ gridColumn: `span ${block.span}` }}
-                            >
-                              <div className="st-block-heading">
-                                <span>{labels[block.type]}</span>
-                                <button
-                                  type="button"
-                                  aria-label={`Configure ${block.title}`}
-                                  aria-pressed={selected === block.id}
-                                  onClick={() => configure(block.id)}
-                                >
-                                  Configure ↗
-                                </button>
-                              </div>
-                              {block.type !== 'metric' && <h3>{block.title}</h3>}
-                              <BlockView block={block} data={result.data} rowIds={rowIds} />
-                              {block.type === 'bar' && (
-                                <p className="st-help">Sum per X / series combination.</p>
-                              )}
-                            </section>
-                          ))}
-                        </div>
-                        {project.blocks.length === 0 && (
-                          <div className="st-empty">
-                            Add a component from the project controls to begin.
-                          </div>
-                        )}
-                      </Selection>
-                    ))}
-                </>
               )}
+              <div hidden={mode !== 'visual'}>
+                {phase === 'loading' && (
+                  <div className="st-loading" role="status">
+                    <span className="st-loading-line" />
+                    Requesting and validating the public API…
+                    <small>The workspace appears when real records arrive.</small>
+                    <div aria-hidden="true" />
+                  </div>
+                )}
+                {phase === 'error' && (
+                  <div className="st-empty" role="alert">
+                    <strong>We couldn’t load this source.</strong>
+                    <p>{error}</p>
+                    <button type="button" onClick={() => setRevision((n) => n + 1)}>
+                      Try again
+                    </button>
+                  </div>
+                )}
+                {phase === 'cancelled' && (
+                  <div className="st-empty">
+                    <strong>Request cancelled.</strong>
+                    <p>No source records are loaded.</p>
+                    <button type="button" onClick={() => setRevision((n) => n + 1)}>
+                      Load source
+                    </button>
+                  </div>
+                )}
+                {result &&
+                  (result.data.rows.length === 0 ? (
+                    <div className="st-empty" role="status">
+                      This source returned no records. Choose another source or reload later.
+                    </div>
+                  ) : (
+                    <Selection key={result.fetchedAt} id="studio-analysis">
+                      <ResetChartSelections
+                        signature={JSON.stringify(
+                          project.blocks
+                            .map(({ id, type, x, y, color }) => ({ id, type, x, y, color }))
+                            .sort((a, b) => a.id.localeCompare(b.id)),
+                        )}
+                      />
+                      <FilterBar data={result.data} fields={filters} />
+                      <div className="st-block-grid">
+                        {project.blocks.map((block) => (
+                          <section
+                            key={block.id}
+                            className="st-block"
+                            data-selected={selected === block.id || undefined}
+                            data-block-id={block.id}
+                            style={{ gridColumn: `span ${block.span}` }}
+                          >
+                            <div className="st-block-heading">
+                              <span>{labels[block.type]}</span>
+                              <button
+                                type="button"
+                                aria-label={`Configure ${block.title}`}
+                                aria-pressed={selected === block.id}
+                                onClick={() => configure(block.id)}
+                              >
+                                Configure ↗
+                              </button>
+                            </div>
+                            {block.type !== 'metric' && <h3>{block.title}</h3>}
+                            <BlockView block={block} data={result.data} rowIds={rowIds} />
+                            {block.type === 'bar' && (
+                              <p className="st-help">Sum per X / series combination.</p>
+                            )}
+                          </section>
+                        ))}
+                      </div>
+                      {project.blocks.length === 0 && (
+                        <div className="st-empty">
+                          Add a component from the project controls to begin.
+                        </div>
+                      )}
+                    </Selection>
+                  ))}
+              </div>
               {result && (
                 <details className="st-provenance">
                   <summary>

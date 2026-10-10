@@ -1,6 +1,6 @@
 # From a dataframe to an analytical workspace
 
-Use this standard-library handoff example to export a pandas or Polars dataframe and inspect it in the [dataset explorer](https://quartile-design.vercel.app/examples/explore). This is a file snapshot, not a Python SDK, hosted notebook, or two-way synchronization service.
+Use this standard-library handoff example to export a pandas or Polars dataframe and inspect it in the [dataset explorer](https://quartile-design.vercel.app/examples/explore). This is a file snapshot, not a Python SDK, hosted notebook, or two-way synchronization service. Copy `quartile_snapshot.py` beside your notebook or script before importing it, or add `examples/python` to your Python import path. The included notebook is intended to run with `examples/python` as its working directory.
 
 ```python
 from quartile_snapshot import write_snapshot
@@ -18,7 +18,7 @@ write_snapshot(
 )
 ```
 
-Open the explorer and choose **Import CSV or JSON**. Imported files stay in the browser. Saving a table view stores its configuration locally; it does not upload or save the imported dataset. A connected AI adapter can send its explicitly displayed context to the backend you configure.
+Open the explorer and choose **Import CSV or JSON**. Imported files stay in the browser. Saving a table view stores its configuration locally; it does not upload or save the imported dataset. You can also host the snapshot at a browser-readable URL and use **Load from a data URL**; see [the supported formats and request behavior](../../docs/guides/connecting-data.md). This does not synchronize notebook state. The separate assistant workflow sends only its configured, inspectable context when requested.
 
 The helper accepts dataframes or a list of row dictionaries. It preserves booleans, finite numbers and strings, converts dates to ISO strings, and converts non-finite numeric values and pandas missing scalars to JSON `null`. Nested cells are rejected. Integer-valued numbers outside JavaScript's safe range (±9,007,199,254,740,991), including floats or decimals with that magnitude, must be deliberately converted to strings; this avoids silently changing identifiers. The JSON importer applies the same bound; CSV columns containing unsafe integers stay text. Label identifiers as nominal when a date-like or numeric spelling must remain an identifier.
 

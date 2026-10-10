@@ -40,6 +40,8 @@ export function SampleExplorer() {
 
 The explorer applies shared selection first, excluding its own published predicate. It then applies local search and filters, groups if requested, sorts, and paginates. Local search/filter controls refine this table only; they do not publish chart predicates. Row selection through `select` does publish to the nearest `Selection`. A required stable `rowKey` identifies records independently of sorting or paging.
 
+The runnable dataset explorer deliberately goes further: it passes rows through `filterTableRows` before supplying its charts and profile. Its search/filters therefore refine the whole workspace. Studio's table controls remain local to that table. Neither behavior changes the base component's contract.
+
 Search is case-insensitive across configured source fields, including hidden columns. Filters combine with AND. Grouping uses a single field and the columns' existing aggregate definitions; grouped rows are summaries, not source records. Editing is disabled while grouped. Choose sum/count/mean/min/max explicitly where the default would not reflect your metric.
 
 Local category filtering and grouping preserve typed identities. The legacy synchronous shared selection path still uses date-aware comparison, which can equate nominal strings that parse to the same instant. `typedSelection` preserves table highlighting/publication but does not change every sibling component's filter semantics. Use stable non-date-like IDs for linked record selection. When grouped, selecting a row publishes its grouping value rather than the first member's record ID.

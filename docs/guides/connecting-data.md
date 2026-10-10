@@ -2,9 +2,20 @@
 
 Start with the dataset explorer at `/examples/explore` in the local gallery (`pnpm dev`). Import a CSV/JSON file or open **Load from a data URL**. Choose a numeric measure and a categorical group; selecting a category updates the distribution, field profile and records. Search and table filters also refine the charts. Clear the selection or restore the sample to start again.
 
+## Choose a data path
+
+| Path | Input and purpose | Example limits |
+| --- | --- | --- |
+| Dataset explorer | CSV/JSON file or browser-readable snapshot URL; inspect profiles, distributions and records | 5,000,000 bytes, 10,000 rows, 64 fields; URL UI deadline 15 seconds |
+| [Studio](studio.md) | Three public API presets or custom HTTPS JSON; compose views and export native React | 2 MiB, 5,000 rows, 64 fields; 20-second request deadline |
+| Your React application | Application-owned requests and authorized rows or `dataset(rows, fields)` | Your application defines request, retention and access limits |
+| [Worker queries](worker-queries.md) | Typed Arrow sources queried in an application-owned DuckDB worker | Explicit bounded query results; separate optional API |
+
+These are separate example contracts, not interchangeable loaders or universal library capacities. The explorer explicitly connects its local table search/filters to its charts. A standalone `DataExplorer` does not publish these local controls as shared selection predicates; [table scope](tables.md#processing-order-and-scope) explains how to compose that behavior yourself.
+
 ## A file or API snapshot
 
-The explorer accepts a JSON row array or a metadata envelope:
+The explorer accepts a nonempty JSON row array or a metadata envelope:
 
 ```json
 {
@@ -21,6 +32,8 @@ The explorer accepts a JSON row array or a metadata envelope:
 ```
 
 Use a public HTTP(S) URL or a browser-accessible application endpoint returning that shape. Choose CSV or JSON explicitly when an endpoint's extension and content type do not describe its response. URL imports send no cookies, authorization headers or referrer. Cross-origin sources must allow access through CORS; Quartile does not proxy around a source's access policy. Keep database passwords and service keys on your server.
+
+Use HTTPS on the deployed gallery: browsers normally block an insecure remote response from a secure page. HTTP is accepted by the loader for environments whose browser policy permits it. Auto format checks the response content type, then a CSV filename suffix, otherwise trying JSON. A receipt timestamp describes the browser's successful load, not when the provider published the data.
 
 Both file and URL imports accept up to 5 MB, 10,000 rows and 64 fields. URL responses are checked while streaming, including when the server omits Content-Length; requests time out after 15 seconds. Cells must be scalar values or null. Nested API envelopes, pagination and database protocols need an application adapter. CSV numeric inference preserves leading-zero IDs and oversized integers as strings; represent large integer IDs as strings in JSON too. Use field metadata for numeric IDs that should be categories and ambiguous dates.
 
@@ -53,7 +66,7 @@ export function Orders({ rows }: { rows: Order[] }) {
 }
 ```
 
-For authenticated sources, fetch from your application backend using its existing session and authorization rules; validate and bound its response before passing rows into this component. The [URL loader](../../apps/gallery/src/examples/science/load-data.ts) and [source UI](../../apps/gallery/src/examples/science/DatasetSource.tsx) are gallery examples, not new package APIs. The [installation guide](installation.md) explains how to consume the unpublished preview locally.
+For authenticated sources, fetch from your application backend using its existing session and authorization rules; validate and bound its response before passing rows into this component. The [URL loader](../../apps/gallery/src/examples/science/load-data.ts) and [source UI](../../apps/gallery/src/examples/science/DatasetSource.tsx) are gallery examples, not new package APIs. The UI supplies the 15-second deadline; direct helper callers must provide their own timeout and cancellation. The [installation guide](installation.md) explains how to consume the unpublished preview locally.
 
 Keep one row grain across linked views. Filter raw rows before aggregation; a precomputed daily total cannot respond correctly to an order-level region filter unless that dimension remains available. Show when a source was fetched, its row grain and whether records were limited or sampled. For larger data, use [bounded queries](worker-queries.md) and make server-side aggregate scope explicit. A preview table's row count must not be presented as the complete source population.
 

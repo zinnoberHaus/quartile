@@ -4,7 +4,7 @@ The package has not been released to npm. `npm install @quartile/react` is not a
 
 ## Run the examples
 
-Use Node 22 or newer and pnpm 10 (the workspace pins its pnpm version in `package.json`).
+Use Node 22.12 or newer and pnpm 10 (the workspace pins its pnpm version in `package.json`).
 
 ```sh
 git clone https://github.com/zinnoberHaus/quartile.git
@@ -14,6 +14,8 @@ pnpm dev
 ```
 
 Open `http://localhost:5173`. Routes include `/examples/storefront`, `/examples/saas`, `/examples/operations`, and `/examples/ai-dashboard`; those examples use fictional deterministic rows. [Studio](studio.md) at `/studio` makes real public API requests and supports custom public JSON. [API data](api-data.md) documents its sources and normalization.
+
+To explore your own rows without writing an application, open `/examples/explore` and import a CSV/JSON file or load a bounded data URL. [Connecting data](connecting-data.md) distinguishes this snapshot workflow from Studio. The [use-case walkthroughs](use-cases.md#walk-through-the-examples) cover all example routes and what their controls change.
 
 ## Start visually
 

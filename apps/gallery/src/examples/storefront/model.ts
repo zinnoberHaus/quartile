@@ -284,6 +284,7 @@ export interface UrlState {
   compare?: boolean;
   chart?: ChartStyle;
   filters: { field: string; values: string[] }[];
+  dateFilter?: { op: 'between'; value: [string, string] } | { op: 'in'; value: string[] };
 }
 
 const FILTER_FIELDS: Record<string, readonly string[]> = {
@@ -296,7 +297,8 @@ const FILTER_FIELDS: Record<string, readonly string[]> = {
 function parseDay(s: string | null) {
   if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return undefined;
   const [y, m, d] = s.split('-').map(Number);
-  return new Date(y, m - 1, d);
+  const date = new Date(y, m - 1, d);
+  return dayKey(date) === s ? date : undefined;
 }
 
 export function readUrlState(search: string): UrlState {
@@ -314,6 +316,14 @@ export function readUrlState(search: string): UrlState {
   for (const [field, allowed] of Object.entries(FILTER_FIELDS)) {
     const values = q.getAll(field).filter((v) => allowed.includes(v));
     if (values.length) out.filters.push({ field, values });
+  }
+  const dateFrom = q.get('dateFrom');
+  const dateTo = q.get('dateTo');
+  if (dateFrom && dateTo && parseDay(dateFrom) && parseDay(dateTo) && dateFrom <= dateTo) {
+    out.dateFilter = { op: 'between', value: [dateFrom, dateTo] };
+  } else {
+    const dates = [...new Set(q.getAll('date').filter((value) => parseDay(value)))].slice(0, 366);
+    if (dates.length) out.dateFilter = { op: 'in', value: dates };
   }
   return out;
 }
@@ -335,6 +345,16 @@ export function writeUrlState(
   if (!compare) q.set('compare', '0');
   if (chart !== 'Area') q.set('chart', chart);
   for (const p of predicates) {
+    if (p.field === 'date') {
+      if (p.op === 'between') {
+        q.set('dateFrom', String(p.value[0]));
+        q.set('dateTo', String(p.value[1]));
+      } else {
+        const dates = p.op === 'in' ? p.value : [p.value];
+        for (const value of dates) q.append('date', String(value));
+      }
+      continue;
+    }
     if (!(p.field in FILTER_FIELDS)) continue;
     const values = p.op === 'in' ? p.value : p.op === 'eq' ? [p.value] : [];
     for (const v of values) q.append(p.field, String(v));

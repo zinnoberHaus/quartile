@@ -42,6 +42,18 @@ describe('scientific snapshot import', () => {
       parseDatasetText('[{"id":"9007199254740993","value":9007199254740991}]', 'ids.json').rows[0],
     ).toMatchObject({ id: '9007199254740993', value: Number.MAX_SAFE_INTEGER });
   });
+  it('fills absent JSON cells with own null values, including prototype-like field names', () => {
+    const result = parseDatasetText(
+      '[{"toString":"first","value":1},{"value":2,"later":true}]',
+      'sparse.json',
+    );
+    expect(result.rows).toEqual([
+      { toString: 'first', value: 1, later: null, _quartile_row: 'row-1' },
+      { toString: null, value: 2, later: true, _quartile_row: 'row-2' },
+    ]);
+    expect(Object.hasOwn(result.rows[1], 'toString')).toBe(true);
+    expect(Object.hasOwn(result.rows[0], 'later')).toBe(true);
+  });
   it('rejects malformed, dangerous, nested and oversized imports before rendering', () => {
     for (const text of [
       'x,x\n1,2',

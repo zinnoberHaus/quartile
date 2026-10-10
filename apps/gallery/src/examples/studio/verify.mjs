@@ -114,6 +114,10 @@ try {
   await page.getByRole('button', { name: 'Add +', exact: true }).click();
   await page.getByLabel('Add component', { exact: true }).selectOption('bar');
   await page.getByRole('button', { name: 'Add +', exact: true }).click();
+  await page
+    .getByText('Choose a field from the loaded source. Select this component to configure it.')
+    .waitFor();
+  await page.getByLabel('Y axis', { exact: true }).selectOption('precipitationMm');
   assert.equal(await page.locator('[data-block-id]').count(), 7);
   await page.getByRole('button', { name: 'Save local draft', exact: true }).click();
   const saved = await page.evaluate(() =>
@@ -130,6 +134,7 @@ try {
   const jsonDownload = await jsonEvent;
   await jsonDownload.saveAs(`${output}/project.json`);
   assert.deepEqual(JSON.parse(await readFile(`${output}/project.json`, 'utf8')), saved);
+  await page.getByLabel('Search rows', { exact: true }).fill('New York');
   await page.getByRole('button', { name: 'React source', exact: true }).click();
   assert.match(await page.locator('.st-code code').innerText(), /<DataExplorer/);
   assert.match(await page.locator('.st-code code').innerText(), /<ScatterPlot/);
@@ -142,6 +147,12 @@ try {
   assert.equal(bytes.readUInt32LE(0), 0x04034b50);
   assert(bytes.length > 100000);
   await page.getByRole('button', { name: 'Visual canvas', exact: true }).click();
+  assert.equal(
+    await page.getByLabel('Search rows', { exact: true }).inputValue(),
+    'New York',
+    'Inspecting source preserves the table view',
+  );
+  await page.getByLabel('Search rows', { exact: true }).fill('');
   await page.locator('.st-provenance summary').click();
   await page.screenshot({ path: `${output}/studio-desktop.png`, fullPage: true });
   // JSON imports validate before mutation; malformed imports leave the current app intact.
@@ -176,6 +187,21 @@ try {
   assert(
     await page.getByRole('button', { name: 'Download React starter ↓', exact: true }).isEnabled(),
   );
+  // Linked filters survive inspecting source and rearranging components.
+  await page.getByRole('button', { name: 'Country All', exact: true }).click();
+  await page.getByRole('menuitemcheckbox', { name: /Canada/ }).click();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'React source', exact: true }).click();
+  await page.getByRole('button', { name: 'Visual canvas', exact: true }).click();
+  await page.getByRole('button', { name: 'Clear Country filter', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Move up', exact: true }).click();
+  await page.getByRole('button', { name: 'Clear Country filter', exact: true }).waitFor();
+  // Remapping a chart still clears selections rather than carrying an old field predicate.
+  await page.getByLabel('Y axis', { exact: true }).selectOption('year');
+  assert.equal(
+    await page.getByRole('button', { name: 'Clear Country filter', exact: true }).count(),
+    0,
+  );
   // Custom API data connects to the native table; source config never stores response rows.
   await context.route('https://example.org/data.json', (route) =>
     route.fulfill({
@@ -194,6 +220,11 @@ try {
   await page.getByRole('button', { name: 'Load public JSON', exact: true }).click();
   await page.getByText('2 records', { exact: true }).waitFor();
   assert.equal(await page.locator('[data-block-id]').count(), 2);
+  await page.getByLabel('Add component', { exact: true }).selectOption('histogram');
+  await page.getByRole('button', { name: 'Add +', exact: true }).click();
+  const customArchiveEvent = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download React starter ↓', exact: true }).click();
+  await (await customArchiveEvent).saveAs(`${output}/quartile-custom-starter.zip`);
   weatherBehavior = 'error';
   await page.getByRole('link', { name: /Weather & operations/ }).click();
   await page.getByText('Source returned HTTP 503.').waitFor();
@@ -233,7 +264,8 @@ try {
         checks: [
           '3 public-source adapters',
           'field/title/width editing',
-          'add/reorder',
+          'add/reorder with explicit additive measures',
+          'table and linked filters survive source mode/reorder; remapping clears selections',
           'local draft roundtrip',
           'project JSON roundtrip/rejection',
           'native source and ZIP download',

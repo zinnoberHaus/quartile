@@ -126,32 +126,7 @@ export function parseProject(input: unknown): StudioProject {
   return result;
 }
 
-export function blockError(block: StudioBlock, schema: Schema): string | null {
-  const required = (key: string | undefined, types?: string[]) => {
-    if (!key || !Object.hasOwn(schema, key)) return 'Choose a field from the loaded source.';
-    if (types && !types.includes(schema[key].type))
-      return `${schema[key].label} needs a ${types.join(' or ')} field here.`;
-    return null;
-  };
-  if (block.type === 'table')
-    return !block.columns?.length
-      ? 'Choose at least one table field.'
-      : (block.columns.map((c) => required(c)).find(Boolean) ?? null);
-  if (block.type === 'metric')
-    return block.aggregate === 'count' ? null : required(block.y, ['quantitative']);
-  const xTypes =
-    block.type === 'bar'
-      ? undefined
-      : block.type === 'histogram' || block.type === 'scatter'
-        ? ['quantitative']
-        : ['temporal', 'quantitative'];
-  return (
-    required(block.x, xTypes) ||
-    (block.type !== 'histogram' && required(block.y, ['quantitative'])) ||
-    (block.color && required(block.color, ['nominal', 'boolean'])) ||
-    null
-  );
-}
+export { blockError } from './chart-data';
 
 export function createBlock(type: BlockType, schema: Schema, id: string): StudioBlock {
   const fields = Object.values(schema);
@@ -181,8 +156,9 @@ export function createBlock(type: BlockType, schema: Schema, id: string): Studio
         ? (fields.find((f) => f.type === 'temporal') ?? numbers[0])
         : numbers[0]
     )?.name,
-    y: numbers[type === 'scatter' ? 1 : 0]?.name ?? numbers[0]?.name,
-    ...(type === 'line' && category ? { color: category.name } : {}),
+    // The schema cannot tell whether a measure is additive. Ask before summing it.
+    y: type === 'bar' ? undefined : (numbers[type === 'scatter' ? 1 : 0]?.name ?? numbers[0]?.name),
+    // A nominal field may be a unique row ID; never assume it is a useful series.
   };
 }
 

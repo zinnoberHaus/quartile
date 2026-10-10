@@ -38,7 +38,7 @@ import {
   rangeForPeriod,
   windowOf,
 } from '../../data/storefront';
-import { SfHeader, SfSidebar, SOURCE_URL } from './chrome';
+import { SfHeader, SfSidebar, SOURCE_URL, type StorefrontSection } from './chrome';
 import {
   CHART_STYLES,
   type ChartStyle,
@@ -163,6 +163,8 @@ function Dashboard({
     if (s.chart) setChart(s.chart);
     for (const f of s.filters)
       store.set(f.field, f.values, { op: 'in', source: FIELD_OWNER[f.field] ?? SOURCE.url });
+    if (s.dateFilter)
+      store.set('date', s.dateFilter.value, { op: s.dateFilter.op, source: SOURCE.trend });
     urlReady.current = true;
   }, [embedded, store]);
   useEffect(() => {
@@ -193,12 +195,16 @@ function Dashboard({
   }, [embedded]);
 
   const toast = toasts.show;
-  const placeholder = (page: string) => {
+  const goToSection = (section: StorefrontSection) => {
     setDrawer(false);
-    toast({
-      id: 'sf-placeholder',
-      title: `${page} is not part of this example`,
-      description: 'Only the Overview page is built. The other sidebar items are placeholders.',
+    requestAnimationFrame(() => {
+      const target = layoutRef.current?.querySelector<HTMLElement>(
+        `[data-sf-section="${section}"]`,
+      );
+      target?.scrollIntoView({ block: 'start' });
+      const heading = target?.querySelector<HTMLElement>('h1,h2,h3') ?? target;
+      heading?.setAttribute('tabindex', '-1');
+      heading?.focus({ preventScroll: true });
     });
   };
   const alerts = () => {
@@ -430,7 +436,7 @@ function Dashboard({
           setDrawer(false);
           setCommand(true);
         }}
-        onPlaceholder={placeholder}
+        onSection={goToSection}
         onAlerts={alerts}
         alertCount={STOCK_ALERTS.length}
         onTheme={onTheme}
@@ -461,19 +467,25 @@ function Dashboard({
           </span>
         </div>
         <main className="sf-main">
-          <SfHeader
-            period={period}
-            range={win}
-            onRange={setRange}
-            compare={compare}
-            onCompare={setCompare}
-            onShare={share}
-            onDownload={downloadCSV}
-            onCopyJSON={copyJSON}
-          />
+          <div data-sf-section="overview">
+            <SfHeader
+              period={period}
+              range={win}
+              onRange={setRange}
+              compare={compare}
+              onCompare={setCompare}
+              onShare={share}
+              onDownload={downloadCSV}
+              onCopyJSON={copyJSON}
+            />
+          </div>
+          <p className="sf-example-note">
+            Fictional sales aggregates. Select a market, product or date range to link every view.
+            Exports contain aggregate records, not individual orders.
+          </p>
           <FilterBar id={SOURCE.filters} data={facts} fields={filterFields} summary={summary} />
           <KPIGroup data={facts} items={kpis} className="sf-kpis" />
-          <div className="sf-row sf-row-trend">
+          <div className="sf-row sf-row-trend" data-sf-section="revenue">
             <TrendCard
               facts={facts}
               win={win}
@@ -484,24 +496,26 @@ function Dashboard({
             />
             <RegionCard facts={facts} compare={compare} />
           </div>
-          <div className="sf-row sf-row-mix">
+          <div className="sf-row sf-row-mix" data-sf-section="conversion">
             <ChannelCard facts={facts} />
             <HoursCard facts={facts} />
             <FunnelCard facts={facts} />
           </div>
-          <ProductsCard
-            facts={facts}
-            compare={compare}
-            hidden={hidden}
-            onToggleColumn={(c) =>
-              setHidden((h) => {
-                const n = new Set(h);
-                if (n.has(c)) n.delete(c);
-                else n.add(c);
-                return n;
-              })
-            }
-          />
+          <div data-sf-section="products">
+            <ProductsCard
+              facts={facts}
+              compare={compare}
+              hidden={hidden}
+              onToggleColumn={(c) =>
+                setHidden((h) => {
+                  const n = new Set(h);
+                  if (n.has(c)) n.delete(c);
+                  else n.add(c);
+                  return n;
+                })
+              }
+            />
+          </div>
           <footer className="sf-footer">
             <span>Built with Quartile · @quartile/react 0.1 preview</span>
             <span>

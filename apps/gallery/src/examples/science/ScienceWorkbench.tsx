@@ -87,14 +87,15 @@ export function ScienceHeader({ current }: { current: string }) {
       </Link>
       <nav aria-label="Data science examples">
         {routes.map(([route, title]) => (
-          <a
+          <Link
             key={route}
-            href={`/examples/${route}`}
+            to={`/examples/${route}`}
             aria-current={current === route ? 'page' : undefined}
           >
             {title}
-          </a>
+          </Link>
         ))}
+        <Link to="/studio">App Studio</Link>
       </nav>
       <a href={links.docs}>Docs</a>
     </header>

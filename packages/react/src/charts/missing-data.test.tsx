@@ -126,19 +126,19 @@ describe('numeric observations', () => {
   it('preserves line gaps and does not let invalid duplicate rows poison observed sums', () => {
     const data = dataset(
       [
-        { x: 'A', value: null, previous: '' },
-        { x: 'B', value: 0, previous: 0 },
-        { x: 'C', value: 10, previous: 20 },
-        ...invalid.map((value) => ({ x: 'C', value, previous: value })),
-        { x: 'C', value: '5', previous: '5' },
+        { x: 0, value: null, previous: '' },
+        { x: 1, value: 0, previous: 0 },
+        { x: 2, value: 10, previous: 20 },
+        ...invalid.map((value) => ({ x: 2, value, previous: value })),
+        { x: 2, value: '5', previous: '5' },
       ],
       { value: numberField },
     );
     render(<LineChart data={data} x="x" y="value" compare="previous" view="table" />);
     expect(cells()).toEqual([
-      ['A', '—', '—'],
-      ['B', '0', '0'],
-      ['C', '15', '25'],
+      ['0', '—', '—'],
+      ['1', '0', '0'],
+      ['2', '15', '25'],
     ]);
   });
 });

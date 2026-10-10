@@ -4,7 +4,7 @@ import { type PointerEvent, useId, useMemo, useRef, useState } from 'react';
 import { formatDelta, makeFormatter } from '../data/format';
 import { finiteNumber } from '../data/number';
 import type { Predicate } from '../data/predicates';
-import { fieldOf, resolveData, toComparable } from '../data/schema';
+import { fieldOf, resolveData, toComparable, toDate } from '../data/schema';
 import type { DataInput, FieldDef, Formatter, Row } from '../data/types';
 import { useQuartile } from '../provider/QuartileProvider';
 import { useLinkedRows, useSourceId } from '../selection/Selection';
@@ -111,11 +111,17 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
   const model = useMemo(() => {
     const xField = fieldOf(schema, x, rows);
     const yFields = (Array.isArray(y) ? y : [y]).map((f) => fieldOf(schema, f, rows));
-    const sorted = [...rows].sort((a, b) => {
-      const av = toComparable(a[x]);
-      const bv = toComparable(b[x]);
-      return av === bv ? 0 : (av as number) < (bv as number) ? -1 : 1;
-    });
+    const coordinate = (value: unknown): number | null => {
+      if (value == null || value === '') return null;
+      return xField.type === 'temporal'
+        ? finiteNumber(toDate(value).getTime())
+        : finiteNumber(value);
+    };
+    // Invalid x coordinates cannot participate in scales, keyboard navigation or brushing.
+    // Keep valid x coordinates with missing y values so the line retains visible gaps.
+    const sorted = rows
+      .filter((row) => coordinate(row[x]) !== null)
+      .sort((a, b) => coordinate(a[x])! - coordinate(b[x])!);
     const xsKeys: (number | string)[] = [];
     const xsRaw: unknown[] = [];
     const indexOf = new Map<number | string, number>();
@@ -172,6 +178,12 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
         values,
         dashed: true,
       };
+    }
+    // Finite inputs can still overflow when duplicate coordinates are summed.
+    for (const item of [...series, ...(compareSeries ? [compareSeries] : [])]) {
+      item.values = item.values.map((value) =>
+        value !== null && Number.isFinite(value) ? value : null,
+      );
     }
     return { xField, yFields, xsRaw, series, compareSeries };
   }, [rows, schema, x, y, color, compare, compareLabel]);

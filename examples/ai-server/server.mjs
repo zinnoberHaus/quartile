@@ -122,6 +122,14 @@ export function providerSchema(value = analysisPlanSchema) {
     } else if (key === 'oneOf') result.anyOf = providerSchema(item);
     else result[key] = providerSchema(item);
   }
+  // Match the explicitly typed enums in OpenAI's documented strict-output schemas.
+  if (
+    result.type === undefined &&
+    Array.isArray(result.enum) &&
+    result.enum.length > 0 &&
+    result.enum.every((item) => typeof item === 'string')
+  )
+    result.type = 'string';
   return result;
 }
 

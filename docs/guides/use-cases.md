@@ -8,6 +8,10 @@ These are runnable patterns using the public package API. They use fictional dat
 | Customer subscription portfolio | [SaaS analytics](https://quartile-design.vercel.app/examples/saas) | [Workbench](../../apps/gallery/src/examples/workbench/Workbench.tsx) |
 | Operations and incident investigation | [Service health](https://quartile-design.vercel.app/examples/operations) | [Workbench](../../apps/gallery/src/examples/workbench/Workbench.tsx) |
 | Model-generated component specs | [JSON dashboard](https://quartile-design.vercel.app/examples/ai-dashboard) | [Spec editor](../../apps/gallery/src/examples/workbench/Workbench.tsx) |
+| Dataset profiling and analytical tables | [Dataset explorer](https://quartile-design.vercel.app/examples/explore) | [Science workspace](../../apps/gallery/src/examples/science) |
+| Exact return activity by acquisition cohort | [Cohort retention](https://quartile-design.vercel.app/examples/cohorts) | [Calculations](../../apps/gallery/src/examples/science/analysis.ts) |
+| Threshold and slice evaluation | [Model evaluation](https://quartile-design.vercel.app/examples/model-evaluation) | [Predictions and calculations](../../apps/gallery/src/examples/science) |
+| Reviewed analysis proposals | [Analysis assistant](https://quartile-design.vercel.app/examples/assistant) | [Assistant workspace](../../apps/gallery/src/examples/science/AssistantWorkbench.tsx) |
 
 ## Storefront analytics
 
@@ -42,5 +46,9 @@ The JSON playground registers one named dataset, validates an edited layout, and
 Use the [generated dashboard guide](generated-dashboards.md) to connect your own model or authoring system. The example does not contain an LLM, network calls, or a text-to-SQL service.
 
 ## Common production work
+
+For scientist workflows, follow [Data science](data-science.md): profile the 180-row lab fixture or an imported snapshot; compute unique-user retention with explicit calendar maturity; evaluate 360 supplied binary predictions by threshold and segment. Inspect exact records with [DataExplorer](tables.md). The [Python handoff](../../examples/python) exports pandas/Polars snapshots; it does not execute a notebook in the browser.
+
+The [analysis assistant](ai-assistance.md) proposes bounded filter/sort/chart/table changes for review. Its initial local mode is deterministic and clearly labeled; the optional [application-owned server](../../examples/ai-server) connects a real model using server credentials. Neither mode silently applies proposals or provisions a hosted service.
 
 Before adapting any recipe: define the row grain, field units, time zone, metric denominator, authorization boundary, error/empty states, and appropriate dataset size. Verify chart/table agreement after every filter. Offer a reset action, a textual summary, and a table view. Test your actual records, including missing values, zero totals, negative measures, and categories with no matching rows.

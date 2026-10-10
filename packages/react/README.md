@@ -72,6 +72,8 @@ the trend charts. Use `dataset(rows, fields)` to override inferred field types, 
 - `validateSpec`, `SpecView` and `@quartile/react/schema.json` for declarative dashboards.
 - Optional `@quartile/react/query` views and `@quartile/react/duckdb` Arrow ingestion and worker queries. The database and Arrow peers are opt-in.
 - SVG, Canvas and WebGL scatter plots, with capability fallback and paged exact-data access.
+- `DataExplorer` for local search, typed filters, multi-sort, column visibility/order/width/pinning, grouping, view JSON and CSV export; DataTable supports caller-controlled cell edits.
+- Optional `@quartile/react/ai` for bounded field profiles/context, validated analysis proposals, an HTTP adapter and explicit review/apply. No model SDK, credential, hosted service or automatic tool execution is included.
 
 See the repository's [architecture guide](https://github.com/zinnoberHaus/quartile/blob/main/docs/architecture.md),
 [examples](https://github.com/zinnoberHaus/quartile/tree/main/apps/gallery), and
@@ -79,8 +81,14 @@ See the repository's [architecture guide](https://github.com/zinnoberHaus/quarti
 
 Read the [worker query guide](https://github.com/zinnoberHaus/quartile/blob/main/docs/guides/worker-queries.md)
 for the pinned DuckDB/Arrow pair, assets, bounded result plans and ownership. Canvas/WebGL currently
-cover scatter points; other charts render SVG. No universal production scale limit is claimed;
+cover scatter points; other charts do not expose accelerated renderer selection. No universal production scale limit is claimed;
 screen-reader testing with NVDA, JAWS and VoiceOver remains outstanding.
+
+See [analytical tables](https://github.com/zinnoberHaus/quartile/blob/main/docs/guides/tables.md),
+[AI assistance](https://github.com/zinnoberHaus/quartile/blob/main/docs/guides/ai-assistance.md), and
+[data-science workflows](https://github.com/zinnoberHaus/quartile/blob/main/docs/guides/data-science.md)
+for profiling, exact retention, prediction evaluation and pandas/Polars handoff examples.
+The example calculations live in the gallery source; they are not model-training APIs.
 
 ## License
 

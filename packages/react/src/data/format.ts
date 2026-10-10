@@ -69,8 +69,15 @@ export function makeFormatter(
     if (v == null || v === '' || Number.isNaN(Number(v))) return '—';
     return fn(Number(v));
   };
-  const date = (o: Intl.DateTimeFormatOptions) => (v: unknown) =>
-    v == null ? '—' : df(locale, o).format(toDate(v));
+  const validDate = (v: unknown) => {
+    if (v == null || v === '') return null;
+    const parsed = toDate(v);
+    return Number.isFinite(parsed.getTime()) ? parsed : null;
+  };
+  const date = (o: Intl.DateTimeFormatOptions) => (v: unknown) => {
+    const parsed = validDate(v);
+    return parsed ? df(locale, o).format(parsed) : '—';
+  };
   switch (fmt) {
     case 'integer':
       return num((n) =>
@@ -125,8 +132,8 @@ export function makeFormatter(
       return date({ weekday: 'short', month: 'short', day: 'numeric' });
     case 'month':
       return (v) => {
-        if (v == null) return '—';
-        const d = toDate(v);
+        const d = validDate(v);
+        if (!d) return '—';
         return `${df(locale, { month: 'short' }).format(d)} ’${String(d.getFullYear()).slice(2)}`;
       };
     case 'datetime':
@@ -138,7 +145,7 @@ export function makeFormatter(
         v == null
           ? '—'
           : v instanceof Date
-            ? df(locale, { month: 'short', day: 'numeric' }).format(v)
+            ? date({ month: 'short', day: 'numeric' })(v)
             : String(v);
   }
 }

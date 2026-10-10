@@ -3,6 +3,7 @@ import { defineConfig } from 'tsup';
 export default defineConfig({
   entry: {
     index: 'src/index.ts',
+    'ai/index': 'src/ai/index.ts',
     'query/index': 'src/query/index.ts',
     'duckdb/index': 'src/duckdb/index.ts',
   },

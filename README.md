@@ -7,6 +7,7 @@
 - **[Design system and component gallery](https://quartile-design.vercel.app):** components rendered live from this repository (`apps/gallery`).
 - **[Documentation](https://quartile-docs.vercel.app)** and **[public implementation guides](docs/guides/README.md)**: installation, data, selection, integration, accessibility, and performance.
 - **Runnable examples:** [storefront](https://quartile-design.vercel.app/examples/storefront), [SaaS analytics](https://quartile-design.vercel.app/examples/saas), [service health](https://quartile-design.vercel.app/examples/operations), an [editable JSON dashboard](https://quartile-design.vercel.app/examples/ai-dashboard), and the [worker query explorer](https://quartile-design.vercel.app/examples/scale).
+- **Data-science workspaces:** [dataset exploration](https://quartile-design.vercel.app/examples/explore), [cohort retention](https://quartile-design.vercel.app/examples/cohorts), [model evaluation](https://quartile-design.vercel.app/examples/model-evaluation), and [reviewed analysis assistance](https://quartile-design.vercel.app/examples/assistant). [Bring a pandas/Polars snapshot](examples/python) or [connect your own model backend](examples/ai-server).
 
 ## Why another data-viz library
 
@@ -19,6 +20,8 @@ Chart libraries stop at the chart. UI kits stop at the form. Teams glue the two 
 - **Machine-readable.** Components are described by JSON Schema (`@quartile/react/schema.json`). `validateSpec` checks a generated dashboard spec and `<SpecView>` renders it.
 - **Optional worker queries.** Arrow input and DuckDB-backed bounded queries link metrics, category totals and remote table pages. [Setup and semantics](docs/guides/worker-queries.md).
 - **Scatter renderer choice.** Use SVG, Canvas, or WebGL for scatter points, with shared selection, keyboard navigation and paged exact data. [Coverage and fallbacks](docs/guides/renderers.md).
+- **Analytical tables.** Search, typed local filters, multi-sort, column controls, grouping, saved view JSON, CSV export and controlled cell edits. [Table contracts](docs/guides/tables.md).
+- **Optional analysis assistance.** Bounded context and profiles, typed proposals, validation and explicit Apply. Bring your own backend; the local demo is deterministic, with no model inference. [AI integration](docs/guides/ai-assistance.md).
 
 How this compares with Recharts, ECharts, Observable Plot, Unovis, shadcn/ui charts, Tremor, MUI X, Mosaic and others, with sources: [docs/research/landscape-2026-10.md](docs/research/landscape-2026-10.md).
 
@@ -67,9 +70,10 @@ Read [docs/architecture.md](docs/architecture.md) before adding a component, and
 The [design coverage audit](docs/design-coverage.md) maps the original design to implementation evidence and remaining gaps.
 
 - **npm release.** `@quartile/react` is not published. The name, npm scope and domain need clearance first.
-- **Renderer coverage.** Canvas and WebGL currently cover scatter plots. Other chart marks use SVG; automatic renderer thresholds are not established.
+- **Renderer coverage.** Canvas and WebGL currently cover scatter plots. Other charts do not expose accelerated renderer selection; automatic renderer thresholds are not established.
 - **Scale.** The [worker explorer](https://quartile-design.vercel.app/examples/scale) reports actual bounded-query timings. [Measurement guidance](docs/guides/performance.md) describes their limits; no universal row-count or device-performance guarantee is claimed.
 - **Screen-reader testing.** The keyboard model, summaries and table fallbacks exist, but they have not been tested with NVDA, JAWS or VoiceOver yet.
+- **Managed platform services.** Quartile does not host notebooks, train models, persist records, provide multi-user authorization, or provision model accounts. The Python utility is a snapshot handoff; the model server is a local development example. [Workflow scope](docs/guides/data-science.md).
 
 ## Contributing
 

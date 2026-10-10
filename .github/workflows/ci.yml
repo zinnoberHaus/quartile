@@ -21,6 +21,10 @@ jobs:
       - run: pnpm test
       - run: pnpm build
       - run: pnpm --filter @quartile/react test:package
+      - name: Verify dataframe export and model backend examples
+        run: |
+          python3 -m unittest discover -s examples/python -p 'test_*.py'
+          node --test examples/ai-server/server.test.mjs
       - name: Install browser for integration verification
         run: pnpm exec playwright install --with-deps chromium
       - name: Verify linked queries in a production browser build
@@ -33,6 +37,7 @@ jobs:
             sleep 1
           done
           node apps/gallery/src/examples/scale/verify.mjs http://127.0.0.1:4178 /tmp/quartile-browser-evidence
+          node apps/gallery/src/examples/science/verify.mjs http://127.0.0.1:4178 /tmp/quartile-browser-evidence/science
       - name: Save browser evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

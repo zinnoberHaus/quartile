@@ -1,0 +1,131 @@
+.q-assistant {
+  display: grid;
+  gap: var(--q-space-3);
+  min-width: 0;
+  padding: var(--q-card-pad);
+  border: 1px solid var(--q-line);
+  border-radius: var(--q-radius-lg);
+  background: var(--q-surface);
+  color: var(--q-text);
+  font: 400 13px / 1.5 var(--q-font-sans);
+}
+.q-assistant-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+.q-assistant h3,
+.q-assistant h4,
+.q-assistant p {
+  margin: 0;
+}
+.q-assistant h3 {
+  font-size: 16px;
+  font-weight: 600;
+}
+.q-assistant h4 {
+  font-size: 14px;
+}
+.q-assistant-mode,
+.q-assistant-source,
+.q-assistant-status {
+  color: var(--q-text-3);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.q-assistant form {
+  display: grid;
+  gap: 8px;
+}
+.q-assistant label {
+  font-weight: 500;
+}
+.q-assistant textarea {
+  width: 100%;
+  min-height: 80px;
+  resize: vertical;
+  padding: 10px 12px;
+  border: 1px solid var(--q-line-input);
+  border-radius: var(--q-radius-md);
+  background: var(--q-surface);
+  color: var(--q-text);
+  font: inherit;
+}
+.q-assistant textarea::placeholder {
+  color: var(--q-text-3);
+}
+.q-assistant-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.q-assistant button {
+  min-height: var(--q-control-h);
+  padding: 0 var(--q-control-px);
+  border: 1px solid var(--q-line-strong);
+  border-radius: var(--q-radius-md);
+  background: var(--q-surface);
+  color: var(--q-text);
+  font: 500 var(--q-control-font) / 1.4 var(--q-font-sans);
+  cursor: pointer;
+}
+.q-assistant button:first-child {
+  background: var(--q-ink);
+  color: var(--q-on-ink);
+  border-color: var(--q-ink);
+}
+.q-assistant button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.q-assistant button:focus-visible,
+.q-assistant textarea:focus-visible,
+.q-assistant summary:focus-visible,
+.q-assistant pre:focus-visible {
+  outline: none;
+  box-shadow: var(--q-focus-ring);
+}
+.q-assistant details {
+  min-width: 0;
+}
+.q-assistant summary {
+  cursor: pointer;
+  color: var(--q-text-2);
+}
+.q-assistant pre {
+  overflow: auto;
+  max-height: 280px;
+  padding: 12px;
+  background: var(--q-muted);
+  border: 1px solid var(--q-line);
+  border-radius: var(--q-radius-md);
+  font: 11px / 1.6 var(--q-font-mono);
+}
+.q-assistant-context p {
+  margin-top: 8px;
+  color: var(--q-text-3);
+}
+.q-assistant-proposal {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid var(--q-line);
+  padding-top: 14px;
+  overflow-wrap: anywhere;
+}
+.q-assistant-proposal ol {
+  margin: 0;
+  padding-left: 22px;
+}
+.q-assistant-proposal li + li {
+  margin-top: 6px;
+}
+.q-assistant-error {
+  padding: 12px;
+  border: 1px solid var(--q-negative);
+  background: var(--q-negative-soft);
+  color: var(--q-negative-ink);
+  border-radius: var(--q-radius-md);
+  overflow-wrap: anywhere;
+}

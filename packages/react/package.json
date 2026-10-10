@@ -35,6 +35,10 @@
       "types": "./dist/query/index.d.ts",
       "import": "./dist/query/index.js"
     },
+    "./ai": {
+      "types": "./dist/ai/index.d.ts",
+      "import": "./dist/ai/index.js"
+    },
     "./duckdb": {
       "types": "./dist/duckdb/index.d.ts",
       "import": "./dist/duckdb/index.js"

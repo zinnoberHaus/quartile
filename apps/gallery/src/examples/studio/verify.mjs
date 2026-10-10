@@ -77,8 +77,10 @@ const development = [
 let weatherBehavior = 'success';
 let weatherRequests = 0;
 let finishPending;
+let weatherGate;
 await context.route('https://api.open-meteo.com/**', async (route) => {
   weatherRequests++;
+  if (weatherGate) await weatherGate;
   if (weatherBehavior === 'pending')
     await new Promise((resolve) => {
       finishPending = resolve;
@@ -226,11 +228,31 @@ try {
   await page.getByText(/Import failed: Unsupported project version/).waitFor();
   assert.equal(await page.locator('[data-block-id]').count(), 7);
   const altered = { ...saved, name: 'Imported analysis', blocks: saved.blocks.slice(0, 3) };
+  // The old project also shows six records. Hold the replacement request so that
+  // readiness must belong to the imported project, rather than its old snapshot.
+  let releaseImport;
+  weatherGate = new Promise((resolve) => {
+    releaseImport = resolve;
+  });
+  const importRequest = page.waitForRequest((request) =>
+    request.url().startsWith('https://api.open-meteo.com/'),
+  );
   await page.getByLabel('Import project JSON', { exact: true }).setInputFiles({
     name: 'project.json',
     mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify(altered)),
   });
+  await importRequest;
+  await page.getByRole('button', { name: 'Cancel request', exact: true }).waitFor();
+  assert.equal(await page.getByLabel('Project name', { exact: true }).inputValue(), altered.name);
+  assert.equal(
+    await page.locator('[data-block-id]').count(),
+    0,
+    'Imported projects never display stale charts while their source reloads',
+  );
+  weatherGate = undefined;
+  releaseImport();
+  await page.waitForFunction(() => document.querySelectorAll('[data-block-id]').length === 3);
   await page.getByText('6 records', { exact: true }).waitFor();
   assert.equal(await page.locator('[data-block-id]').count(), 3);
   await page.getByRole('link', { name: /Event monitoring/ }).click();
@@ -344,7 +366,7 @@ try {
           'format descriptors/locale/timezone preserve source and selection; invalid drafts retain display',
           'formatting survives draft/project/React/ZIP export',
           'local draft roundtrip',
-          'project JSON roundtrip/rejection',
+          'project JSON roundtrip/rejection with pending source replacement',
           'native source and ZIP download',
           'duplicate line grain',
           'custom API',

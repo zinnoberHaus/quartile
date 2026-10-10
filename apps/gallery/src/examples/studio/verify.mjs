@@ -97,6 +97,13 @@ try {
   await page.getByText('6 records', { exact: true }).waitFor();
   assert.equal(await page.locator('[data-block-id]').count(), 5);
   await page.getByRole('button', { name: 'Configure Temperature · °C', exact: true }).click();
+  await page.getByLabel('Y axis', { exact: true }).selectOption('');
+  await page
+    .getByText('Choose a field from the loaded source. Select this component to configure it.')
+    .waitFor();
+  assert(
+    await page.getByRole('button', { name: 'Download React starter ↓', exact: true }).isDisabled(),
+  );
   await page.getByLabel('Y axis', { exact: true }).selectOption('humidityPct');
   await page.getByLabel('Title', { exact: true }).fill('Humidity · %');
   await page.getByRole('heading', { name: 'Humidity · %', exact: true }).waitFor();

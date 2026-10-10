@@ -1,7 +1,7 @@
 import { parseProject, type StudioBlock, type StudioProject } from './model';
 
 const literal = (value: unknown) =>
-  JSON.stringify(value)
+  (JSON.stringify(value) ?? 'undefined')
     .replace(/</g, '\\u003c')
     .replace(/\u2028/g, '\\u2028')
     .replace(/\u2029/g, '\\u2029');

@@ -163,6 +163,11 @@ describe('native React source export', () => {
         { id: 'table', type: 'table', title: hostile, span: 12, columns: [hostile] },
       ],
     };
+    const unfinished = {
+      ...project,
+      blocks: [{ id: 'line', type: 'line' as const, title: 'Configure me', span: 12 as const }],
+    };
+    expect(() => reactSource(unfinished)).not.toThrow();
     const code = reactSource(project);
     expect(code).not.toContain('</script>');
     expect(code).not.toContain('<img');

@@ -1,5 +1,6 @@
 import { type KeyboardEvent, useMemo, useRef, useState } from 'react';
 import { deltaTone, formatDelta, makeFormatter } from '../data/format';
+import { finiteNumber } from '../data/number';
 import type { Predicate } from '../data/predicates';
 import { fieldOf, resolveData } from '../data/schema';
 import { typedValueKey } from '../data/typed-key';
@@ -92,11 +93,15 @@ export function BarList<R extends Row = Row>(props: BarListProps<R>) {
     const groups: Bucket[] = rows.map((row) => ({
       key: typedValueKey(row[category], schema[category]?.type),
       raw: row[category],
-      value: value ? Number(row[value]) : 1,
+      value: value ? (finiteNumber(row[value]) ?? Number.NaN) : 1,
       count: 1,
     }));
     if (sort !== 'none')
-      groups.sort((a, b) => (sort === 'asc' ? a.value - b.value : b.value - a.value));
+      groups.sort((a, b) => {
+        if (!Number.isFinite(a.value)) return Number.isFinite(b.value) ? 1 : 0;
+        if (!Number.isFinite(b.value)) return -1;
+        return sort === 'asc' ? a.value - b.value : b.value - a.value;
+      });
     return groups;
   }, [prepared, rows, category, value, aggregate, sort, delta, schema]);
   const fmtV = useMemo(
@@ -114,14 +119,17 @@ export function BarList<R extends Row = Row>(props: BarListProps<R>) {
 
   const shown = limit != null ? buckets.slice(0, Math.max(0, limit)) : buckets;
   const rest = buckets.slice(shown.length);
-  const max = Math.max(0, ...buckets.map((b) => b.value));
+  const max = Math.max(0, ...buckets.map((b) => b.value).filter(Number.isFinite));
   const status = statusOf(frame, buckets.length);
 
   const summary = useMemo(() => {
     if (buckets.length === 0) return '';
     const label = valueField?.label ?? 'Count';
-    const top = buckets.reduce((a, b) => (b.value > a.value ? b : a));
-    const low = buckets.reduce((a, b) => (b.value < a.value ? b : a));
+    const observed = buckets.filter((b) => Number.isFinite(b.value));
+    if (observed.length === 0)
+      return `${label} by ${catField.label.toLowerCase()}: no numeric observations.`;
+    const top = observed.reduce((a, b) => (b.value > a.value ? b : a));
+    const low = observed.reduce((a, b) => (b.value < a.value ? b : a));
     return `${label} by ${catField.label.toLowerCase()}, ${buckets.length} items. Highest ${fmtC(top.raw)} at ${fmtV(top.value)}; lowest ${fmtC(low.raw)} at ${fmtV(low.value)}.`;
   }, [buckets, valueField, catField, fmtC, fmtV]);
 
@@ -185,7 +193,8 @@ export function BarList<R extends Row = Row>(props: BarListProps<R>) {
             {shown.map((b) => {
               const on = picker.has(b.raw);
               const dim = picker.selecting && !on;
-              const pct = max > 0 ? Math.max(0, (b.value / max) * 100) : 0;
+              const pct =
+                max > 0 && Number.isFinite(b.value) ? Math.max(0, (b.value / max) * 100) : 0;
               const tone = b.delta != null ? deltaTone(b.delta, invertDelta) : undefined;
               const label = fmtC(b.raw);
               const content = (
@@ -237,7 +246,12 @@ export function BarList<R extends Row = Row>(props: BarListProps<R>) {
           </div>
           {rest.length > 0 && (
             <div className="q-bar-list-more">
-              +{rest.length} more · {fmtV(rest.reduce((s, b) => s + b.value, 0))}
+              +{rest.length} more ·{' '}
+              {fmtV(
+                rest.some((b) => Number.isFinite(b.value))
+                  ? rest.reduce((s, b) => s + (Number.isFinite(b.value) ? b.value : 0), 0)
+                  : Number.NaN,
+              )}
             </div>
           )}
           <div className="q-visually-hidden" aria-live="polite">

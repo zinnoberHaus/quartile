@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   aggregateMatrix,
+  aggregateValues,
   binIndexOf,
   binsInRange,
   boxStats,
@@ -127,6 +128,27 @@ describe('orderedKeys', () => {
 });
 
 describe('aggregateMatrix', () => {
+  it('distinguishes an unobserved measure from a measured zero for every numeric reducer', () => {
+    const data = [
+      { x: 'missing', y: 'A', value: null },
+      { x: 'missing', y: 'A', value: ' ' },
+      { x: 'missing', y: 'A', value: true },
+      { x: 'zero', y: 'A', value: 0 },
+      { x: 'value', y: 'A', value: '10' },
+      { x: 'value', y: 'A', value: false },
+    ];
+    for (const aggregate of ['sum', 'mean', 'median', 'min', 'max'] as const) {
+      const result = aggregateMatrix(data, { x: 'x', y: 'y', value: 'value', aggregate });
+      expect(result.cells).toEqual([[null, 0, 10]]);
+      expect(result.counts).toEqual([[3, 1, 2]]);
+      expect(result.low?.value).toBe(0);
+      expect(result.peak?.value).toBe(10);
+    }
+    expect(aggregateMatrix(data, { x: 'x', y: 'y' }).cells).toEqual([[3, 1, 2]]);
+    expect(aggregateValues([], 'sum')).toBe(0);
+    expect(aggregateValues([NaN], 'sum')).toBeNaN();
+    expect(aggregateValues([], 'mean')).toBeNaN();
+  });
   const rows = [
     { day: 'Mon', hour: 9, n: 2 },
     { day: 'Mon', hour: 9, n: 3 },

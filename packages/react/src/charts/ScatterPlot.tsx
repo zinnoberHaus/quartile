@@ -10,6 +10,7 @@ import {
   useState,
 } from 'react';
 import { makeFormatter } from '../data/format';
+import { finiteNumber } from '../data/number';
 import type { Predicate, Primitive } from '../data/predicates';
 import { fieldOf, resolveData, toComparable } from '../data/schema';
 import { typedValueKey } from '../data/typed-key';
@@ -147,23 +148,25 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
   );
 
   const points = useMemo(() => {
-    const sizes = size ? allRows.map((r) => Number(r[size])).filter(Number.isFinite) : [];
+    const sizes = size
+      ? allRows.map((r) => finiteNumber(r[size])).filter((v): v is number => v != null)
+      : [];
     const rScale = scaleSqrt()
       .domain([0, Math.max(0, max(sizes) ?? 0) || 1])
       .range([3, 9]);
     const out: Point[] = [];
     for (const r of rows) {
-      const px = Number(r[x]);
-      const py = Number(r[y]);
-      if (!Number.isFinite(px) || !Number.isFinite(py) || r[x] == null || r[y] == null) continue;
+      const px = finiteNumber(r[x]);
+      const py = finiteNumber(r[y]);
+      if (px == null || py == null) continue;
       const g = color ? String(r[color]) : null;
       if (g != null && hidden.has(g)) continue;
-      const s = size ? Number(r[size]) : Number.NaN;
+      const s = size ? finiteNumber(r[size]) : null;
       out.push({
         row: r,
         x: px,
         y: py,
-        r: size ? (Number.isFinite(s) ? rScale(Math.max(0, s)) : 3) : 4.5,
+        r: size ? (s != null ? rScale(Math.max(0, s)) : 3) : 4.5,
         group: g,
         color: g != null ? (groupColor.get(g) ?? seriesColor(0)) : seriesColor(0),
       });
@@ -177,8 +180,7 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
   const domains = useMemo(() => {
     const span = (f: string): [number, number] => {
       const [a, b] = extent(allRows, (r) => {
-        const value = r[f] == null ? Number.NaN : Number(r[f]);
-        return Number.isFinite(value) ? value : undefined;
+        return finiteNumber(r[f]) ?? undefined;
       });
       return a == null || b == null ? [0, 1] : a === b ? [a - 1, b + 1] : [a, b];
     };

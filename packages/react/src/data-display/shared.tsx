@@ -1,6 +1,7 @@
 import { curveMonotoneX, area as d3area, line as d3line } from 'd3-shape';
 import { useMemo } from 'react';
 import { type DeltaKind, deltaTone, formatDelta } from '../data/format';
+import { finiteNumber } from '../data/number';
 import { toComparable } from '../data/schema';
 import type { Row } from '../data/types';
 import { cx } from '../lib/cx';
@@ -10,15 +11,10 @@ export type AggregateName = 'sum' | 'count' | 'mean' | 'min' | 'max';
 
 export const AGGREGATES: readonly AggregateName[] = ['sum', 'count', 'mean', 'min', 'max'];
 
-function numeric(v: unknown): number | null {
-  if (v == null || v === '' || typeof v === 'boolean') return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-}
-
 /**
  * Combines `field` across rows. `count` counts rows (or rows where `field` is present);
  * `mean`, `min` and `max` of no values return NaN, which formatters render as "—".
+ * `sum` of no rows is zero; rows containing only missing measures remain missing.
  */
 export function aggregateRows(
   rows: readonly Row[],
@@ -34,7 +30,7 @@ export function aggregateRows(
   let lo = Number.POSITIVE_INFINITY;
   let hi = Number.NEGATIVE_INFINITY;
   for (const r of rows) {
-    const v = numeric(r[field]);
+    const v = finiteNumber(r[field]);
     if (v == null) continue;
     sum += v;
     n++;
@@ -43,7 +39,7 @@ export function aggregateRows(
   }
   switch (how) {
     case 'sum':
-      return sum;
+      return n || rows.length === 0 ? sum : Number.NaN;
     case 'mean':
       return n ? sum / n : Number.NaN;
     case 'min':

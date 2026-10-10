@@ -16,6 +16,27 @@ const rows = [
 ];
 
 describe('aggregates', () => {
+  it('does not render target progress or comparison geometry for an unobserved KPI', () => {
+    const { container, rerender } = render(
+      <KPI data={[{ amount: null }]} value="amount" label="Amount" target={{ value: 10 }} />,
+    );
+    expect(container.querySelector('.q-kpi-value')?.textContent).toBe('—');
+    expect(screen.queryByRole('progressbar')).toBeNull();
+    expect(container.innerHTML).not.toContain('NaN');
+    rerender(<KPI data={[{ amount: null }]} value="amount" label="Amount" compare />);
+    expect(container.querySelector('.q-kpi-value')?.textContent).toBe('—');
+    expect(container.querySelector('.q-kpi-compare-fill')).toBeNull();
+  });
+  it('ignores blank and boolean measures and distinguishes all missing values from zero', () => {
+    const missing = [null, undefined, '', ' ', false, true, [], NaN, Infinity].map((value) => ({
+      value,
+    }));
+    for (const op of ['sum', 'mean', 'min', 'max'] as const) {
+      expect(aggregateRows(missing, 'value', op)).toBeNaN();
+      expect(aggregateRows([...missing, { value: 0 }], 'value', op)).toBe(0);
+    }
+    expect(aggregateRows([...missing, { value: 0 }, { value: '10' }], 'value', 'mean')).toBe(5);
+  });
   it('sums, counts, averages and handles empty input', () => {
     expect(aggregateRows(rows, 'amount', 'sum')).toBe(105);
     expect(aggregateRows(rows, undefined, 'count')).toBe(5);

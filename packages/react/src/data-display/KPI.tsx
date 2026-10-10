@@ -1,5 +1,6 @@
 import { type CSSProperties, type ReactNode, useMemo } from 'react';
 import { makeFormatter } from '../data/format';
+import { finiteNumber } from '../data/number';
 import { fieldOf, resolveData } from '../data/schema';
 import type { DataInput, FieldDef, Formatter, Row } from '../data/types';
 import { cx } from '../lib/cx';
@@ -142,7 +143,7 @@ function useKPIModel<R extends Row>(props: KPIProps<R>) {
         aggregateWith(groups.get(valueKey(v)) ?? [], valueField, aggregate),
       );
     }
-    return { field, current, previous, trend };
+    return { field, current: finiteNumber(current), previous: finiteNumber(previous), trend };
   }, [linked, value, schema, rows, aggregate, compareValue, compare, trendBy]);
 }
 

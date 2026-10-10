@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { compactNumber, deltaTone, formatDelta, MINUS, makeFormatter } from './format';
+import { finiteNumber } from './number';
 import { applyPredicates, describePredicate, matches, predicateValueLabel } from './predicates';
-import { dataset, humanize, inferSchema, resolveData, toComparable, toDate } from './schema';
+import {
+  dataset,
+  fieldOf,
+  humanize,
+  inferSchema,
+  isTemporalValue,
+  resolveData,
+  toComparable,
+  toDate,
+} from './schema';
 
 describe('humanize', () => {
   it('turns field names into labels', () => {
@@ -12,6 +22,17 @@ describe('humanize', () => {
 });
 
 describe('inferSchema', () => {
+  it('treats arbitrary input field names as own properties rather than prototypes', () => {
+    const rows = [JSON.parse('{"__proto__": 12, "constructor": 4, "toString": 8}')];
+    const schema = inferSchema(rows);
+    expect(Object.keys(schema)).toEqual(['__proto__', 'constructor', 'toString']);
+    for (const name of Object.keys(rows[0])) {
+      expect(fieldOf(schema, name).name).toBe(name);
+      expect(fieldOf(schema, name).type).toBe('quantitative');
+      expect(fieldOf({}, name, rows).type).toBe('quantitative');
+    }
+    expect(Object.getPrototypeOf(schema)).toBeNull();
+  });
   const rows = [
     {
       date: '2026-09-07',
@@ -56,6 +77,33 @@ describe('inferSchema', () => {
 });
 
 describe('dates', () => {
+  it('rejects impossible calendar dates instead of silently rolling into another month', () => {
+    for (const value of [
+      '2026-02-30',
+      '2025-02-29',
+      '2026-04-31T12:00:00Z',
+      '2026-99-01',
+      new Date(NaN),
+    ]) {
+      expect(isTemporalValue(value)).toBe(false);
+      expect(Number.isNaN(toDate(value).getTime())).toBe(true);
+      expect(makeFormatter('date')(value)).toBe('—');
+      expect(inferSchema([{ date: value }]).date.type).toBe('nominal');
+      if (typeof value === 'string') {
+        expect(toComparable(value)).toBe(value);
+        expect(matches({ date: value }, { field: 'date', op: 'eq', value })).toBe(true);
+        expect(matches({ date: value }, { field: 'date', op: 'in', value: [value] })).toBe(true);
+      }
+    }
+    expect(isTemporalValue('2024-02-29T12:00:00+02:00')).toBe(true);
+    expect(toDate('0099-01-01').getFullYear()).toBe(99);
+  });
+  it('does not turn missing dates and booleans into epoch dates', () => {
+    for (const value of [null, undefined, '', '   ', false, true, [], {}]) {
+      expect(Number.isNaN(toDate(value).getTime())).toBe(true);
+    }
+    expect(toDate(0).getTime()).toBe(0);
+  });
   it('parses plain ISO dates as local days', () => {
     const d = toDate('2026-09-07');
     expect([d.getFullYear(), d.getMonth(), d.getDate()]).toEqual([2026, 8, 7]);
@@ -68,6 +116,45 @@ describe('dates', () => {
 });
 
 describe('formats', () => {
+  it('renders only finite numeric observations, keeping zero and numeric strings', () => {
+    const formats = [
+      'number',
+      'integer',
+      'compact',
+      'currency',
+      'currency-compact',
+      'percent',
+      'pt',
+      { maximumFractionDigits: 2 },
+    ] as const;
+    for (const format of formats) {
+      const display = makeFormatter(format);
+      for (const value of [
+        null,
+        undefined,
+        '',
+        '  ',
+        false,
+        true,
+        [],
+        {},
+        NaN,
+        Infinity,
+        -Infinity,
+        'invalid',
+      ]) {
+        expect(display(value)).toBe('—');
+        expect(finiteNumber(value)).toBeNull();
+      }
+      expect(display(0)).not.toBe('—');
+      expect(display(' 2.5 ')).toBe(display(2.5));
+    }
+    for (const format of [undefined, 'text'] as const) {
+      for (const value of [NaN, Infinity, -Infinity])
+        expect(makeFormatter(format)(value)).toBe('—');
+      expect(makeFormatter(format)('NaN')).toBe('NaN');
+    }
+  });
   it('formats compact numbers the way dashboards read them', () => {
     expect(compactNumber(1_320_000)).toBe('1.32M');
     expect(compactNumber(548_000)).toBe('548.0K');
@@ -118,6 +205,29 @@ describe('formats', () => {
 });
 
 describe('predicates', () => {
+  it('does not coerce blanks and booleans into observations in numeric ranges', () => {
+    const values = [
+      null,
+      undefined,
+      '',
+      '  ',
+      false,
+      true,
+      [],
+      {},
+      NaN,
+      Infinity,
+      -Infinity,
+      0,
+      '0',
+      1,
+    ];
+    const selected = applyPredicates(
+      values.map((amount) => ({ amount })),
+      [{ field: 'amount', op: 'between', value: [0, 1] }],
+    );
+    expect(selected.map((row) => row.amount)).toEqual([0, '0', 1]);
+  });
   const rows = [
     { date: '2026-09-01', region: 'Europe', amount: 10 },
     { date: '2026-09-05', region: 'Asia Pacific', amount: 20 },

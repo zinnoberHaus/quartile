@@ -1,3 +1,4 @@
+import { finiteNumber } from './number';
 import { toDate } from './schema';
 import type { FieldDef, Formatter } from './types';
 
@@ -61,14 +62,14 @@ export function makeFormatter(
   const locale = opts.locale ?? 'en-US';
   const currency = opts.currency ?? 'USD';
   if (typeof fmt === 'function') return fmt;
+  const num = (fn: (n: number) => string) => (v: unknown) => {
+    const number = finiteNumber(v);
+    return number == null ? '—' : fn(number);
+  };
   if (fmt && typeof fmt === 'object') {
     const f = nf(locale, fmt);
-    return (v) => (v == null ? '—' : withMinus(f.format(Number(v))));
+    return num((v) => withMinus(f.format(v)));
   }
-  const num = (fn: (n: number) => string) => (v: unknown) => {
-    if (v == null || v === '' || Number.isNaN(Number(v))) return '—';
-    return fn(Number(v));
-  };
   const validDate = (v: unknown) => {
     if (v == null || v === '') return null;
     const parsed = toDate(v);
@@ -142,7 +143,7 @@ export function makeFormatter(
       return date({ hour: 'numeric', minute: '2-digit' });
     default:
       return (v) =>
-        v == null
+        v == null || (typeof v === 'number' && !Number.isFinite(v))
           ? '—'
           : v instanceof Date
             ? date({ month: 'short', day: 'numeric' })(v)

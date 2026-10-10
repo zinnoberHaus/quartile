@@ -130,7 +130,7 @@ export function parseDatasetText(text: string, filename: string): ImportedData {
   let label = filename;
   if (filename.toLowerCase().endsWith('.csv')) raw = csvRows(text);
   else {
-    const parsed: unknown = JSON.parse(text);
+    const parsed: unknown = JSON.parse(text.replace(/^\uFEFF/, ''));
     if (Array.isArray(parsed)) raw = parsed;
     else if (parsed && typeof parsed === 'object') {
       const document = parsed as Record<string, unknown>;

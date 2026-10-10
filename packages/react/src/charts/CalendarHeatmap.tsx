@@ -8,6 +8,7 @@ import {
   useState,
 } from 'react';
 import { makeFormatter } from '../data/format';
+import { finiteNumber } from '../data/number';
 import type { Predicate } from '../data/predicates';
 import { fieldOf, resolveData, toComparable, toDate } from '../data/schema';
 import type { DataInput, Formatter, Row } from '../data/types';
@@ -129,7 +130,7 @@ export function CalendarHeatmap<R extends Row = Row>(props: CalendarHeatmapProps
   const byDay = useMemo(() => {
     const groups = new Map<string, { values: number[]; n: number }>();
     for (const r of rows) {
-      if (r[date] == null) continue;
+      if (!Number.isFinite(toDate(r[date]).getTime())) continue;
       const k = localDayKey(r[date]);
       let g = groups.get(k);
       if (!g) {
@@ -137,7 +138,7 @@ export function CalendarHeatmap<R extends Row = Row>(props: CalendarHeatmapProps
         groups.set(k, g);
       }
       g.n++;
-      if (value) g.values.push(Number(r[value]));
+      if (value) g.values.push(finiteNumber(r[value]) ?? Number.NaN);
     }
     const out = new Map<string, number>();
     for (const [k, g] of groups) out.set(k, aggregateValues(g.values, how, g.n));
@@ -228,11 +229,12 @@ export function CalendarHeatmap<R extends Row = Row>(props: CalendarHeatmapProps
     let peak = -1;
     let low = -1;
     values.forEach((v, i) => {
-      if (v == null) return;
+      if (v == null || !Number.isFinite(v)) return;
       if (peak < 0 || v > (values[peak] as number)) peak = i;
       if (low < 0 || v < (values[low] as number)) low = i;
     });
-    const total = sum(values.filter((v): v is number => v != null));
+    const observed = values.filter((v): v is number => v != null && Number.isFinite(v));
+    const total = observed.length ? sum(observed) : Number.NaN;
     const head = `${what} per day from ${fmtDate(cells[0].date)} to ${fmtDate(cells[cells.length - 1].date)}: total ${fmt(total)}.`;
     if (peak < 0) return head;
     return `${head} Highest ${fmtDay(cells[peak].date)} (${fmt(values[peak])}); lowest ${fmtDay(cells[low].date)} (${fmt(values[low])}).`;

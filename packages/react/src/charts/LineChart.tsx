@@ -2,6 +2,7 @@ import { bisectCenter } from 'd3-array';
 import { area as d3area, line as d3line } from 'd3-shape';
 import { type PointerEvent, useId, useMemo, useRef, useState } from 'react';
 import { formatDelta, makeFormatter } from '../data/format';
+import { finiteNumber } from '../data/number';
 import type { Predicate } from '../data/predicates';
 import { fieldOf, resolveData, toComparable } from '../data/schema';
 import type { DataInput, FieldDef, Formatter, Row } from '../data/types';
@@ -136,7 +137,8 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
         const vals = groups.get(g)!;
         const at = indexOf.get(toComparable(r[x]) as number | string)!;
         // Rows that share an x value are summed, like AreaChart and BarChart.
-        vals[at] = (vals[at] ?? 0) + Number(r[y as string]);
+        const value = finiteNumber(r[yFields[0].name]);
+        if (value != null) vals[at] = (vals[at] ?? 0) + value;
       }
       let i = 0;
       for (const [g, values] of groups) {
@@ -147,7 +149,8 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
         const values = blank();
         for (const r of sorted) {
           const at = indexOf.get(toComparable(r[x]) as number | string)!;
-          values[at] = (values[at] ?? 0) + Number(r[f.name]);
+          const value = finiteNumber(r[f.name]);
+          if (value != null) values[at] = (values[at] ?? 0) + value;
         }
         series.push({ key: f.name, label: f.label, color: seriesColor(i), field: f, values });
       });
@@ -156,10 +159,10 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
     if (compare && series.length === 1) {
       const values = blank();
       for (const r of sorted) {
-        const v = r[compare];
+        const v = finiteNumber(r[compare]);
         if (v == null) continue;
         const at = indexOf.get(toComparable(r[x]) as number | string)!;
-        values[at] = (values[at] ?? 0) + Number(v);
+        values[at] = (values[at] ?? 0) + v;
       }
       compareSeries = {
         key: compare,

@@ -9,6 +9,7 @@ import {
   useState,
 } from 'react';
 import { makeFormatter } from '../data/format';
+import { finiteNumber } from '../data/number';
 import type { Predicate, Primitive } from '../data/predicates';
 import { fieldOf, resolveData, toComparable } from '../data/schema';
 import type { DataInput, Formatter, Row } from '../data/types';
@@ -97,8 +98,8 @@ export function BoxPlot<R extends Row = Row>(props: BoxPlotProps<R>) {
     const byKey = new Map<unknown, number[]>(keys.map((k) => [toComparable(k), []]));
     for (const r of rows) {
       const list = byKey.get(toComparable(r[category]));
-      const v = Number(r[value]);
-      if (list && r[value] != null && Number.isFinite(v)) list.push(v);
+      const v = finiteNumber(r[value]);
+      if (list && v != null) list.push(v);
     }
     const out: Group[] = [];
     for (const k of keys) {

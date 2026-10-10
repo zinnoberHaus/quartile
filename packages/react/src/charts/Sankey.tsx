@@ -7,6 +7,7 @@ import {
 } from 'd3-sankey';
 import { type KeyboardEvent, useMemo, useRef, useState } from 'react';
 import { makeFormatter } from '../data/format';
+import { finiteNumber } from '../data/number';
 import type { Predicate, Primitive } from '../data/predicates';
 import { fieldOf, resolveData, toComparable } from '../data/schema';
 import type { DataInput, Formatter, Row } from '../data/types';
@@ -131,8 +132,8 @@ export function Sankey<R extends Row = Row>(props: SankeyProps<R>) {
       if (r[from] == null || r[to] == null) continue;
       const a = String(r[from]);
       const b = String(r[to]);
-      const v = value ? Number(r[value]) : 1;
-      if (!Number.isFinite(v) || v <= 0) continue;
+      const v = value ? finiteNumber(r[value]) : 1;
+      if (v == null || v <= 0) continue;
       const k = `${a}\u0000${b}`;
       const cur = byPair.get(k);
       if (cur) cur.value += v;

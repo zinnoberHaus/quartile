@@ -1,5 +1,6 @@
 import { max, mean, median, min, quantileSorted, sum } from 'd3-array';
 import { scaleLinear } from 'd3-scale';
+import { finiteNumber } from '../../data/number';
 import { toComparable, toDate } from '../../data/schema';
 import type { Row } from '../../data/types';
 
@@ -216,15 +217,15 @@ export function aggregateValues(
     case 'count':
       return rowCount;
     case 'sum':
-      return sum(finite);
+      return finite.length || values.length === 0 ? sum(finite) : Number.NaN;
     case 'mean':
-      return mean(finite) ?? 0;
+      return mean(finite) ?? Number.NaN;
     case 'median':
-      return median(finite) ?? 0;
+      return median(finite) ?? Number.NaN;
     case 'min':
-      return min(finite) ?? 0;
+      return min(finite) ?? Number.NaN;
     case 'max':
-      return max(finite) ?? 0;
+      return max(finite) ?? Number.NaN;
   }
 }
 
@@ -293,7 +294,7 @@ export function aggregateMatrix(
     const w = yi.get(toComparable(r[opts.y]));
     if (c == null || w == null) continue;
     counts[w][c]++;
-    if (opts.value) groups[w][c].push(Number(r[opts.value]));
+    if (opts.value) groups[w][c].push(finiteNumber(r[opts.value]) ?? Number.NaN);
   }
   let peak: Matrix['peak'] = null;
   let low: Matrix['low'] = null;
@@ -301,6 +302,7 @@ export function aggregateMatrix(
     row.map((vals, c) => {
       if (counts[w][c] === 0) return null;
       const v = aggregateValues(vals, how, counts[w][c]);
+      if (!Number.isFinite(v)) return null;
       if (!peak || v > peak.value) peak = { row: w, col: c, value: v };
       if (!low || v < low.value) low = { row: w, col: c, value: v };
       return v;

@@ -88,3 +88,7 @@ Issues and proposals are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before
 ## License
 
 [Apache-2.0](LICENSE)
+
+## Hosted-site analytics
+
+The hosted app uses Vercel Web Analytics for page views, including client-side navigation. Query strings and fragments are removed from page-view URLs before sending. No custom data events are collected. Enable Web Analytics in the Vercel project before deploying. This integration is confined to the gallery app; the library and exported Studio starters do not include it.

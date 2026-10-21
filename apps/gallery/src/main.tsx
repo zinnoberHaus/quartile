@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
+import { SiteAnalytics } from './SiteAnalytics';
 import './gallery.css';
 
 // Load every library stylesheet from source (tokens and base first, then components).
@@ -12,5 +13,6 @@ import.meta.glob('../../../packages/react/src/**/*.css', { eager: true });
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
+    <SiteAnalytics />
   </StrictMode>,
 );

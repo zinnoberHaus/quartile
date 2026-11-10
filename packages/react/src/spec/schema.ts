@@ -150,10 +150,19 @@ function formatObject(
   };
 }
 
+/** Where the data came from. Plain text and a checked link; nothing is fetched. */
+const PROVENANCE = {
+  source: str('Where the data came from, shown under the view as "Source: …". Plain text.'),
+  sourceUrl: str(
+    'An http or https link for the source, shown as a link and never fetched. Other schemes are ignored.',
+  ),
+  asOf: str('When the data was current, shown as "As of …": text, or an ISO date or date-time.'),
+};
 const META = {
   title: str('Card title. Charts render it above the plot and use it as their accessible name.'),
   description: str('One line under the title.'),
   span: int('Columns this item spans in a Dashboard layout (12-column grid).', 1, 12),
+  ...PROVENANCE,
 };
 const DATA = { data: str('Name of a dataset passed to SpecView in `data`.') };
 const CHART = {
@@ -564,6 +573,12 @@ export interface ComponentSpec {
   title?: string;
   description?: string;
   span?: number;
+  /** Where the data came from, shown as "Source: …". */
+  source?: string;
+  /** An http or https link for the source. */
+  sourceUrl?: string;
+  /** When the data was current, shown as "As of …". */
+  asOf?: string;
   [prop: string]: unknown;
 }
 
@@ -571,6 +586,9 @@ export interface DashboardSpec {
   title?: string;
   description?: string;
   selection?: string;
+  source?: string;
+  sourceUrl?: string;
+  asOf?: string;
   layout: ComponentSpec[];
 }
 
@@ -720,6 +738,7 @@ export const quartileSchema = {
           pattern: '^[A-Za-z][\\w-]*$',
           description: 'Selection id the components share.',
         },
+        ...PROVENANCE,
         layout: { type: 'array', items: ref('Spec'), minItems: 1, description: 'Items in order.' },
       },
       required: ['layout'],

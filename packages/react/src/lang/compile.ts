@@ -24,6 +24,7 @@ import {
   parseFieldExpr,
   type ViewNode,
 } from './parse';
+import { checkSourceUrl, isProvenanceKey, legacyDataSource, readProvenance } from './provenance';
 import { type FieldMeta, parseTable, wholeCurrency } from './table';
 
 export interface CompileOptions extends ParseOptions {
@@ -603,10 +604,17 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
   const lines = new Map<string, number>();
   const spec: ComponentSpec = { component };
 
-  // 1. The dataset this view reads.
-  const dataProp = view.props.find(
-    (p) => p.norm === 'data' || p.norm === 'dataset' || p.norm === 'source',
-  );
+  // 1. The dataset this view reads. `source:` states provenance, except in a view without
+  // other data, where it may still name a dataset as it used to.
+  const dataProp =
+    view.props.find((p) => p.norm === 'data' || p.norm === 'dataset') ??
+    (ctx.defaultData === undefined
+      ? legacyDataSource(
+          view.props,
+          (name) => lookupDataset(ctx, name) !== undefined || ctx.pending.has(name),
+          diagnostics,
+        )
+      : undefined);
   let dataName = dataProp ? unquote(dataProp.value) : ctx.defaultData;
   if (!dataName) {
     const names = [...new Set([...Object.keys(ctx.local), ...Object.keys(ctx.datasets)])];
@@ -661,6 +669,7 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
   let hasCountMeasure = false;
   let viewFormat: { format: Formatter; currency?: string; line: number } | undefined;
   for (const p of view.props) {
+    if (isProvenanceKey(p.norm)) continue;
     const dot = p.key.lastIndexOf('.');
     if (dot > 0) {
       const head = p.key.slice(0, dot).trim();
@@ -693,8 +702,7 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
       }
       continue; // field metadata, handled above
     }
-    if (p.norm === 'data' || p.norm === 'dataset' || p.norm === 'source' || p.norm === 'src')
-      continue;
+    if (p.norm === 'data' || p.norm === 'dataset' || p.norm === 'src') continue;
     if (p.norm === 'version') {
       checkVersion(p, diagnostics);
       continue;
@@ -806,6 +814,7 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
       for (const f of fieldsOfProp(r.value)) if (resolver.columns.includes(f)) used.add(f);
     }
   }
+  Object.assign(spec, readProvenance(view.props, diagnostics, dataProp));
   for (const [k, v] of Object.entries(view.implied)) if (spec[k] === undefined) spec[k] = v;
 
   // 3. The sentence: measures, dimensions and the `vs` field.
@@ -1482,6 +1491,11 @@ function compileJson(block: BlockNode, options: CompileOptions): CompiledBlock {
     inline(obj, 'data');
     spec = obj as unknown as ComponentSpec;
   }
+  // A link that is not http(s) is dropped with a warning instead of failing the whole spec.
+  checkSourceUrl(spec as Record<string, unknown>, diagnostics);
+  if (Array.isArray((spec as DashboardSpec).layout)) {
+    for (const item of (spec as DashboardSpec).layout) checkSourceUrl(item, diagnostics);
+  }
   const all = { ...options.datasets, ...data };
   const result = validateSpec(spec);
   for (const e of result.errors) diagnostics.push(error(`${e.path || '/'}: ${e.message}`));
@@ -1599,6 +1613,7 @@ export function compileBlock(
         title: block.name,
         columns: columns.slice(0, 12).map((field) => ({ field })),
         pageSize: 10,
+        ...readProvenance(block.props, diagnostics),
       } as ComponentSpec;
       result.link = block.name;
     } else {
@@ -1612,7 +1627,14 @@ export function compileBlock(
   // Views.
   const dashboardData =
     block.type === 'dashboard'
-      ? block.props.find((p) => p.norm === 'data' || p.norm === 'dataset' || p.norm === 'source')
+      ? (block.props.find((p) => p.norm === 'data' || p.norm === 'dataset') ??
+        (block.data || srcProp
+          ? undefined
+          : legacyDataSource(
+              block.props,
+              (name) => Object.hasOwn(datasets, name) || pending.has(name),
+              diagnostics,
+            )))
       : undefined;
   const ctx: ViewContext = {
     // Inline rows already carry dashboard-level field settings.
@@ -1678,6 +1700,7 @@ export function compileBlock(
     const dash: DashboardSpec = { layout: items };
     if (title) dash.title = title;
     if (description) dash.description = description;
+    Object.assign(dash, readProvenance(block.props, diagnostics, dashboardData));
     result.spec = dash;
   }
   return result;

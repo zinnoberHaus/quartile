@@ -1,5 +1,6 @@
-import { type ComponentType, type CSSProperties, type ReactNode, useMemo } from 'react';
+import { type ComponentType, type CSSProperties, type ReactNode, useId, useMemo } from 'react';
 import * as Charts from '../charts';
+import { FigureDescriptionContext } from '../charts/core/figure-context';
 import { applyPredicates, type Predicate } from '../data/predicates';
 import { dataset, resolveData } from '../data/schema';
 import type { DataInput, FieldOverride, Row } from '../data/types';
@@ -7,10 +8,12 @@ import * as DataDisplay from '../data-display';
 import { aggregateRows } from '../data-display/shared';
 import { IconAlertCircle } from '../icons';
 import { cx } from '../lib/cx';
+import { useQuartile } from '../provider/QuartileProvider';
 import { AppliedPredicatesContext } from '../selection/appliedPredicates';
 import { Selection, useSelection } from '../selection/Selection';
 import type { SelectionChange } from '../selection/store';
 import { SelectionWatch } from '../selection/watch';
+import { formatAsOf, hostOf, httpUrl, type Provenance, provenanceText } from './provenance';
 import type { ComponentSpec, DashboardSpec, SpecComponentName } from './schema';
 import { isDashboardSpec, type SpecError, validateSpec } from './validate';
 
@@ -82,7 +85,16 @@ const SHAPES: Record<
   FilterBar: { dims: [], measures: [], frame: 'bare', span: 12 },
 };
 
-const META_KEYS = new Set(['component', 'data', 'title', 'description', 'span']);
+const META_KEYS = new Set([
+  'component',
+  'data',
+  'title',
+  'description',
+  'span',
+  'source',
+  'sourceUrl',
+  'asOf',
+]);
 
 function isComponent(v: unknown): v is AnyComponent {
   return (
@@ -260,6 +272,37 @@ function ErrorCard({
   );
 }
 
+/**
+ * "Source: … · As of …" under a view or a dashboard. The words are rendered as text; the link
+ * is shown only for an http(s) address and is never requested by the library.
+ */
+function SourceNote({ spec, id }: { spec: Provenance; id?: string }) {
+  const { locale, timeZone } = useQuartile();
+  const source = typeof spec.source === 'string' ? spec.source.trim() : '';
+  const href = httpUrl(spec.sourceUrl);
+  const asOf = formatAsOf(spec.asOf, { locale, timeZone });
+  const named = source !== '' || href !== null;
+  if (!named && !asOf) return null;
+  return (
+    <p className="q-spec-source" id={id}>
+      {named ? (
+        <span>
+          Source:{' '}
+          {href ? (
+            <a href={href} rel="noopener noreferrer">
+              {source || hostOf(href)}
+            </a>
+          ) : (
+            source
+          )}
+        </span>
+      ) : null}
+      {named && asOf ? ' · ' : null}
+      {asOf ? <span>As of {asOf}</span> : null}
+    </p>
+  );
+}
+
 function SpecItem({
   spec,
   data,
@@ -314,12 +357,24 @@ function SpecComponent({
 }) {
   const { props, appliedPredicates } = useSpecProps(spec, input);
   const shape = SHAPES[spec.component];
+  const noteId = useId();
+  const note = provenanceText(spec) ? <SourceNote spec={spec} id={noteId} /> : null;
   const node = (
     <AppliedPredicatesContext.Provider value={appliedPredicates}>
-      <Comp {...props} />
+      <FigureDescriptionContext.Provider value={note ? noteId : undefined}>
+        <Comp {...props} />
+      </FigureDescriptionContext.Provider>
     </AppliedPredicatesContext.Provider>
   );
-  if (shape.frame === 'bare') return node;
+  if (shape.frame === 'bare') {
+    if (!note) return node;
+    return (
+      <div className="q-spec-noted">
+        {node}
+        {note}
+      </div>
+    );
+  }
   return (
     <div className="q-spec-card">
       {(spec.title || spec.description) && (
@@ -329,6 +384,7 @@ function SpecComponent({
         </div>
       )}
       {node}
+      {note}
     </div>
   );
 }
@@ -411,6 +467,7 @@ export function SpecView({
           {body}
         </Selection>
       )}
+      <SourceNote spec={dash} />
     </div>
   );
 }

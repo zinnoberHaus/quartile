@@ -282,7 +282,6 @@ export const PROPERTY_ALIASES: Record<string, string> = {
   columnspan: 'span',
   colspan: 'span',
   dataset: 'data',
-  source: 'data',
 };
 
 /** Normalized property key: "X-Axis Label" → "xaxislabel". Dots are kept for paths. */

@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — Markdown language, static rendering and embedding
+
+- A Markdown chart language: ```` ```quartile ```` blocks with a sentence header (`bar sum(revenue) by region`), `key: value` settings and CSV, TSV, Markdown-table or JSON rows, compiled to the existing validated spec. Typed coercion of written values (`$1,200`, `12%`, `1.2M`, `2026-03`, `2026-Q1`), tolerant field matching with line-numbered diagnostics, inferred encodings, default aggregation, ordered categories on line charts, dashboards with automatic layout, named `data` blocks and document-wide linked selection. Specification in `docs/language.md`; decision in ADR 0007.
+- `QuartileBlock`, `QuartileDocument` and adapters for react-markdown (`QuartilePre`, `QuartileCode`) and Streamdown (`quartileRenderer`), with incremental rendering of streaming answers.
+- `@quartile/react/lang` (parser, compiler, `quartilePrompt`, strict-mode tool schemas, dbt manifest and `dbt show` helpers) and `@quartile/react/server` (`renderBlockToHTML`, `remarkQuartile`, `markdownItQuartile`), both without the client directive.
+- `@quartile/react/embed` and a standalone script defining `<quartile-chart>`, upgrading Quartile code blocks on any page, sharing datasets and selections page-wide, and loading `src:` data only under an explicit same-origin policy.
+- Charts render SVG during server rendering and on the first client render at `QuartileProvider initialWidth`, scaled by `viewBox` until measured.
+- `theme="system"` is resolved by generated CSS before any script runs; `theme="auto"` matches the surrounding page; `host` presets map ten design systems' CSS variables; `accent` sets a brand color.
+- Spec additions: arrays of aggregated measures, aggregated `Funnel.value` and `Sparkline.y`, and `SpecView linked`.
+- Gallery: the Markdown language playground, a streamed AI answer rendered with Streamdown, a Markdown report and a plain-HTML embed demo. A dbt example under `examples/dbt`.
+
 ## Unreleased — worker queries and scatter renderers
 
 - Optional query and DuckDB entry points: Arrow ingestion, bounded aggregate/detail/histogram plans, source-excluding selection, result generation checks, cancellation, and explicit resource ownership.

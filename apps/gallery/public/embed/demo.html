@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Quartile embed: charts on a plain HTML page</title>
+    <meta
+      name="description"
+      content="A plain HTML page with one script tag: Quartile turns ```quartile code blocks into interactive charts that take the page's own colors and fonts."
+    />
+    <link rel="canonical" href="https://quartile-design.vercel.app/embed/demo" />
+    <style>
+      /*
+       * This page deliberately looks nothing like Quartile: its own fonts, colors and a dark mode.
+       * The charts read these colors and fonts; the page's table and SVG rules do not reach them.
+       */
+      :root {
+        --page-bg: #fbfaf7;
+        --page-text: #1f2328;
+        --page-muted: #59636e;
+        --page-rule: #d8dee4;
+        --page-code: #f2f0eb;
+        color-scheme: light;
+      }
+      html[data-mode="dark"] {
+        --page-bg: #0d1117;
+        --page-text: #e6edf3;
+        --page-muted: #9198a1;
+        --page-rule: #30363d;
+        --page-code: #161b22;
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        background: var(--page-bg);
+        color: var(--page-text);
+        font: 17px/1.65 Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
+      }
+      main {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 48px 20px 96px;
+      }
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 16px;
+        border-bottom: 1px solid var(--page-rule);
+        padding-bottom: 12px;
+      }
+      h1 {
+        font-size: 34px;
+        line-height: 1.15;
+        margin: 28px 0 8px;
+      }
+      h2 {
+        margin-top: 40px;
+      }
+      p,
+      li {
+        color: var(--page-text);
+      }
+      .muted {
+        color: var(--page-muted);
+      }
+      pre {
+        overflow: auto;
+        padding: 14px 16px;
+        border-radius: 6px;
+        background: var(--page-code);
+        font: 13px/1.55 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      }
+      /* Prose styles of the kind docs themes ship. They must not distort the charts. */
+      table {
+        border: 2px solid var(--page-rule);
+      }
+      svg {
+        outline: 1px dashed transparent;
+      }
+      button {
+        font: inherit;
+        padding: 6px 12px;
+        border: 1px solid var(--page-rule);
+        border-radius: 6px;
+        background: transparent;
+        color: inherit;
+        cursor: pointer;
+      }
+      a {
+        color: #0969da;
+      }
+      html[data-mode="dark"] a {
+        color: #4493f8;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <strong>Plain HTML page</strong>
+        <button type="button" id="mode" aria-pressed="false">Dark mode</button>
+      </header>
+      <h1>Charts from code blocks</h1>
+      <p class="muted">
+        Fictional sample data. This file has no build step: it includes one script and writes
+        <code>```quartile</code> blocks as ordinary <code>&lt;pre&gt;&lt;code&gt;</code> markup,
+        which is what Markdown renderers such as MkDocs, Hugo, Jekyll and dbt docs produce. Switch
+        to dark mode: the charts follow the page.
+      </p>
+
+      <h2>Revenue by region</h2>
+      <p>The rows come from <code>sales.csv</code> next to this page, loaded once and shared.</p>
+      <pre><code class="language-quartile">data sales
+src: sales.csv
+revenue.format: currency USD
+</code></pre>
+      <pre><code class="language-quartile">barlist sum(revenue) by region
+title: Revenue by region, Q3 2026
+select: true
+data: sales
+</code></pre>
+
+      <h2>Every chart over <code>sales</code> follows a selection</h2>
+      <pre><code class="language-quartile">line sum(revenue) by month and channel
+title: Revenue by channel
+data: sales
+</code></pre>
+      <pre><code class="language-quartile">dashboard
+data: sales
+kpi sum(revenue) as "Revenue"
+kpi sum(orders) as "Orders"
+</code></pre>
+
+      <h2>Inline data</h2>
+      <pre><code class="language-quartile">donut sum(tickets) by priority
+title: Open tickets by priority
+---
+priority,tickets
+Urgent,14
+High,41
+Normal,128
+</code></pre>
+
+      <h2>How this page is wired</h2>
+      <pre>&lt;script src="quartile.global.js"
+  data-theme="auto"
+  data-sources="same-origin"&gt;&lt;/script&gt;</pre>
+      <p class="muted">
+        <code>data-sources="same-origin"</code> lets blocks load files from this site. Without
+        it, no block fetches anything. See the
+        <a href="https://github.com/zinnoberHaus/quartile/blob/main/docs/guides/embedding.md">embedding guide</a>.
+      </p>
+    </main>
+    <script>
+      const button = document.getElementById('mode');
+      button.addEventListener('click', () => {
+        const dark = document.documentElement.dataset.mode !== 'dark';
+        document.documentElement.dataset.mode = dark ? 'dark' : 'light';
+        button.setAttribute('aria-pressed', String(dark));
+      });
+    </script>
+    <script src="quartile.global.js" data-theme="auto" data-sources="same-origin"></script>
+  </body>
+</html>

@@ -1,6 +1,7 @@
 export type { LinkedDataOptions, SelectionApi, SelectionProps } from './Selection';
 export {
   Selection,
+  SelectionStoreProvider,
   useLinkedRows,
   useSelection,
   useSelectionStore,

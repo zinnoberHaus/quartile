@@ -4,6 +4,7 @@
 
 > **Status: 0.1 preview.** The library builds, is tested and renders the gallery and example app, but it is not yet published to npm and its API may change before 0.1.0 is released. See [what is not built yet](#what-is-not-built-yet).
 
+- **[Charts in Markdown](docs/language.md):** a ```` ```quartile ```` block turns a sentence and CSV rows into an interactive chart or dashboard. Use it in documentation, reports, dbt projects and AI answers; it renders in React, on a server for SEO, or on any page with one script, in the page's own styling. [Playground](https://quartile-design.vercel.app/language) · [streamed AI answer](https://quartile-design.vercel.app/examples/ai-answer) · [Markdown report](https://quartile-design.vercel.app/examples/markdown-report).
 - **[Design system and component gallery](https://quartile-design.vercel.app):** components rendered live from this repository (`apps/gallery`).
 - **[Documentation](https://quartile-docs.vercel.app)** and **[public implementation guides](docs/guides/README.md)**: installation, data, selection, integration, accessibility, and performance.
 - **[Visual Studio](https://quartile-design.vercel.app/studio):** connect a real public API, arrange charts and tables, then export project JSON or a runnable React starter. [Studio guide](docs/guides/studio.md) · [API recipes](docs/guides/api-data.md).
@@ -20,6 +21,8 @@ Chart libraries stop at the chart. UI kits stop at the form. Teams glue the two 
 - **One selection.** Wrap views in `<Selection>`. Brushes, clicks and filter chips publish predicates to a shared store; every other view re-filters, and a view is never filtered by its own selection (crossfilter semantics).
 - **Accessible analytical views.** Charts provide keyboard navigation, generated summaries and table alternatives (`view="table"`). Sparkline is a compact image with a summary instead of interactive navigation or a table. [Accessibility scope](docs/guides/accessibility.md).
 - **Machine-readable.** Components are described by JSON Schema (`@quartile/react/schema.json`). `validateSpec` checks a generated dashboard spec and `<SpecView>` renders it.
+- **A Markdown language.** ```` ```quartile ```` blocks compile to the same validated spec. Models learn it from `quartilePrompt()`; blocks draw while an answer streams; field names are checked against the data with line-numbered errors. [Language](docs/language.md) · [AI answers](docs/guides/ai-responses.md).
+- **Renders anywhere, looks native.** Charts render real SVG and tables on the server and at build time (remark and markdown-it plugins), and a standalone script upgrades code blocks on any HTML page. `theme="auto"` and host presets (shadcn/ui, VitePress, Docusaurus, Starlight, Material for MkDocs, Primer and more) take the page's colors and fonts. [Server rendering](docs/guides/server-rendering.md) · [Embedding](docs/guides/embedding.md) · [dbt](docs/guides/dbt.md).
 - **Optional worker queries.** Arrow input and DuckDB-backed bounded queries link metrics, category totals and remote table pages. [Setup and semantics](docs/guides/worker-queries.md).
 - **Scatter renderer choice.** Use SVG, Canvas, or WebGL for scatter points, with shared selection, keyboard navigation and paged exact data. [Coverage and fallbacks](docs/guides/renderers.md).
 - **Analytical tables.** Search, typed local filters, multi-sort, column controls, grouping, saved view JSON, CSV export and controlled cell edits. [Table contracts](docs/guides/tables.md).
@@ -30,6 +33,22 @@ How this compares with Recharts, ECharts, Observable Plot, Unovis, shadcn/ui cha
 The [product-direction follow-up](docs/research/product-direction-2026-10-09.md) connects primary-source research to the preview's use cases, integration choices, and remaining evidence gaps.
 
 ## Quick look
+
+In Markdown:
+
+````markdown
+```quartile
+bar sum(amount) by region
+title: Order value by region
+---
+region,amount
+EMEA,"$1,200"
+APAC,$860
+Americas,"$2,100"
+```
+````
+
+In React:
 
 ```tsx
 import { QuartileProvider, Selection, KPI, Histogram, BarList, DataTable } from '@quartile/react';
@@ -76,6 +95,7 @@ Read [docs/architecture.md](docs/architecture.md) before adding a component, and
 The [design coverage audit](docs/design-coverage.md) maps the original design to implementation evidence and remaining gaps.
 
 - **npm release.** `@quartile/react` is not published. The name, npm scope and domain need clearance first.
+- **Markdown hosts without scripts.** GitHub and stock repository viewers show Quartile blocks as text; a pre-rendered image route is not built. Semantic Layer metric queries and a Preact-sized standalone build are not built either.
 - **Renderer coverage.** Canvas and WebGL currently cover scatter plots. Other charts do not expose accelerated renderer selection; automatic renderer thresholds are not established.
 - **Scale.** The [worker explorer](https://quartile-design.vercel.app/examples/scale) reports actual bounded-query timings. [Measurement guidance](docs/guides/performance.md) describes their limits; no universal row-count or device-performance guarantee is claimed.
 - **Screen-reader testing.** The keyboard model, summaries and table fallbacks exist, but they have not been tested with NVDA, JAWS or VoiceOver yet.

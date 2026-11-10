@@ -259,7 +259,12 @@ export function BoxPlot<R extends Row = Row>(props: BoxPlotProps<R>) {
           const g = focus != null ? groups[focus] : null;
           return (
             <div style={{ position: 'relative', height }}>
-              <svg width={width} height={height} aria-hidden="true">
+              <svg
+                width={width}
+                height={height}
+                viewBox={`0 0 ${width} ${height}`}
+                aria-hidden="true"
+              >
                 {focus != null && (
                   <rect
                     className="q-boxplot-hover"
@@ -379,7 +384,12 @@ export function BoxPlot<R extends Row = Row>(props: BoxPlotProps<R>) {
         const g = focus != null ? groups[focus] : null;
         return (
           <div style={{ position: 'relative', height }}>
-            <svg width={width} height={height} aria-hidden="true">
+            <svg
+              width={width}
+              height={height}
+              viewBox={`0 0 ${width} ${height}`}
+              aria-hidden="true"
+            >
               <GridRows ys={ticks.map((t) => scale(t))} x0={left} x1={right} />
               <AxisLeft
                 ticks={ticks.map((t, k) => ({ y: scale(t), label: tickLabels[k] }))}

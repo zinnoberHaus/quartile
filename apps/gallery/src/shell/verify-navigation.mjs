@@ -32,10 +32,17 @@ async function routeIs(path) {
 try {
   const releaseInitial = await holdChunk('ScienceWorkbench');
   await page.goto(`${base}/examples/explore`, { waitUntil: 'domcontentloaded' });
-  await page.getByRole('status', { name: 'Loading Quartile workspace' }).waitFor();
-  assert.equal(await page.locator('.g-route-loading').count(), 1);
+  // Prerendered: while the page chunk loads, its own markup is shown instead of a skeleton.
+  await page.getByRole('heading', { level: 1, name: 'Get to know your data.' }).waitFor();
+  assert.equal(await page.locator('.g-route-loading').count(), 0);
   releaseInitial();
   await routeIs('/examples/explore');
+  // The markup is there before React; wait until React renders it before clicking links.
+  await page.waitForFunction(() =>
+    Object.keys(document.querySelector('#root h1') ?? {}).some((k) =>
+      k.startsWith('__reactFiber$'),
+    ),
+  );
   await page.evaluate(() => {
     window.__navigationProof = 'same document';
   });
@@ -97,6 +104,11 @@ try {
   recovery.setDefaultTimeout(20_000);
   await recovery.goto(`${base}/examples/explore`);
   await recovery.locator('.g-route-content[data-route="/examples/explore"]').waitFor();
+  await recovery.waitForFunction(() =>
+    Object.keys(document.querySelector('#root h1') ?? {}).some((k) =>
+      k.startsWith('__reactFiber$'),
+    ),
+  );
   await recovery.evaluate(() => window.scrollTo(0, 500));
   await recovery.waitForFunction(() => window.scrollY === 500);
   await recovery.route(/AssistantWorkbench[^/]*\.(?:js|tsx)(?:\?|$)/, (route) => route.abort());

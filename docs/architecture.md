@@ -16,13 +16,17 @@ packages/react/            @quartile/react
   src/data-display/        KPI, FilterBar, DataTable, DataExplorer and local table state
   src/charts/              charts and the chart core (frame, states, scales, guides, a11y)
   src/spec/                JSON Schema for components and the spec renderer
+  src/lang/                Markdown chart language: parser, compiler, data parsing, prompt and dbt helpers (no React)
+  src/markdown/            QuartileBlock, QuartileDocument and Markdown renderer adapters
+  src/server/              static HTML rendering, remark and markdown-it plugins (no 'use client')
+  src/embed/               <quartile-chart>, code-block upgrading, page scope and source policy
   src/query/               optional bounded query protocol, React hook and prepared view boundary
   src/duckdb/              optional Arrow/DuckDB adapter, typed plan compiler and ownership
   src/ai/                  optional bounded profiling/context, proposal validation and review/apply
 apps/gallery/              design system (/), commerce, operations, scale and science examples
 ```
 
-`npm run build` in `packages/react` writes the default entry, optional `query/index`, `duckdb/index` and `ai/index` entries, shared chunks and declarations, `dist/styles.css` (every `src/**/*.css`, foundations first), and `dist/schema.json`. Keep shared contexts in shared chunks: bundling separate copies would disconnect selection across entries. The default import must not load Arrow, DuckDB, or the optional AI integration. Package checks exercise entries in clean consumers.
+`npm run build` in `packages/react` writes the default entry, optional `query/index`, `duckdb/index` and `ai/index` entries, shared chunks and declarations, `dist/styles.css` (every `src/**/*.css`, foundations first), and `dist/schema.json`. A second build writes `lang/index`, `server/index` and `embed/index` without the `'use client'` banner, so servers and build tools can call them; a third writes the standalone `embed/quartile.js` and `embed/quartile.global.js` with React and the minified stylesheet bundled. After editing color tokens, run `node scripts/build-system-theme.mjs`; a test fails while `styles/system-theme.css` is stale. Keep shared contexts in shared chunks: bundling separate copies would disconnect selection across entries. The default import must not load Arrow, DuckDB, or the optional AI integration. Package checks exercise entries in clean consumers.
 
 ## Styling
 
@@ -56,6 +60,10 @@ Every chart and data-display component follows the same contract:
 7. Accessibility: `useChartKeyboard` for arrow-key navigation, an `aria-live` announcement for the focused point, an auto-written summary via `summarizeSeries` or an equivalent, and a formatted `ChartTable` passed to `ChartFrame` as `table`. Smaller charts expose a hidden table; ScatterPlot above 200 visible points exposes exact values through a lazy table in pages of 50, avoiding an unbounded hidden DOM. `view="table"` opens the table directly.
 
 `LineChart` is the reference implementation of this contract.
+
+## Markdown blocks
+
+The [language](language.md) compiles to the same `QuartileSpec` that `SpecView` renders; it never adds a second rendering path. Add a chart kind by adding a component to the spec schema and a row to `src/lang/kinds.ts` (its sentence mapping and dashboard defaults); settings are coerced from the component's JSON Schema automatically. Compiler choices (inferred encodings, default aggregation, ordinal x, synthetic counts) must report a diagnostic, and unknown fields must stay errors. Every rendering path (React, server, embed) must keep a block readable without JavaScript.
 
 ## Local table state and reviewed analysis
 

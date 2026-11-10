@@ -383,7 +383,12 @@ export function Histogram<R extends Row = Row>(props: HistogramProps<R>) {
 
         return (
           <div style={{ position: 'relative', height }}>
-            <svg width={width} height={height} aria-hidden="true">
+            <svg
+              width={width}
+              height={height}
+              viewBox={`0 0 ${width} ${height}`}
+              aria-hidden="true"
+            >
               {focus != null && (
                 <rect
                   className="q-histogram-hover"

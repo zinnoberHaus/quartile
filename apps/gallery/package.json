@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/build-starter.mjs && vite",
-    "build": "node scripts/build-starter.mjs && vite build",
+    "build": "node scripts/build-starter.mjs && vite build && vite build --ssr src/ssr/entry-server.tsx && node scripts/prerender.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },
@@ -15,7 +15,9 @@
     "@vercel/analytics": "2.0.1",
     "apache-arrow": "17.0.0",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "react-markdown": "10.1.0",
+    "streamdown": "2.7.1"
   },
   "devDependencies": {
     "@types/node": "24",

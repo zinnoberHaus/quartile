@@ -101,6 +101,8 @@ export function DesignSystemPage() {
         <nav className="g-header-nav">
           <a href={links.landing}>Landing</a>
           <a href={links.docs}>Docs</a>
+          <Link to="/language">Markdown</Link>
+          <Link to="/examples/ai-answer">AI answers</Link>
           <Link to="/examples/storefront">Example app</Link>
           <Link to="/examples/explore">Data science</Link>
           <Link to="/examples/assistant">AI workbench</Link>

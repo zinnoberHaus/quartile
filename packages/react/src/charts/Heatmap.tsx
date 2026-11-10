@@ -229,7 +229,12 @@ export function Heatmap<R extends Row = Row>(props: HeatmapProps<R>) {
 
         return (
           <div style={{ position: 'relative', height }}>
-            <svg width={width} height={gridH + X_LABEL_H} aria-hidden="true">
+            <svg
+              width={width}
+              height={gridH + X_LABEL_H}
+              viewBox={`0 0 ${width} ${gridH + X_LABEL_H}`}
+              aria-hidden="true"
+            >
               <g className="q-heatmap-labels">
                 {rowLabels.map((l, row) => (
                   <text key={row} x={0} y={yOf(row) + cellHeight / 2} dy="0.34em">

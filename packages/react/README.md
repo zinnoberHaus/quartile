@@ -73,6 +73,9 @@ separate axis/tooltip formats and optional FormatJS/math.js adapters.
 - Light and dark themes, comfortable and compact density, and shared `--q-*` tokens.
 - Keyboard navigation, chart summaries and table fallbacks (`view="table"`).
 - `validateSpec`, `SpecView` and `@quartile/react/schema.json` for declarative dashboards.
+- A Markdown chart language: ```` ```quartile ```` blocks (`bar sum(revenue) by region`, settings, CSV rows) rendered by `QuartileBlock` and `QuartileDocument`, with adapters for react-markdown (`QuartilePre`) and Streamdown (`quartileRenderer`) that draw while an AI answer streams. [Language reference](https://github.com/zinnoberHaus/quartile/blob/main/docs/language.md).
+- `@quartile/react/lang` (parser, compiler, `quartilePrompt`, strict tool schemas, dbt helpers) and `@quartile/react/server` (static SVG/HTML rendering, remark and markdown-it plugins), both callable from servers and build tools.
+- `@quartile/react/embed` and the standalone `dist/embed/quartile.global.js` for `<quartile-chart>` on any HTML page, with `theme="auto"` and host presets that take the page's colors and fonts.
 - Optional `@quartile/react/query` views and `@quartile/react/duckdb` Arrow ingestion and worker queries. The database and Arrow peers are opt-in.
 - SVG, Canvas and WebGL scatter plots, with capability fallback and paged exact-data access.
 - `DataExplorer` for local search, typed filters, multi-sort, column visibility/order/width/pinning, grouping, view JSON and CSV export; DataTable supports caller-controlled cell edits.

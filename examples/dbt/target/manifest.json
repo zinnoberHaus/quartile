@@ -1,0 +1,44 @@
+{
+  "metadata": {
+    "dbt_schema_version": "https://schemas.getdbt.com/dbt/manifest/v12.json",
+    "generated_by": "hand-written fixture in the shape of dbt manifest v12; only the fields Quartile reads"
+  },
+  "nodes": {
+    "model.shop.fct_orders": {
+      "unique_id": "model.shop.fct_orders",
+      "name": "fct_orders",
+      "resource_type": "model",
+      "description": "Orders with net revenue after discounts and returns. One row per order.",
+      "columns": {
+        "order_id": {
+          "name": "order_id",
+          "description": "One row per order.",
+          "data_type": "integer"
+        },
+        "ordered_month": {
+          "name": "ordered_month",
+          "description": "Calendar month of the order, in UTC.",
+          "data_type": "date"
+        },
+        "region": {
+          "name": "region",
+          "description": "Sales region of the shipping address.",
+          "data_type": "varchar"
+        },
+        "channel": {
+          "name": "channel",
+          "description": "Online store or retail partner.",
+          "data_type": "varchar"
+        },
+        "revenue": {
+          "name": "revenue",
+          "description": "Order value after discounts and returns, before tax.",
+          "data_type": "numeric(12,2)",
+          "config": { "meta": { "quartile": { "label": "Net revenue", "format": "currency USD" } } }
+        }
+      }
+    }
+  },
+  "sources": {},
+  "metrics": {}
+}

@@ -13,7 +13,7 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-Open `http://localhost:5173`. Routes include `/examples/storefront`, `/examples/saas`, `/examples/operations`, and `/examples/ai-dashboard`; those examples use fictional deterministic rows. [Studio](studio.md) at `/studio` makes real public API requests and supports custom public JSON. [API data](api-data.md) documents its sources and normalization.
+Open `http://localhost:5173`. Routes include `/examples/storefront`, `/examples/saas`, `/examples/operations`, and `/examples/ai-dashboard`; those examples use fictional deterministic rows. `/language` is the Markdown language playground, `/examples/ai-answer` replays a streamed answer with charts (no model is called), `/examples/markdown-report` is a dashboard written as one Markdown file, and `/embed/demo` is a plain HTML page using the standalone embed script. [Studio](studio.md) at `/studio` makes real public API requests and supports custom public JSON. [API data](api-data.md) documents its sources and normalization.
 
 To explore your own rows without writing an application, open `/examples/explore` and import a CSV/JSON file or load a bounded data URL. [Connecting data](connecting-data.md) distinguishes this snapshot workflow from Studio. The [use-case walkthroughs](use-cases.md#walk-through-the-examples) cover all example routes and what their controls change.
 

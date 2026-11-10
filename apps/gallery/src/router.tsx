@@ -24,6 +24,22 @@ let visibleKey: string | undefined;
 let completedKey: string | undefined;
 const positions = new Map<string, [number, number]>();
 const LocationContext = createContext<RouteLocation | null>(null);
+const ServerLocationContext = createContext<RouteLocation | null>(null);
+
+/** The location a prerender renders: the URL's path and query, no hash, no history entry. */
+function serverLocation(url: string): RouteLocation {
+  const { pathname, search } = new URL(url, 'https://prerender.invalid');
+  return { pathname, search, hash: '', key: 'prerender', action: 'initial' };
+}
+
+/** Server rendering has no window; the prerender script names the URL being rendered. */
+export function ServerLocation({ url, children }: { url: string; children: ReactNode }) {
+  return (
+    <ServerLocationContext.Provider value={serverLocation(url)}>
+      {children}
+    </ServerLocationContext.Provider>
+  );
+}
 
 function key() {
   return `q-${Date.now().toString(36)}-${++sequence}`;
@@ -75,9 +91,19 @@ function subscribe(notify: () => void) {
   };
 }
 
-/** App owns the urgent URL. Route children receive the last fully rendered snapshot. */
+/**
+ * App owns the urgent URL. Route children receive the last fully rendered snapshot.
+ * On the server the location comes from <ServerLocation>. While hydrating, the browser's own
+ * location is used: main.tsx hydrates only when it is the prerendered path with no query.
+ */
 export function useBrowserLocation() {
-  const location = useSyncExternalStore(subscribe, getSnapshot);
+  const server = useContext(ServerLocationContext);
+  const location = useSyncExternalStore(subscribe, getSnapshot, () => {
+    if (server) return server;
+    if (typeof window === 'undefined')
+      throw new Error('Server rendering needs a <ServerLocation url> around the app.');
+    return getSnapshot();
+  });
   useEffect(() => {
     const previous = window.history.scrollRestoration;
     window.history.scrollRestoration = 'manual';

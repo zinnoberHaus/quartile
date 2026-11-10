@@ -17,6 +17,11 @@ export interface SpecViewProps {
   spec: unknown;
   /** Datasets the spec can reference by name. */
   data: Record<string, DataInput>;
+  /**
+   * A Dashboard normally links its items through its own Selection. With `linked`, it joins the
+   * nearest enclosing Selection instead, sharing filters with views outside the spec.
+   */
+  linked?: boolean;
   className?: string;
   style?: CSSProperties;
 }
@@ -50,8 +55,8 @@ const SHAPES: Record<
     span: 4,
   },
   DonutChart: { dims: ['category'], measures: ['value'], native: true, frame: 'card', span: 4 },
-  Funnel: { dims: ['step', 'value'], measures: [], frame: 'card', span: 4 },
-  Sparkline: { dims: ['x', 'y', 'compare'], measures: [], frame: 'card', span: 3 },
+  Funnel: { dims: ['step'], measures: ['value'], frame: 'card', span: 4 },
+  Sparkline: { dims: ['x'], measures: ['y', 'compare'], frame: 'card', span: 3 },
   Histogram: { dims: ['x', 'value'], measures: [], frame: 'card', span: 6 },
   ScatterPlot: { dims: ['x', 'y', 'size', 'color', 'label'], measures: [], frame: 'card', span: 6 },
   Heatmap: { dims: ['x', 'y'], measures: ['value'], native: true, frame: 'card', span: 6 },
@@ -131,8 +136,17 @@ function useSpecProps(spec: ComponentSpec, input: DataInput | undefined) {
         continue;
       }
       if (Array.isArray(raw)) {
-        props[key] = raw;
-        for (const f of raw) isDim ? dims.add(String(f)) : measures.push({ field: String(f) });
+        // Several measures: plain field names, or fields with an aggregate and display overrides.
+        const fields: string[] = [];
+        for (const item of raw) {
+          const e = encoded(item);
+          if (!e) continue;
+          fields.push(e.field);
+          if (e.override) overrides[e.field] = { ...overrides[e.field], ...e.override };
+          if (isDim) dims.add(e.field);
+          else measures.push(e);
+        }
+        props[key] = fields;
         continue;
       }
       const e = encoded(raw);
@@ -322,7 +336,7 @@ function errorsUnder(errors: SpecError[], prefix: string): SpecError[] {
  * validated first; invalid items, unknown components and missing datasets render an inline
  * error card in their place instead of throwing.
  */
-export function SpecView({ spec, data, className, style }: SpecViewProps) {
+export function SpecView({ spec, data, linked, className, style }: SpecViewProps) {
   const result = useMemo(() => validateSpec(spec), [spec]);
   if (!isDashboardSpec(spec)) {
     return (
@@ -369,9 +383,13 @@ export function SpecView({ spec, data, className, style }: SpecViewProps) {
           {description && <p className="q-spec-desc">{description}</p>}
         </div>
       )}
-      <Selection id={typeof dash.selection === 'string' ? dash.selection : undefined}>
-        {body}
-      </Selection>
+      {linked ? (
+        body
+      ) : (
+        <Selection id={typeof dash.selection === 'string' ? dash.selection : undefined}>
+          {body}
+        </Selection>
+      )}
     </div>
   );
 }

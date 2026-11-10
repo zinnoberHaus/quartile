@@ -1,0 +1,136 @@
+/* Quartile blocks inside Markdown: charts, dashboards and datasets written in ```quartile fences. */
+.q-block {
+  margin: 1.25em 0;
+  min-width: 0;
+  /* Prose styles (line-height, letter-spacing, list counters) stop at the block. */
+  line-height: 1.45;
+  letter-spacing: normal;
+  text-align: start;
+  white-space: normal;
+}
+
+.q-block :where(table) {
+  margin: 0;
+}
+
+.q-block :where(svg) {
+  max-width: none;
+}
+
+.q-block-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: calc(var(--q-card-pad) - 4px) calc(var(--q-card-pad) - 2px);
+  border: 1px solid var(--q-line);
+  border-radius: var(--q-radius-lg);
+  background: var(--q-surface);
+}
+
+.q-block-data {
+  border: 1px solid var(--q-line);
+  border-radius: var(--q-radius-lg);
+  background: var(--q-surface);
+}
+
+.q-block-error-source > summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--q-text-3);
+}
+
+.q-block-data > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--q-text-2);
+  list-style-position: inside;
+}
+
+.q-block-data > summary:focus-visible {
+  outline: none;
+  box-shadow: var(--q-focus-ring);
+  border-radius: var(--q-radius-lg);
+}
+
+.q-block-data-name {
+  font-family: var(--q-font-mono);
+  font-weight: 600;
+  color: var(--q-text);
+}
+
+.q-block-data-meta {
+  font-family: var(--q-font-mono);
+  font-size: 12px;
+  color: var(--q-text-3);
+}
+
+.q-block-data[open] > summary {
+  border-bottom: 1px solid var(--q-line);
+}
+
+.q-block-data > .q-spec {
+  padding: 4px;
+}
+
+.q-block-error {
+  padding: 14px 16px;
+  border: 1px solid var(--q-negative-soft);
+  border-left: 3px solid var(--q-negative);
+  border-radius: var(--q-radius-lg);
+  background: var(--q-surface);
+  font-size: 13px;
+  color: var(--q-text-2);
+}
+
+.q-block > .q-spec + .q-block-error {
+  margin-top: 12px;
+}
+
+.q-block-error-title {
+  font-weight: 600;
+  color: var(--q-text);
+}
+
+.q-block-error-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.q-block-error-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.q-block-error-line {
+  font: 500 11px / 1.8 var(--q-font-mono);
+  color: var(--q-negative-ink);
+}
+
+.q-block-error-hint {
+  flex-basis: 100%;
+  color: var(--q-text-3);
+}
+
+.q-block-error-source {
+  margin-top: 10px;
+}
+
+.q-block-error-source pre {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border-radius: var(--q-radius-md);
+  background: var(--q-subtle);
+  font: 12px / 1.5 var(--q-font-mono);
+  color: var(--q-text);
+  white-space: pre;
+}

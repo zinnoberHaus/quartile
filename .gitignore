@@ -11,3 +11,5 @@ artifacts/
 __pycache__/
 *.pyc
 apps/gallery/public/starter/
+apps/gallery/public/embed/quartile*.js
+examples/dbt/site/

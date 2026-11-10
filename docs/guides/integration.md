@@ -8,7 +8,7 @@ Quartile uses React and plain CSS variables. It does not require Tailwind, shadc
 </QuartileProvider>
 ```
 
-`theme` supports `light`, `dark`, and `system`. `density` supports `comfortable` and `compact`. Locale controls number/date display; `timeZone` controls timestamp display and defaults to the runtime's zone when omitted. Pass both explicitly for reproducible server/client output. Field and descriptor overrides, precision, notation and optional FormatJS/math.js callbacks are covered in [formatting](formatting.md). Overlays use a provider-owned portal so they inherit the same theme. Font-family tokens name Schibsted Grotesk and IBM Plex Mono with system fallbacks; the library does not download fonts for you.
+`theme` supports `light`, `dark`, `system` (resolved by CSS, so it is correct before any script runs) and `auto` (matches the colors of the surrounding page; see [embedding and styling](embedding.md#styling)). `host` maps a known design system's variables (shadcn/ui, VitePress, Docusaurus, Starlight, Material for MkDocs, Primer, Pico, Radix Themes, Open Props) and `accent` sets a brand color. `density` supports `comfortable` and `compact`. Locale controls number/date display; `timeZone` controls timestamp display and defaults to the runtime's zone when omitted. Pass both explicitly for reproducible server/client output. Field and descriptor overrides, precision, notation and optional FormatJS/math.js callbacks are covered in [formatting](formatting.md). Overlays use a provider-owned portal so they inherit the same theme. Font-family tokens name Schibsted Grotesk and IBM Plex Mono with system fallbacks; the library does not download fonts for you.
 
 ## Existing design systems
 
@@ -26,7 +26,7 @@ Map tokens within the provider scope after importing the stylesheet. Override a 
 }
 ```
 
-Pass `className="analytics-brand"` to the provider. For a shadcn/ui app, map fully formed CSS color values such as `var(--background)` to `--q-bg`, `var(--foreground)` to `--q-text`, and `var(--card)` to `--q-surface`. Some projects store HSL channels rather than complete colors: wrap those values in `hsl(...)` when needed. Review your actual tokens rather than assuming their format.
+Pass `className="analytics-brand"` to the provider. For a shadcn/ui app, `host="shadcn"` maps `--background`, `--foreground`, `--card`, `--border`, `--primary` and `--chart-1` … `--chart-5` for you; projects that store bare HSL channels (Tailwind v3) use `host="shadcn-hsl"`, because a defined but invalid variable never falls back. Review your actual tokens rather than assuming their format.
 
 The full token contract is [tokens.css](../../packages/react/src/styles/tokens.css). Charts use `--q-cat-*` for categories and sequential/diverging palettes for magnitude. Avoid assigning semantic success/failure colors to arbitrary categories.
 
@@ -46,7 +46,7 @@ export function Dashboard({ rows }: { rows: { region: string; amount: number }[]
 }
 ```
 
-Charts measure their container in the browser. Server markup is not proof of final chart dimensions; verify after hydration and when opening hidden tabs/panels. `theme="system"` resolves after mount, so applications requiring a flash-free initial theme should resolve and pass an explicit theme themselves.
+Charts draw at the provider's `initialWidth` (640 px by default) until they can measure their container, so server markup contains the chart's SVG, scaled to the container, and the client redraws at the measured width after hydration. Verify layout after hydration and when opening hidden tabs/panels. `theme="system"` is resolved by CSS from the reader's preference, so server output and the first paint are already in the right theme. See [server rendering](server-rendering.md).
 
 ## Fetching and state
 

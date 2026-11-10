@@ -1,6 +1,7 @@
 import { type CSSProperties, type ReactNode, useRef, useState } from 'react';
 import { cx } from '../../lib/cx';
 import { useElementSize } from '../../lib/useElementSize';
+import { useQuartile } from '../../provider/QuartileProvider';
 
 export type ChartStatus = 'ready' | 'loading' | 'empty' | 'error';
 
@@ -82,7 +83,11 @@ export function ChartFrame({
   ...state
 }: ChartFrameProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const { width } = useElementSize(ref);
+  const { width: measured } = useElementSize(ref);
+  const { initialWidth } = useQuartile();
+  // Before measurement (server rendering, static export, the first client render) draw at the
+  // assumed width; CSS scales that drawing to the container until the measured redraw.
+  const width = measured > 0 ? measured : initialWidth;
   const [dataView, setDataView] = useState(false);
   const paginated = !!table?.pageSize;
   const showTable = view === 'table' || (paginated && dataView);
@@ -93,6 +98,7 @@ export function ChartFrame({
       ref={ref}
       className={cx('q-chart', className)}
       data-status={status}
+      data-width={measured > 0 ? undefined : 'assumed'}
       style={{ height, ...style }}
       role="figure"
       aria-label={ariaLabel ?? kind}
@@ -107,9 +113,7 @@ export function ChartFrame({
           </button>
         </div>
       )}
-      {status === 'ready' && !showTable && width > 0
-        ? children({ width, height: contentHeight })
-        : null}
+      {status === 'ready' && !showTable ? children({ width, height: contentHeight }) : null}
       {status !== 'ready' && <ChartState status={status} {...state} />}
       {(summary || tooltipNote) && status === 'ready' ? (
         <p className="q-visually-hidden">{[summary, tooltipNote].filter(Boolean).join(' ')}</p>

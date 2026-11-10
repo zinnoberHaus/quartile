@@ -1,0 +1,25 @@
+# Fictional project. Column descriptions and meta.quartile settings flow into chart tooltips,
+# table headers and formats through dbtFields() in @quartile/react/lang.
+version: 2
+
+models:
+  - name: fct_orders
+    description: '{{ doc("fct_orders") }}'
+    columns:
+      - name: order_id
+        description: One row per order.
+      - name: ordered_month
+        description: Calendar month of the order, in UTC.
+        data_type: date
+      - name: region
+        description: Sales region of the shipping address.
+      - name: channel
+        description: Online store or retail partner.
+      - name: revenue
+        description: Order value after discounts and returns, before tax.
+        data_type: numeric(12,2)
+        config:
+          meta:
+            quartile:
+              label: Net revenue
+              format: currency USD

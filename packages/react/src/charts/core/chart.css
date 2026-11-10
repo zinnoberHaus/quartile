@@ -7,6 +7,17 @@
   color: var(--q-text);
 }
 
+/*
+ * Before the container is measured (server rendering, static exports, no-JS readers, the first
+ * paint) a chart draws at the provider's initialWidth. Scale that drawing to the container; the
+ * measured redraw after mount replaces it with exact pixels.
+ */
+.q-chart[data-width="assumed"] svg[viewBox] {
+  width: 100%;
+  height: auto;
+  max-height: 100%;
+}
+
 .q-chart-data-access {
   display: flex;
   justify-content: flex-end;

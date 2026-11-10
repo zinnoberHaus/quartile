@@ -426,7 +426,12 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
                   />
                 )}
                 <div style={{ position: 'relative', height: plotHeight }}>
-                  <svg width={width} height={plotHeight} aria-hidden="true">
+                  <svg
+                    width={width}
+                    height={plotHeight}
+                    viewBox={`0 0 ${width} ${plotHeight}`}
+                    aria-hidden="true"
+                  >
                     <GridRows ys={yTicks.map((t) => t.y)} x0={left} x1={right} />
                     <AxisLeft ticks={yTicks} x={left - 10} />
                     <AxisBottom ticks={xTicks} y={bottom + 6} x0={left} x1={right} />
@@ -468,6 +473,7 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
                       className="q-scatter-focus"
                       width={width}
                       height={plotHeight}
+                      viewBox={`0 0 ${width} ${plotHeight}`}
                       aria-hidden="true"
                     >
                       <circle

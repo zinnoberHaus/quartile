@@ -10,6 +10,12 @@ const root = resolve(gallery, '../..');
 const library = join(root, 'packages/react');
 // A dev server or gallery-only build must export the current source, never stale dist files.
 execFileSync('pnpm', ['--filter', '@quartile/react', 'build'], { cwd: root, stdio: 'inherit' });
+// The standalone embed script, served next to the plain-HTML demo at /embed/demo.html.
+const embed = join(gallery, 'public/embed');
+mkdirSync(embed, { recursive: true });
+for (const file of ['quartile.global.js', 'quartile.js']) {
+  writeFileSync(join(embed, file), readFileSync(join(library, 'dist/embed', file)));
+}
 const temp = mkdtempSync(join(tmpdir(), 'quartile-starter-'));
 try {
   const result = JSON.parse(

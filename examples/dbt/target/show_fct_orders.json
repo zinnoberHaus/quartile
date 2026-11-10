@@ -1,0 +1,68 @@
+{
+  "node": "fct_orders",
+  "show": [
+    {
+      "order_id": 1001,
+      "ordered_month": "2026-07-01",
+      "region": "EMEA",
+      "channel": "Online",
+      "revenue": 182.5
+    },
+    {
+      "order_id": 1002,
+      "ordered_month": "2026-07-01",
+      "region": "APAC",
+      "channel": "Retail",
+      "revenue": 96.0
+    },
+    {
+      "order_id": 1003,
+      "ordered_month": "2026-07-01",
+      "region": "Americas",
+      "channel": "Online",
+      "revenue": 236.25
+    },
+    {
+      "order_id": 1004,
+      "ordered_month": "2026-08-01",
+      "region": "EMEA",
+      "channel": "Retail",
+      "revenue": 99.0
+    },
+    {
+      "order_id": 1005,
+      "ordered_month": "2026-08-01",
+      "region": "APAC",
+      "channel": "Online",
+      "revenue": 152.75
+    },
+    {
+      "order_id": 1006,
+      "ordered_month": "2026-08-01",
+      "region": "Americas",
+      "channel": "Online",
+      "revenue": 249.0
+    },
+    {
+      "order_id": 1007,
+      "ordered_month": "2026-09-01",
+      "region": "EMEA",
+      "channel": "Online",
+      "revenue": 194.0
+    },
+    {
+      "order_id": 1008,
+      "ordered_month": "2026-09-01",
+      "region": "APAC",
+      "channel": "Online",
+      "revenue": 167.5
+    },
+    {
+      "order_id": 1009,
+      "ordered_month": "2026-09-01",
+      "region": "Americas",
+      "channel": "Retail",
+      "revenue": 123.0
+    }
+  ]
+}

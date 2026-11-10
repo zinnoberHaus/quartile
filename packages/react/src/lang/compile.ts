@@ -29,7 +29,7 @@ import {
 import { checkSourceUrl, isProvenanceKey, legacyDataSource, readProvenance } from './provenance';
 import { markRowLimit, readSourceSettings, rowLimitOf, SOURCE_KEYS, sourceDataset } from './source';
 import { finishStyle, isReferenceKey, readStyleSetting, styleJsonSpec, styleState } from './style';
-import { type FieldMeta, parseTable, wholeCurrency } from './table';
+import { exactCurrency, type FieldMeta, parseTable, wholeCurrency } from './table';
 
 export interface CompileOptions extends ParseOptions {
   /** Datasets the block may reference by name: host data and `data` blocks elsewhere. */
@@ -387,35 +387,80 @@ function checkVersion(p: PropEntry, diagnostics: Diagnostic[]) {
   }
 }
 
-function isWholeCurrency(format: unknown): boolean {
-  return (
-    !!format &&
-    typeof format === 'object' &&
-    (format as Intl.NumberFormatOptions).style === 'currency' &&
-    (format as Intl.NumberFormatOptions).maximumFractionDigits === 0
-  );
+/** True when `name` holds amounts and every one of them is a whole number. */
+function wholeAmounts(rows: readonly Row[], name: string): boolean {
+  let seen = false;
+  for (const r of rows) {
+    const v = r[name];
+    if (v == null) continue;
+    if (typeof v !== 'number' || !Number.isInteger(v)) return false;
+    seen = true;
+  }
+  return seen;
 }
 
-/** Currency fields holding only whole numbers display without cents. */
-function wholeCurrencyFields(input: DataInput, only?: Iterable<string>): Record<string, FieldMeta> {
+/** Named formats that leave a number what it was, so a unit inferred from it still holds. */
+const PLAIN_NUMBERS = new Set(['number', 'integer', 'compact', 'scientific', 'engineering']);
+
+/**
+ * What a format a block declares for a field says besides the format itself.
+ *
+ * `currency` means the full amount wherever a value is read, without cents when every amount is
+ * whole and with them otherwise; only axes shorten it. The named format alone would not say that:
+ * ranked lists and donuts shorten it by default, for application data.
+ *
+ * The unit a KPI tags follows the format: the currency, a rate, or nothing for a format that is
+ * not a plain number, where "COUNT" was only inferred from whole values. A unit the block states
+ * itself stands.
+ */
+function declareFormat(
+  meta: FieldMeta,
+  field: FieldDef | undefined,
+  rows: readonly Row[],
+  name: string,
+): FieldMeta {
+  const format = meta.format;
+  if (format === undefined) return meta;
+  const currency = meta.currency ?? field?.currency ?? 'USD';
+  const shape = typeof format === 'object' ? (format as { style?: string; type?: string }) : {};
+  const out: FieldMeta =
+    format === 'currency'
+      ? {
+          ...meta,
+          ...(wholeAmounts(rows, name) ? wholeCurrency(currency) : exactCurrency(currency)),
+          currency,
+        }
+      : meta;
+  if (meta.unit !== undefined) return out;
+  if (format === 'currency' || format === 'currency-compact' || shape.style === 'currency') {
+    return { ...out, unit: currency };
+  }
+  if (format === 'percent' || shape.style === 'percent') return { ...out, unit: 'RATE' };
+  const plain =
+    typeof format === 'string'
+      ? PLAIN_NUMBERS.has(format)
+      : shape.type === undefined || shape.type === 'number';
+  return plain || field?.unit !== 'COUNT' ? out : { ...out, unit: undefined };
+}
+
+/**
+ * Display of the currency fields of a block's own rows: those whose format the block declared
+ * (`declared`), and those that are currency by their name or by how their values were written,
+ * which display without cents when every amount is whole.
+ */
+function wholeCurrencyFields(
+  input: DataInput,
+  declared: Record<string, FieldMeta> = {},
+): Record<string, FieldMeta> {
   const { rows, schema } = resolveData(input);
   const out: Record<string, FieldMeta> = {};
-  const names = only ? [...only] : Object.keys(schema);
-  for (const name of names) {
-    const def = schema[name];
-    if (def?.format !== 'currency') continue;
-    let seen = false;
-    let whole = true;
-    for (const r of rows) {
-      const v = r[name];
-      if (v == null) continue;
-      seen = true;
-      if (typeof v !== 'number' || !Number.isInteger(v)) {
-        whole = false;
-        break;
-      }
+  for (const [name, def] of Object.entries(schema)) {
+    if (Object.hasOwn(declared, name)) {
+      const meta = declareFormat(declared[name], def, rows, name);
+      if (meta !== declared[name]) out[name] = meta;
+    } else if (def.format === 'currency' && wholeAmounts(rows, name)) {
+      out[name] = wholeCurrency(def.currency ?? 'USD');
     }
-    if (seen && whole) out[name] = wholeCurrency(def.currency ?? 'USD');
   }
   return out;
 }
@@ -1239,16 +1284,10 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
 
   if (derivedRows || Object.keys(derivedFields).length) {
     const base = definitions(schema);
-    for (const [k, v] of Object.entries(derivedFields)) base[k] = { ...base[k], ...v };
-    // A view that restates `format: currency` keeps the whole-amount display its rows had.
-    for (const f of Object.keys(derivedFields)) {
-      const before = schema[f]?.format;
-      if (base[f]?.format === 'currency' && isWholeCurrency(before)) {
-        base[f] = {
-          ...base[f],
-          ...wholeCurrency(base[f]?.currency ?? schema[f]?.currency ?? 'USD'),
-        };
-      }
+    // A format the view states (`format:`, `revenue.format:`, `y.format:`) is declared for the
+    // field: currency in full outside axes, and the unit a KPI tags.
+    for (const [k, v] of Object.entries(derivedFields)) {
+      base[k] = { ...base[k], ...declareFormat(v, schema[k], derivedRows ?? rows, k) };
     }
     viewInput = derivedFrom(dataset(derivedRows ?? rows, base), input);
     const derivedName = freeName(`${dataName}__${view.kind}`, { ...ctx.local, ...ctx.datasets });
@@ -1697,7 +1736,7 @@ export function compileBlock(
     const fields: Record<string, FieldMeta> = { ...table.fields };
     for (const [k, v] of Object.entries(meta)) fields[k] = { ...fields[k], ...v };
     const inline = dataset(table.rows, fields);
-    const whole = wholeCurrencyFields(inline);
+    const whole = wholeCurrencyFields(inline, meta);
     local[inlineName] = Object.keys(whole).length ? withFields(inline, whole) : inline;
   } else if (srcProp) {
     const url = unquote(srcProp.value);
@@ -1720,7 +1759,7 @@ export function compileBlock(
         diagnostics,
       );
       const described = withFields(datasets[name], meta);
-      const whole = wholeCurrencyFields(described);
+      const whole = wholeCurrencyFields(described, meta);
       local[name] = Object.keys(whole).length ? withFields(described, whole) : described;
       inlineName = name;
     } else if (!Object.hasOwn(datasets, name)) {

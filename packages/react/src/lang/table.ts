@@ -423,8 +423,9 @@ function typeColumn(name: string, raw: (string | null)[]): ColumnResult {
     } else if (currencies.size === 1) {
       const currency = [...currencies][0];
       meta = { format: compact ? 'currency-compact' : 'currency', currency, unit: currency };
-      if (!compact && values.every((v) => v === null || Number.isInteger(v))) {
-        Object.assign(meta, wholeCurrency(currency));
+      if (!compact) {
+        const whole = values.every((v) => v === null || Number.isInteger(v));
+        Object.assign(meta, whole ? wholeCurrency(currency) : exactCurrency(currency));
       }
     } else if (currencies.size > 1) {
       note = `“${name}” mixes currencies (${[...currencies].join(', ')}); values are shown without a currency.`;
@@ -475,6 +476,18 @@ export function wholeCurrency(currency: string): FieldMeta {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     },
+    axisFormat: 'currency-compact',
+  };
+}
+
+/**
+ * Amounts with cents ("$1,200.50") display in full wherever a value is read. The named
+ * `currency` format prints the same, but ranked lists and donuts shorten it by default to keep
+ * a narrow column; an amount a block asked for or wrote out is shown as it is. Axes stay compact.
+ */
+export function exactCurrency(currency: string): FieldMeta {
+  return {
+    format: { type: 'number', style: 'currency', currency },
     axisFormat: 'currency-compact',
   };
 }

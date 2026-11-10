@@ -19,6 +19,12 @@ export interface PromptOptions {
   fence?: string;
   /** Upper bound on inline rows to ask for. Default 60. */
   maxRows?: number;
+  /**
+   * Also teach `actions: rows, download`, the buttons that open and download the rows behind a
+   * chart. Default false: whether answers carry those buttons is the host's choice, and a host
+   * that turns actions off (`actions={false}`, `data-actions="none"`) shows none anyway.
+   */
+  actions?: boolean;
 }
 
 const KIND_LINES = [
@@ -39,11 +45,26 @@ const KIND_LINES = [
   ['table', 'rows: `table region, revenue`; grouped: `table sum(revenue), count by region`'],
 ] as const;
 
-/** The system-prompt text that teaches the block syntax. Roughly 900 tokens without datasets. */
+/**
+ * Lines a model may add to a chart when asked, or when they help the reader. Each is one
+ * `key: value` setting; the tests compile every one of them.
+ */
+const OPTIONAL_LINES = [
+  '`colors: signal, #f26b3a` (series colors: signal, positive, negative, warning, muted, 1–8 or hex)',
+  '`y.min: 0`, `y.max: 100` (axis range; bars always start at zero)',
+  '`legend: bottom` (or top, left, right, none); `labels: yes` (values on the marks)',
+  '`reference: 1000000` with `reference.label: Target` (a labelled line at a value)',
+  '`source: World Bank`, `asof: 2026-11-01` (where the numbers came from; add them when you know)',
+] as const;
+const ACTIONS_LINE =
+  '`actions: rows, download` (buttons to open and download the rows behind the chart)';
+
+/** The system-prompt text that teaches the block syntax. About 3,800 characters without datasets. */
 export function quartilePrompt(options: PromptOptions = {}): string {
   const fence = options.fence ?? 'quartile';
   const maxRows = options.maxRows ?? 60;
   const f = '```';
+  const optional = [...OPTIONAL_LINES, ...(options.actions ? [ACTIONS_LINE] : [])];
   const datasets = options.datasets?.length
     ? `\n## Data you can reference\nUse \`data: <name>\` instead of pasting rows. Use only these columns.\n${options.datasets
         .map(
@@ -89,6 +110,10 @@ ${KIND_LINES.map(([k, d]) => `- \`${k}\` — ${d}`).join('\n')}
 ## Useful keys
 title, subtitle, format (${['currency USD', 'percent', 'compact', 'integer', '1 decimal', 'month'].join(', ')}; also ${FORMAT_NAMES.slice(0, 6).join(', ')} …), sort (desc, asc, or \`-column\` in tables), limit, stacked, horizontal, smooth, height, x.label, y.label, \`<column>.description\`.
 
+## Optional lines
+Add these only when asked or when they help:
+${optional.map((line) => `- ${line}`).join('\n')}
+
 ## Dashboards and shared data
 Several views in one block form a dashboard; they share the rows after \`---\` and filter each other when clicked.
 
@@ -113,7 +138,7 @@ ${datasets}
 - At most ${maxRows} data rows; aggregate before charting larger data.
 - Every field you name must be a column in the data. Keep units in titles or formats.
 - One idea per chart. Prefer bar for categories, line for time, kpi for single numbers, table for exact values.
-- Do not add JavaScript, HTML, URLs or styling; the page chooses colors and fonts.
+- Do not add JavaScript, HTML or URLs. The page chooses colors and fonts; set colors only when asked.
 `;
 }
 

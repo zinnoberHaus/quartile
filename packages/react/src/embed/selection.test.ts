@@ -45,6 +45,10 @@ afterEach(async () => {
   });
   document.body.innerHTML = '';
   heard = [];
+  // A removed element unmounts on the next tick; let that happen before the test ends.
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
 });
 
 async function mount(html: string) {
@@ -87,6 +91,36 @@ describe('quartile-select', () => {
     expect(event.bubbles).toBe(true);
     expect(event.composed).toBe(true);
     expect(event.target).toBe(list);
+  });
+});
+
+describe('elements over one dataset', () => {
+  it('filter each other without a select: line', async () => {
+    const plain = page.replace('    select: true\n', '');
+    expect(plain).not.toContain('select:');
+    const [list, kpi] = await mount(plain);
+    await waitFor(() => expect(text(kpi)).toContain('$240'));
+    await act(async () => {
+      fireEvent.click(rowButton(list, 'APAC'));
+    });
+    expect(text(kpi)).toContain('$80');
+    expect(heard.map((h) => [h.id, h.detail.group, h.detail.origin])).toEqual([
+      ['by-region', 'orders', true],
+      ['total', 'orders', false],
+    ]);
+  });
+
+  it('leave a lone element with its own rows unclickable unless it asks', async () => {
+    const [chart] = await mount(`
+      <quartile-chart><script type="text/quartile">
+        barlist sum(amount) by region
+        ---
+        region,amount
+        EMEA,120
+        APAC,80
+      </script></quartile-chart>`);
+    expect(text(chart)).toContain('APAC');
+    expect(shadow(chart).querySelector('button')).toBeNull();
   });
 });
 

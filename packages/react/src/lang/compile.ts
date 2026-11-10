@@ -5,7 +5,6 @@
 import { derivedFrom } from '../data/origin';
 import { dataset, humanize, resolveData } from '../data/schema';
 import type { DataInput, Dataset, FieldDef, Formatter, Row } from '../data/types';
-import type { ViewAction } from '../spec/actions';
 import {
   type ComponentSpec,
   type DashboardSpec,
@@ -29,6 +28,7 @@ import {
 } from './parse';
 import { checkSourceUrl, isProvenanceKey, legacyDataSource, readProvenance } from './provenance';
 import { readSourceSettings, SOURCE_KEYS, sourceDataset } from './source';
+import { finishStyle, isReferenceKey, readStyleSetting, styleJsonSpec, styleState } from './style';
 import { type FieldMeta, parseTable, wholeCurrency } from './table';
 
 export interface CompileOptions extends ParseOptions {
@@ -43,6 +43,11 @@ export interface CompileOptions extends ParseOptions {
    * raised to it with a note. Without it the block's value is recorded as written.
    */
   minRefresh?: number;
+  /**
+   * Let blocks set chart colors (`colors:`, `color: #2f45e8`). Defaults to true; false drops
+   * them with a note, for hosts whose charts must keep the page's own palette.
+   */
+  blockColors?: boolean;
 }
 
 export interface CompiledBlock {
@@ -273,6 +278,8 @@ function fieldMetaFrom(
     if (['x', 'y', 'color', 'value', 'size', 'category', 'group', 'target'].includes(fieldName)) {
       continue;
     }
+    // `reference.label` names a reference line, unless a column carries that name.
+    if (isReferenceKey(fieldName, columns)) continue;
     const column =
       columns.find((c) => c === fieldName) ??
       columns.find((c) => c.toLowerCase() === fieldName.toLowerCase());
@@ -424,8 +431,7 @@ interface ViewContext {
   inDashboard: boolean;
   complete: boolean;
   diagnostics: Diagnostic[];
-  /** A dashboard's `actions:`, the default for its views. */
-  actions?: ViewAction[];
+  blockColors: boolean;
 }
 
 interface CompiledView {
@@ -685,8 +691,20 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
   let link: string | null | undefined;
   let hasCountMeasure = false;
   let viewFormat: { format: Formatter; currency?: string; line: number } | undefined;
-  for (const p of view.props) {
-    if (isProvenanceKey(p.norm)) continue;
+  const style = styleState({
+    component,
+    kind: view.kind,
+    props: schemaProps,
+    spec,
+    lines,
+    diagnostics,
+    columns: resolver.columns,
+    blockColors: ctx.blockColors,
+  });
+  for (const entry of view.props) {
+    if (isProvenanceKey(entry.norm)) continue;
+    const p = readStyleSetting(entry, style);
+    if (!p) continue;
     const dot = p.key.lastIndexOf('.');
     if (dot > 0) {
       const head = p.key.slice(0, dot).trim();
@@ -850,10 +868,8 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
     }
   }
   Object.assign(spec, readProvenance(view.props, diagnostics, dataProp));
-  if (spec.actions === undefined && ctx.actions) {
-    spec.actions = supportedActions(ctx.actions, component);
-  }
   for (const [k, v] of Object.entries(view.implied)) if (spec[k] === undefined) spec[k] = v;
+  finishStyle(style);
 
   // 3. The sentence: measures, dimensions and the `vs` field.
   const s = view.sentence;
@@ -1089,6 +1105,11 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
             : '',
       };
       spec.x = orderName;
+      if (Array.isArray(spec.annotations)) {
+        spec.annotations = (spec.annotations as { x?: unknown }[]).map((a) =>
+          a && order.has(String(a.x)) ? { ...a, x: order.get(String(a.x)) } : a,
+        );
+      }
       delete channelMeta.x;
       if (spec.brush) {
         diagnostics.push(
@@ -1138,7 +1159,16 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
       spec.title = dims.length ? `${what} by ${dims.join(' and ')}` : what;
     }
   }
-  if (ctx.inDashboard && def.link && spec[def.link] === undefined && def.link in schemaProps) {
+  // The view's selection group: `link: name`, else its named dataset; null when it stands alone.
+  const group =
+    link === null
+      ? null
+      : (link ??
+        (Object.hasOwn(ctx.datasets, dataName) || ctx.pending.has(dataName) ? dataName : null));
+  // A view in a named group publishes like one in a dashboard, so blocks over one dataset
+  // filter each other. A block with its own rows publishes only when it asks.
+  const publishes = ctx.inDashboard || group !== null;
+  if (publishes && def.link && spec[def.link] === undefined && def.link in schemaProps) {
     if (!(def.link === 'brush' && spec.brush === false)) spec[def.link] = true;
   }
 
@@ -1218,13 +1248,7 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
   for (const e of result.errors) diagnostics.push(specError(e, lines, view.line, view.kind));
   if (!result.valid) return { pending: false, dataName, link: null };
 
-  const named = Object.hasOwn(ctx.datasets, dataName) || ctx.pending.has(dataName);
-  return {
-    spec,
-    dataName,
-    pending: false,
-    link: link === null ? null : (link ?? (named ? dataName : null)),
-  };
+  return { spec, dataName, pending: false, link: group };
 }
 
 /** Drops undefined keys and writes `{ field }` as the plain field name. */
@@ -1539,6 +1563,11 @@ function compileJson(block: BlockNode, options: CompileOptions): CompiledBlock {
     for (const item of (spec as DashboardSpec).layout) checkSourceUrl(item, diagnostics);
   }
   const all = { ...options.datasets, ...data };
+  for (const item of Array.isArray((spec as DashboardSpec).layout)
+    ? (spec as DashboardSpec).layout
+    : [spec as ComponentSpec]) {
+    styleJsonSpec(item, diagnostics, options.blockColors !== false);
+  }
   const result = validateSpec(spec);
   for (const e of result.errors) diagnostics.push(error(`${e.path || '/'}: ${e.message}`));
   const isDash = Array.isArray((spec as DashboardSpec).layout);
@@ -1703,9 +1732,8 @@ export function compileBlock(
     inDashboard: block.type === 'dashboard',
     complete,
     diagnostics,
+    blockColors: options.blockColors !== false,
   };
-  const dashboardActions = block.props.find((p) => p.norm === 'actions');
-  if (dashboardActions) ctx.actions = parseActions(dashboardActions, diagnostics);
 
   if (block.type === 'view') {
     const view = block.views[0];
@@ -1759,6 +1787,15 @@ export function compileBlock(
     if (title) dash.title = title;
     if (description) dash.description = description;
     Object.assign(dash, readProvenance(block.props, diagnostics, dashboardData));
+    // Written before the first view, actions are the dashboard's own: one toolbar for its rows.
+    const actionsProp = block.props.find((p) => p.norm === 'actions');
+    if (actionsProp) {
+      dash.actions = supportedActions(parseActions(actionsProp, diagnostics), 'Dashboard', {
+        kind: 'dashboard',
+        line: actionsProp.line,
+        diagnostics,
+      }).filter((action) => action !== 'table');
+    }
     result.spec = dash;
   }
   return result;

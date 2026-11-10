@@ -17,6 +17,7 @@ import type { DataInput } from '../data/types';
 import { DEFAULT_LANGUAGES, findFencedBlocks, scanDocument } from '../lang/document';
 import type { SourceValue } from '../lang/source';
 import { QuartileProvider, type QuartileProviderProps } from '../provider/QuartileProvider';
+import { type SelectionHandle, selectionHandle } from '../selection/handle';
 import { type SelectionChange, type SelectionEvent, SelectionStore } from '../selection/store';
 import { knownActions, type ViewAction } from '../spec/actions';
 import { type SourceRequest, SourceStore } from './sourceStore';
@@ -34,6 +35,8 @@ export interface QuartileDocumentContextValue {
   loaded: Readonly<Record<string, DataInput>>;
   streaming: boolean;
   dataDisplay: DataDisplay;
+  /** Whether blocks may set chart colors. */
+  blockColors: boolean;
   languages: readonly string[];
   /**
    * Registers a `data` block's rows under its name; `key` identifies the definition and `basis`
@@ -111,6 +114,11 @@ export interface QuartileDocumentProps extends Omit<QuartileProviderProps, 'chil
   pending?: readonly string[];
   /** How `data` blocks render: a collapsed summary (default), an open table, or nothing. */
   dataDisplay?: DataDisplay;
+  /**
+   * Let blocks set chart colors (`colors:`, `color: #2f45e8`). Defaults to true. Pass false to
+   * keep every chart on the page's own palette; the setting is then dropped with a note.
+   */
+  blockColors?: boolean;
   /** Fence languages read as Quartile blocks. Defaults to `quartile`. */
   languages?: readonly string[];
   /** Wrap children in a QuartileProvider (default). Pass false inside an existing provider. */
@@ -142,6 +150,13 @@ export interface QuartileDocumentHandle {
    * screen until the new ones arrive. Resolves when the requests have settled.
    */
   reload(url?: string): Promise<void>;
+  /**
+   * Reads and writes one of the document's selection groups by name: a `link:` name, a dataset
+   * name, or a standalone block's `block-<n>`. A group exists from its first use.
+   */
+  selection(group: string): SelectionHandle;
+  /** Names of the document's selection groups, in the order they were first used. */
+  groups(): string[];
 }
 
 interface Registered {
@@ -166,6 +181,7 @@ function DocumentScope({
   streaming = false,
   pending: hostPending,
   dataDisplay = 'summary',
+  blockColors = true,
   languages = DEFAULT_LANGUAGES,
   provider = true,
   stores: externalStores,
@@ -268,7 +284,6 @@ function DocumentScope({
   );
 
   const reloadSources = useCallback((url?: string) => sources.reload(url), [sources]);
-  useImperativeHandle(handle, () => ({ reload: reloadSources }), [reloadSources]);
 
   useEffect(() => () => ownSources.current?.dispose(), []);
 
@@ -279,8 +294,11 @@ function DocumentScope({
     }
   }, [scanned, data, sources]);
 
+  // Every group asked for, whoever keeps its store, so a ref can list them.
+  const groupNames = useRef(new Set<string>());
   const store = useCallback(
     (group: string, anonymous = false) => {
+      groupNames.current.add(group);
       if (externalStores) return externalStores(group);
       let s = stores.current.get(group);
       if (!s) {
@@ -292,6 +310,16 @@ function DocumentScope({
       return s;
     },
     [docId, externalStores],
+  );
+
+  useImperativeHandle(
+    handle,
+    () => ({
+      reload: reloadSources,
+      selection: (group: string) => selectionHandle(group, store),
+      groups: () => [...groupNames.current],
+    }),
+    [reloadSources, store],
   );
 
   // Numbers are handed out during render, so server and client count blocks in the same order.
@@ -331,6 +359,7 @@ function DocumentScope({
       loaded,
       streaming,
       dataDisplay,
+      blockColors,
       languages,
       register,
       unregister,
@@ -352,6 +381,7 @@ function DocumentScope({
       loaded,
       streaming,
       dataDisplay,
+      blockColors,
       languages,
       register,
       unregister,
@@ -374,7 +404,8 @@ function DocumentScope({
 
 /**
  * Scopes the Quartile blocks of one Markdown document; see `QuartileDocumentProps`. A ref
- * offers `reload()` to fetch the document's `src:` data again.
+ * offers `reload()` to fetch the document's `src:` data again, and `selection(group)` and
+ * `groups()` to read, set and clear its selections from outside.
  */
 export const QuartileDocument = forwardRef<QuartileDocumentHandle, QuartileDocumentProps>(
   function QuartileDocument(props, ref) {

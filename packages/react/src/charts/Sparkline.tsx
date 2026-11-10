@@ -9,6 +9,8 @@ import { useLinkedRows, useSourceId } from '../selection/Selection';
 import { summarizeSeries } from './core/a11y';
 import type { ChartStateProps } from './core/ChartFrame';
 import { statusOf } from './core/ChartFrame';
+import { type ChartColor, singleColor } from './core/colors';
+import { boundedNumber } from './core/options';
 import { type Curve, curveFactory } from './core/scales';
 import { pivotSeries } from './core/trends-series';
 
@@ -23,14 +25,19 @@ export interface SparklineProps<R extends Row = Row> extends ChartStateProps {
   compare?: keyof R & string;
   /** Fills under the line with a faint wash of the line color. */
   area?: boolean;
-  /** Line color. Defaults to the text color; pass a token such as `var(--q-signal)`. */
-  color?: string;
+  /**
+   * Line color: a palette name such as `signal`, 1–8, a hex color, or a Quartile token such as
+   * `var(--q-signal)`. Defaults to the text color.
+   */
+  color?: ChartColor;
   /** Height in px. Defaults to 28. */
   height?: number;
   /** Width in px, or any CSS length. Defaults to filling the container. */
   width?: number | string;
   /** Interpolation between points. Defaults to monotone. */
   curve?: Curve;
+  /** Line width in px. Defaults to 1.25. */
+  strokeWidth?: number;
   /** Formats values in the accessible summary. Defaults to the field's schema format. */
   format?: Formatter;
   /** Selection to read from. Defaults to the nearest; false opts out. */
@@ -52,10 +59,11 @@ export function Sparkline<R extends Row = Row>(props: SparklineProps<R>) {
     y,
     compare,
     area = false,
-    color = 'var(--q-text)',
+    color: colorSetting,
     height = 28,
     width = '100%',
     curve = 'monotone',
+    strokeWidth,
     format,
     selection,
     className,
@@ -68,6 +76,8 @@ export function Sparkline<R extends Row = Row>(props: SparklineProps<R>) {
   } = props;
   const { locale, timeZone } = useQuartile();
   const source = useSourceId();
+  const color = singleColor(colorSetting, 'var(--q-text)');
+  const lineWidth = boundedNumber(strokeWidth, 0.25, 16);
   const numeric = Array.isArray(data) && data.length > 0 && typeof data[0] === 'number';
   const resolved = useMemo(
     () =>
@@ -196,7 +206,13 @@ export function Sparkline<R extends Row = Row>(props: SparklineProps<R>) {
           <path className="q-sparkline-area" d={fill(model.values) ?? ''} style={{ fill: color }} />
         )}
         {model.prev && <path className="q-sparkline-compare" d={line(model.prev) ?? ''} />}
-        <path className="q-sparkline-line" d={line(model.values) ?? ''} style={{ stroke: color }} />
+        <path
+          className="q-sparkline-line"
+          d={line(model.values) ?? ''}
+          style={
+            lineWidth === undefined ? { stroke: color } : { stroke: color, strokeWidth: lineWidth }
+          }
+        />
       </svg>
     </span>
   );

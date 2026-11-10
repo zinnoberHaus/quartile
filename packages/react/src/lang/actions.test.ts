@@ -51,23 +51,52 @@ describe('actions:', () => {
     expect((table.spec as ComponentSpec).actions).toEqual(['download']);
   });
 
-  it('set on a dashboard is the default for its views; a view may say otherwise', () => {
+  it('written before a dashboard’s first view belongs to the dashboard; a view asks for its own', () => {
     const c = compileBlock(
-      `dashboard Sales\nactions: table, rows\nkpi sum(amount)\nbar sum(amount) by region\nline sum(amount) by region\nactions: none\nfilters region\n---\n${rows}`,
+      `dashboard Sales\nactions: rows, download\nkpi sum(amount)\nbar sum(amount) by region\nactions: table\nline sum(amount) by region\n---\n${rows}`,
     );
     expect(errors(c)).toEqual([]);
     expect(warnings(c)).toEqual([]);
-    const layout = (c.spec as DashboardSpec).layout;
-    expect(layout.map((item) => [item.component, item.actions])).toEqual([
-      ['KPI', ['rows']],
-      ['BarChart', ['table', 'rows']],
-      ['LineChart', []],
-      ['FilterBar', []],
+    const dash = c.spec as DashboardSpec;
+    expect(dash.actions).toEqual(['rows', 'download']);
+    expect(dash.layout.map((item) => [item.component, item.actions])).toEqual([
+      ['KPI', undefined],
+      ['BarChart', ['table']],
+      ['LineChart', undefined],
     ]);
+    expect(
+      (
+        compileBlock(`dashboard\nactions: none\nkpi sum(amount)\n---\n${rows}`)
+          .spec as DashboardSpec
+      ).actions,
+    ).toEqual([]);
     const plain = compileBlock(
       `dashboard\nkpi sum(amount)\nbar sum(amount) by region\n---\n${rows}`,
     );
+    expect('actions' in (plain.spec as DashboardSpec)).toBe(false);
     expect((plain.spec as DashboardSpec).layout.every((item) => !('actions' in item))).toBe(true);
+  });
+
+  it('keeps table for charts: a dashboard’s own toolbar is its rows and their download', () => {
+    const c = compileBlock(`dashboard\nactions: table, rows\nkpi sum(amount)\n---\n${rows}`);
+    expect(errors(c)).toEqual([]);
+    expect(c.diagnostics.find((d) => d.severity === 'warning')).toMatchObject({
+      message: 'A dashboard has no “table” action; it was ignored.',
+      line: 2,
+      hint: 'A dashboard shows rows and download; write “actions: table” under a chart.',
+    });
+    expect((c.spec as DashboardSpec).actions).toEqual(['rows']);
+    const json = (actions: string[]) =>
+      errors(
+        compileBlock(
+          JSON.stringify({
+            actions,
+            layout: [{ component: 'KPI', label: 'Rows', value: 'amount', data: [{ amount: 2 }] }],
+          }),
+        ),
+      );
+    expect(json(['rows', 'download'])).toEqual([]);
+    expect(json(['table'])[0]).toMatch(/\/actions\/0: Expected one of "rows", "download"/);
   });
 
   it('is validated in JSON specs', () => {

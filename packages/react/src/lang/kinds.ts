@@ -291,6 +291,23 @@ export const PROPERTY_ALIASES: Record<string, string> = {
   columnspan: 'span',
   colspan: 'span',
   dataset: 'data',
+  colours: 'colors',
+  palette: 'colors',
+  gridlines: 'grid',
+  datalabels: 'labels',
+  valuelabels: 'labels',
+  showlabels: 'labels',
+  showvalues: 'labels',
+  ticks: 'yTicks',
+  tickcount: 'yTicks',
+  referenceline: 'reference',
+  scale: 'yScale',
+  linewidth: 'strokeWidth',
+  stroke: 'strokeWidth',
+  cornerradius: 'radius',
+  barradius: 'radius',
+  barpadding: 'padding',
+  annotation: 'annotations',
 };
 
 /** Normalized property key: "X-Axis Label" → "xaxislabel". Dots are kept for paths. */

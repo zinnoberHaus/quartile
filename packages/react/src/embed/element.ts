@@ -85,6 +85,7 @@ const defaults: {
   host?: HostTheme;
   accent?: string;
   actions?: readonly ViewAction[] | false;
+  blockColors?: boolean;
 } = { theme: 'auto' };
 
 /**
@@ -312,6 +313,7 @@ export class QuartileChartElement extends HTMLElement {
           locale: this.getAttribute('locale') ?? undefined,
           timeZone: this.getAttribute('time-zone') ?? undefined,
           initialWidth: Number.isFinite(width) && width > 0 ? width : undefined,
+          blockColors: defaults.blockColors,
           // Pages restyle the chart with `quartile-chart::part(root) { --q-signal: … }`.
           part: 'root',
           dataDisplay:
@@ -429,8 +431,9 @@ export function observeBlocks(root: ParentNode = document, options: EmbedOptions
 }
 
 /**
- * Page-wide settings: source policy, languages, defaults for theme, host and accent, and the
- * actions views may show (`actions`: a default list, or false for none).
+ * Page-wide settings: source policy, languages, defaults for theme, host and accent, the
+ * actions views may show (`actions`: a default list, or false for none), and whether blocks
+ * may set chart colors (`blockColors`, default true).
  */
 export function configureEmbed(
   options: EmbedOptions & {
@@ -438,14 +441,16 @@ export function configureEmbed(
     host?: HostTheme;
     accent?: string;
     actions?: readonly ViewAction[] | false;
+    blockColors?: boolean;
   },
 ) {
-  const { theme, host, accent, actions, ...rest } = options;
+  const { theme, host, accent, actions, blockColors, ...rest } = options;
   Object.assign(pageScope().options, rest);
   setElementDefaults({
     ...(theme ? { theme } : {}),
     ...(host ? { host } : {}),
     ...(accent ? { accent } : {}),
     ...(actions !== undefined ? { actions: actions && knownActions(actions) } : {}),
+    ...(blockColors !== undefined ? { blockColors } : {}),
   });
 }

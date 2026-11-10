@@ -19,21 +19,57 @@ import { useQuartile } from '../provider/QuartileProvider';
 import { useLinkedRows, useSourceId } from '../selection/Selection';
 import { useChartKeyboard } from './core/a11y';
 import { type ChartBaseProps, ChartFrame, type ChartTable, statusOf } from './core/ChartFrame';
+import { type ChartColor, pickColor, seriesColors } from './core/colors';
 import { orderedKeys, pearson } from './core/dist-stats';
 import {
   AxisBottom,
   AxisLeft,
+  ChartNote,
   ChartTooltip,
+  GridColumns,
   GridRows,
   Legend,
+  LegendLayout,
+  ReferenceRules,
   type TooltipRow,
 } from './core/guides';
-import { seriesColor } from './core/scales';
-import { ScatterGeometry } from './renderers/ScatterGeometry';
+import {
+  type ChartPresentationProps,
+  describeLimits,
+  describeReferences,
+  gridLines,
+  type LegendSetting,
+  legendPlacement,
+  logScaleProblem,
+  marginSides,
+  readOut,
+  referenceLines,
+  sideLegendWidth,
+  tickCount,
+  type ValueScaleType,
+} from './core/options';
+import { seriesColor, tickFormatter } from './core/scales';
+import { useSettled } from './core/settled';
+import { ScatterGeometry, type ScatterLayout } from './renderers/ScatterGeometry';
 import { ScatterMarks, SvgScatterMarks } from './renderers/ScatterMarks';
 import type { ScatterRenderer, ScatterRendererState } from './renderers/scatter-types';
 
-export interface ScatterPlotProps<R extends Row = Row> extends ChartBaseProps {
+export interface ScatterPlotProps<R extends Row = Row>
+  extends ChartBaseProps,
+    Pick<
+      ChartPresentationProps,
+      | 'margin'
+      | 'yMin'
+      | 'yMax'
+      | 'xMin'
+      | 'xMax'
+      | 'yTicks'
+      | 'xTicks'
+      | 'grid'
+      | 'xAxis'
+      | 'yAxis'
+      | 'reference'
+    > {
   /** SVG is the default. WebGL falls back to Canvas, then SVG, when unavailable or lost. */
   renderer?: ScatterRenderer;
   /** Reports the active renderer after drawing, including any fallback reason. */
@@ -61,8 +97,15 @@ export interface ScatterPlotProps<R extends Row = Row> extends ChartBaseProps {
   select?: boolean | (keyof R & string);
   /** Preserve physical field identities for prepared query results, including nominal ISO strings. */
   typedSelection?: boolean;
-  /** Shows a legend above the plot. Defaults to true when `color` is set. */
-  legend?: boolean;
+  /** Shows a legend above the plot, or on the side named. Defaults to true when `color` is set. */
+  legend?: LegendSetting;
+  /** Point colors per group of `color`, in order; without `color`, the first one colors every point. */
+  colors?: ChartColor[] | Record<string, ChartColor>;
+  /**
+   * `log` spaces equal ratios of `y` evenly. It needs every y value above zero; otherwise the
+   * plot stays linear and says so in a note and in its summary.
+   */
+  yScale?: ValueScaleType;
   /** Axis titles under the plot. Default "<x> →" and "↑ <y>"; false hides them. */
   xTitle?: string | false;
   yTitle?: string | false;
@@ -109,6 +152,19 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
     select,
     typedSelection = false,
     legend,
+    colors,
+    yScale: scaleType = 'linear',
+    margin,
+    yMin,
+    yMax,
+    xMin,
+    xMax,
+    yTicks: yTickCount,
+    xTicks: xTickCount,
+    grid,
+    xAxis = true,
+    yAxis = true,
+    reference,
     xTitle,
     yTitle,
     id,
@@ -122,6 +178,10 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
   const { rows: allRows, schema } = useMemo(() => resolveData(data), [data]);
   const { rows, selection: sel } = useLinkedRows(allRows, { selection, source });
   const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const colorList = useSettled(colors);
+  const palette = useMemo(() => seriesColors(colorList), [colorList]);
+  const referenceList = useSettled(reference);
+  const refs = useMemo(() => referenceLines(referenceList), [referenceList]);
 
   const xField = useMemo(() => fieldOf(schema, x, allRows), [schema, x, allRows]);
   const yField = useMemo(() => fieldOf(schema, y, allRows), [schema, y, allRows]);
@@ -164,11 +224,12 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
     [allRows, color],
   );
   const groupColor = useMemo(
-    () => new Map(groups.map((g, i) => [g, seriesColor(i)] as const)),
-    [groups],
+    () => new Map(groups.map((g, i) => [g, pickColor(palette, g, i, seriesColor)] as const)),
+    [groups, palette],
   );
+  const plainColor = pickColor(palette, '', 0, seriesColor);
 
-  const points = useMemo(() => {
+  const { points, outside } = useMemo(() => {
     const sizes = size
       ? allRows.map((r) => finiteNumber(r[size])).filter((v): v is number => v != null)
       : [];
@@ -176,12 +237,20 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
       .domain([0, Math.max(0, max(sizes) ?? 0) || 1])
       .range([3, 9]);
     const out: Point[] = [];
+    // Points beyond an axis bound are left out of the drawing in every renderer, and counted.
+    let outside = 0;
+    const beyond = (v: number, lower?: number, upper?: number) =>
+      (lower != null && v < lower) || (upper != null && v > upper);
     for (const r of rows) {
       const px = finiteNumber(r[x]);
       const py = finiteNumber(r[y]);
       if (px == null || py == null) continue;
       const g = color ? String(r[color]) : null;
       if (g != null && hidden.has(g)) continue;
+      if (beyond(px, xMin, xMax) || beyond(py, yMin, yMax)) {
+        outside++;
+        continue;
+      }
       const s = size ? finiteNumber(r[size]) : null;
       out.push({
         row: r,
@@ -189,13 +258,13 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
         y: py,
         r: size ? (s != null ? rScale(Math.max(0, s)) : 3) : 4.5,
         group: g,
-        color: g != null ? (groupColor.get(g) ?? seriesColor(0)) : seriesColor(0),
+        color: g != null ? (groupColor.get(g) ?? plainColor) : plainColor,
       });
     }
     // Reading order for the keyboard: left to right.
     out.sort((a, b) => a.x - b.x || a.y - b.y);
-    return out;
-  }, [rows, allRows, x, y, size, color, hidden, groupColor]);
+    return { points: out, outside };
+  }, [rows, allRows, x, y, size, color, hidden, groupColor, plainColor, xMin, xMax, yMin, yMax]);
 
   // Axes span every row, so filtering from another view never rescales the plot.
   const domains = useMemo(() => {
@@ -205,8 +274,57 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
       });
       return a == null || b == null ? [0, 1] : a === b ? [a - 1, b + 1] : [a, b];
     };
-    return { x: span(x), y: span(y) };
-  }, [allRows, x, y]);
+    const ySpan = span(y);
+    // A reference rule belongs on the axis even when no point reaches it.
+    for (const r of refs) {
+      ySpan[0] = Math.min(ySpan[0], r.value);
+      ySpan[1] = Math.max(ySpan[1], r.value);
+    }
+    return { x: span(x), y: ySpan };
+  }, [allRows, x, y, refs]);
+  // Axes span every row, so the check does too: one value at or below zero rules a log axis out.
+  const logProblem = useMemo(
+    () =>
+      scaleType === 'log'
+        ? logScaleProblem([
+            ...allRows.flatMap((r) => finiteNumber(r[y]) ?? []),
+            ...refs.map((r) => r.value),
+          ])
+        : undefined,
+    [scaleType, allRows, y, refs],
+  );
+  const yLog = scaleType === 'log' && !logProblem;
+
+  const pad = marginSides(margin);
+  const layout = useMemo<ScatterLayout>(
+    () => ({
+      pad: { top: pad.top, right: pad.right, bottom: pad.bottom, left: pad.left },
+      xTicks: xTickCount === undefined ? undefined : tickCount(xTickCount, 5),
+      yTicks: yTickCount === undefined ? undefined : tickCount(yTickCount, 4),
+      xAxis,
+      yAxis,
+      xMin,
+      xMax,
+      yMin,
+      yMax,
+      yLog,
+    }),
+    [
+      pad.top,
+      pad.right,
+      pad.bottom,
+      pad.left,
+      xTickCount,
+      yTickCount,
+      xAxis,
+      yAxis,
+      xMin,
+      xMax,
+      yMin,
+      yMax,
+      yLog,
+    ],
+  );
 
   const selectField: string | undefined =
     typeof select === 'string' ? select : select ? (color ?? label) : undefined;
@@ -318,6 +436,15 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
     return out;
   };
 
+  const fmtXAxis = useMemo(
+    () => tickFormatter(xField, locale, timeZone, xFormat),
+    [xField, locale, timeZone, xFormat],
+  );
+  const fmtYAxis = useMemo(
+    () => tickFormatter(yField, locale, timeZone, format),
+    [yField, locale, timeZone, format],
+  );
+
   const summary = useMemo(() => {
     if (points.length === 0) return '';
     const [x0, x1] = extent(points, (p) => p.x) as [number, number];
@@ -326,14 +453,45 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
       points.map((p) => p.x),
       points.map((p) => p.y),
     );
+    const extras = [
+      describeReferences(refs, readOut(fmtY, fmtYAxis)),
+      describeLimits(xMin, xMax, readOut(fmtX, fmtXAxis), 'The x axis'),
+      describeLimits(yMin, yMax, readOut(fmtY, fmtYAxis)),
+      outside > 0
+        ? `${outside} ${outside === 1 ? 'point falls' : 'points fall'} outside the axis limits and ${outside === 1 ? 'is' : 'are'} not shown.`
+        : '',
+      scaleType === 'log' ? (logProblem ?? 'The y axis is logarithmic.') : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
     return `${yField.label} against ${xField.label}, ${points.length} points${
       color ? ` in ${groups.length} groups` : ''
     }${sizeField ? `, sized by ${sizeField.label}` : ''}. ${xField.label} from ${fmtX(x0)} to ${fmtX(x1)}; ${yField.label} from ${fmtY(y0)} to ${fmtY(y1)}.${
       r != null
         ? ` ${strength(r)[0].toUpperCase()}${strength(r).slice(1)} (r = ${makeFormatter({ minimumFractionDigits: 2, maximumFractionDigits: 2 }, { locale })(r)}).`
         : ''
-    }`;
-  }, [points, xField, yField, sizeField, color, groups, fmtX, fmtY, locale]);
+    }${extras ? ` ${extras}` : ''}`;
+  }, [
+    points,
+    xField,
+    yField,
+    sizeField,
+    color,
+    groups,
+    fmtX,
+    fmtY,
+    fmtXAxis,
+    fmtYAxis,
+    locale,
+    refs,
+    xMin,
+    xMax,
+    yMin,
+    yMax,
+    outside,
+    scaleType,
+    logProblem,
+  ]);
 
   const table = useMemo<ChartTable>(() => {
     const fields = [label, color, x, y, size].filter((f): f is string => !!f);
@@ -362,8 +520,10 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
     };
   }, [label, color, x, y, size, schema, allRows, points, fmtX, fmtY, locale, timeZone]);
 
-  const showLegend = (legend ?? !!color) && groups.length > 0;
+  const side = groups.length > 0 ? legendPlacement(legend, !!color, 'top') : null;
+  const beside = side === 'left' || side === 'right';
   const titlesOn = xTitle !== false || yTitle !== false;
+  const lines = gridLines(grid, { x: false, y: true });
 
   return (
     <ChartFrame
@@ -374,157 +534,204 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
       table={table}
       {...frame}
     >
-      {({ width, height: availableHeight }) => (
-        <ScatterGeometry
-          points={points}
-          selected={selected}
-          domains={domains}
-          width={width}
-          height={availableHeight - (showLegend ? LEGEND_H : 0)}
-          xField={xField}
-          yField={yField}
-          format={format}
-          xFormat={xFormat}
-          locale={locale}
-          timeZone={timeZone}
-          titlesOn={titlesOn}
-        >
-          {({ plotHeight, bottom, top, left, right, px, py, xTicks, yTicks, marks, nearest }) => {
-            const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
-              const rect = e.currentTarget.getBoundingClientRect();
-              const i = nearest(e.clientX - rect.left, e.clientY - rect.top);
-              setHover(i < 0 ? null : i);
-            };
-            const onClick = (e: MouseEvent<HTMLDivElement>) => {
-              if (!selectField) return;
-              const rect = e.currentTarget.getBoundingClientRect();
-              const i = nearest(e.clientX - rect.left, e.clientY - rect.top);
-              if (i >= 0) toggle(points[i], e.shiftKey || e.metaKey);
-            };
-            const f = focus != null ? points[focus] : null;
-            const tipRows = f ? tipRowsOf(f) : [];
+      {({ width: frameWidth, height: availableHeight }) => {
+        const legendWidth = beside
+          ? sideLegendWidth(
+              groups.map((g) => groupLabels.get(g) ?? g),
+              frameWidth,
+            )
+          : 0;
+        const width = beside ? Math.max(1, frameWidth - legendWidth - 12) : frameWidth;
+        return (
+          <ScatterGeometry
+            points={points}
+            selected={selected}
+            domains={domains}
+            width={width}
+            height={availableHeight - (side === 'top' || side === 'bottom' ? LEGEND_H : 0)}
+            layout={layout}
+            xField={xField}
+            yField={yField}
+            format={format}
+            xFormat={xFormat}
+            locale={locale}
+            timeZone={timeZone}
+            titlesOn={titlesOn}
+          >
+            {({
+              plotHeight,
+              bottom,
+              top,
+              left,
+              right,
+              px,
+              py,
+              xTicks,
+              yTicks,
+              marks,
+              nearest,
+              yAt,
+            }) => {
+              const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const i = nearest(e.clientX - rect.left, e.clientY - rect.top);
+                setHover(i < 0 ? null : i);
+              };
+              const onClick = (e: MouseEvent<HTMLDivElement>) => {
+                if (!selectField) return;
+                const rect = e.currentTarget.getBoundingClientRect();
+                const i = nearest(e.clientX - rect.left, e.clientY - rect.top);
+                if (i >= 0) toggle(points[i], e.shiftKey || e.metaKey);
+              };
+              const f = focus != null ? points[focus] : null;
+              const tipRows = f ? tipRowsOf(f) : [];
 
-            return (
-              <>
-                {showLegend && (
-                  <Legend
-                    className="q-chart-legend-top"
-                    items={groups.map((g) => ({
-                      key: g,
-                      label: groupLabels.get(g) ?? g,
-                      color: groupColor.get(g) ?? seriesColor(0),
-                      inactive: hidden.has(g),
-                    }))}
-                    onToggle={(key) =>
-                      setHidden((h) => {
-                        const n = new Set(h);
-                        if (n.has(key)) n.delete(key);
-                        else if (n.size < groups.length - 1) n.add(key);
-                        return n;
-                      })
+              return (
+                <LegendLayout
+                  side={side}
+                  legend={
+                    <Legend
+                      className="q-chart-legend-top"
+                      position={typeof legend === 'string' && side ? side : undefined}
+                      style={beside ? { width: legendWidth } : undefined}
+                      items={groups.map((g) => ({
+                        key: g,
+                        label: groupLabels.get(g) ?? g,
+                        color: groupColor.get(g) ?? plainColor,
+                        inactive: hidden.has(g),
+                      }))}
+                      onToggle={(key) =>
+                        setHidden((h) => {
+                          const n = new Set(h);
+                          if (n.has(key)) n.delete(key);
+                          else if (n.size < groups.length - 1) n.add(key);
+                          return n;
+                        })
+                      }
+                    />
+                  }
+                >
+                  <div
+                    style={
+                      beside
+                        ? { position: 'relative', height: plotHeight, width, flex: 'none' }
+                        : { position: 'relative', height: plotHeight }
                     }
-                  />
-                )}
-                <div style={{ position: 'relative', height: plotHeight }}>
-                  <svg
-                    width={width}
-                    height={plotHeight}
-                    viewBox={`0 0 ${width} ${plotHeight}`}
-                    aria-hidden="true"
                   >
-                    <GridRows ys={yTicks.map((t) => t.y)} x0={left} x1={right} />
-                    <AxisLeft ticks={yTicks} x={left - 10} />
-                    <AxisBottom ticks={xTicks} y={bottom + 6} x0={left} x1={right} />
-                    <path
-                      className="q-scatter-frame"
-                      d={`M${left + 0.5},${top}V${bottom + 0.5}H${right}`}
-                    />
-                    {renderer === 'svg' && (
-                      <g data-renderer="svg">
-                        <SvgScatterMarks marks={marks} onRendererChange={onRendererChange} />
-                      </g>
-                    )}
-                    {titlesOn && (
-                      <g className="q-dist-axis-title">
-                        {xTitle !== false && (
-                          <text x={left} y={plotHeight - 4}>
-                            {xTitle ?? `${xField.label.toLowerCase()} →`}
-                          </text>
-                        )}
-                        {yTitle !== false && (
-                          <text x={right} y={plotHeight - 4} textAnchor="end">
-                            {yTitle ?? `↑ ${yField.label.toLowerCase()}`}
-                          </text>
-                        )}
-                      </g>
-                    )}
-                  </svg>
-                  {renderer !== 'svg' && (
-                    <ScatterMarks
-                      marks={marks}
-                      width={width}
-                      height={plotHeight}
-                      renderer={renderer}
-                      onRendererChange={onRendererChange}
-                    />
-                  )}
-                  {f && focus != null && (
                     <svg
-                      className="q-scatter-focus"
                       width={width}
                       height={plotHeight}
                       viewBox={`0 0 ${width} ${plotHeight}`}
                       aria-hidden="true"
                     >
-                      <circle
-                        className="q-dist-cell-active"
-                        cx={px[focus]}
-                        cy={py[focus]}
-                        r={f.r + 3}
+                      {lines.y && <GridRows ys={yTicks.map((t) => t.y)} x0={left} x1={right} />}
+                      {lines.x && <GridColumns xs={xTicks.map((t) => t.x)} y0={top} y1={bottom} />}
+                      {yAxis && <AxisLeft ticks={yTicks} x={left - 10} />}
+                      {xAxis && <AxisBottom ticks={xTicks} y={bottom + 6} x0={left} x1={right} />}
+                      <path
+                        className="q-scatter-frame"
+                        d={`M${left + 0.5},${top}V${bottom + 0.5}H${right}`}
                       />
-                    </svg>
-                  )}
-                  <div
-                    className="q-chart-plot"
-                    style={{ cursor: selectField && hover != null ? 'pointer' : 'default' }}
-                    aria-label={`${frame['aria-label'] ?? 'Scatter plot'}. Use arrow keys to move between points${selectField ? ', Enter to select' : ''}.`}
-                    role="application"
-                    {...keyboardProps}
-                    onKeyDown={onKeyDown}
-                    onFocus={() => setActive((a) => a ?? 0)}
-                    onPointerMove={onPointerMove}
-                    onPointerLeave={() => setHover(null)}
-                    onClick={onClick}
-                  />
-                  {f && focus != null && (
-                    <ChartTooltip
-                      note={frame.tooltipNote}
-                      x={px[focus] + f.r - 8}
-                      width={width}
-                      top={Math.max(
-                        0,
-                        Math.min(py[focus] - 24, plotHeight - 40 - tipRows.length * 18),
+                      {renderer === 'svg' && (
+                        <g data-renderer="svg">
+                          <SvgScatterMarks marks={marks} onRendererChange={onRendererChange} />
+                        </g>
                       )}
-                      title={titleOf(f)}
-                      rows={tipRows}
+                      {refs.length > 0 && (
+                        <ReferenceRules
+                          marks={refs.map((r) => ({
+                            at: yAt(r.value),
+                            text: r.label ?? fmtYAxis(r.value),
+                          }))}
+                          from={left}
+                          to={right}
+                          min={top}
+                          max={bottom}
+                        />
+                      )}
+                      {titlesOn && (
+                        <g className="q-dist-axis-title">
+                          {xTitle !== false && (
+                            <text x={left} y={plotHeight - 4}>
+                              {xTitle ?? `${xField.label.toLowerCase()} →`}
+                            </text>
+                          )}
+                          {yTitle !== false && (
+                            <text x={right} y={plotHeight - 4} textAnchor="end">
+                              {yTitle ?? `↑ ${yField.label.toLowerCase()}`}
+                            </text>
+                          )}
+                        </g>
+                      )}
+                    </svg>
+                    {renderer !== 'svg' && (
+                      <ScatterMarks
+                        marks={marks}
+                        width={width}
+                        height={plotHeight}
+                        renderer={renderer}
+                        onRendererChange={onRendererChange}
+                      />
+                    )}
+                    {f && focus != null && (
+                      <svg
+                        className="q-scatter-focus"
+                        width={width}
+                        height={plotHeight}
+                        viewBox={`0 0 ${width} ${plotHeight}`}
+                        aria-hidden="true"
+                      >
+                        <circle
+                          className="q-dist-cell-active"
+                          cx={px[focus]}
+                          cy={py[focus]}
+                          r={f.r + 3}
+                        />
+                      </svg>
+                    )}
+                    <div
+                      className="q-chart-plot"
+                      style={{ cursor: selectField && hover != null ? 'pointer' : 'default' }}
+                      aria-label={`${frame['aria-label'] ?? 'Scatter plot'}. Use arrow keys to move between points${selectField ? ', Enter to select' : ''}.`}
+                      role="application"
+                      {...keyboardProps}
+                      onKeyDown={onKeyDown}
+                      onFocus={() => setActive((a) => a ?? 0)}
+                      onPointerMove={onPointerMove}
+                      onPointerLeave={() => setHover(null)}
+                      onClick={onClick}
                     />
-                  )}
-                  <div className="q-visually-hidden" aria-live="polite">
-                    {active != null && points[active]
-                      ? `${titleOf(points[active])}: ${tipRowsOf(points[active])
-                          .map(
-                            (r) =>
-                              `${r.label} ${r.value}${r.description ? `. ${r.description}` : ''}`,
-                          )
-                          .join(', ')}`
-                      : ''}
+                    {f && focus != null && (
+                      <ChartTooltip
+                        note={frame.tooltipNote}
+                        x={px[focus] + f.r - 8}
+                        width={width}
+                        top={Math.max(
+                          0,
+                          Math.min(py[focus] - 24, plotHeight - 40 - tipRows.length * 18),
+                        )}
+                        title={titleOf(f)}
+                        rows={tipRows}
+                      />
+                    )}
+                    {logProblem && <ChartNote>{logProblem}</ChartNote>}
+                    <div className="q-visually-hidden" aria-live="polite">
+                      {active != null && points[active]
+                        ? `${titleOf(points[active])}: ${tipRowsOf(points[active])
+                            .map(
+                              (r) =>
+                                `${r.label} ${r.value}${r.description ? `. ${r.description}` : ''}`,
+                            )
+                            .join(', ')}`
+                        : ''}
+                    </div>
                   </div>
-                </div>
-              </>
-            );
-          }}
-        </ScatterGeometry>
-      )}
+                </LegendLayout>
+              );
+            }}
+          </ScatterGeometry>
+        );
+      }}
     </ChartFrame>
   );
 }

@@ -8,7 +8,7 @@ import { DataTable } from '../data-display/DataTable';
 import { tableToCSV } from '../data-display/explorer-model';
 import { IconDownload, IconFile, IconTable } from '../icons';
 import { useQuartile } from '../provider/QuartileProvider';
-import { useLinkedRows, useSelectionStore } from '../selection/Selection';
+import { useSelection, useSelectionStore } from '../selection/Selection';
 import { csvFileName, type ViewAction } from './actions';
 
 const rowsWord = (n: number) => (n === 1 ? 'row' : 'rows');
@@ -24,30 +24,32 @@ function saveText(text: string, fileName: string) {
 }
 
 /**
- * The buttons a view shows with its drawing. `publisher` is the view's id in the selection: its
- * own selection never filters the rows it is drawn from.
+ * The buttons a view, or a dashboard, shows with its drawing. The rows it downloads are the
+ * ones its rows panel shows: the dataset's rows under the group's whole selection, the view's
+ * own included.
  */
 export function ViewToolbar({
   name,
+  kind = 'view',
   actions,
-  table,
+  table = false,
   onTable,
   rows,
   onRows,
   panelId,
   input,
-  publisher,
 }: {
-  /** The view's title: names the group for assistive technology and the downloaded file. */
+  /** The title: names the group for assistive technology and the downloaded file. */
   name?: string;
+  /** What the buttons belong to, for the names of an untitled one. */
+  kind?: 'view' | 'dashboard';
   actions: readonly ViewAction[];
-  table: boolean;
-  onTable: () => void;
+  table?: boolean;
+  onTable?: () => void;
   rows: boolean;
   onRows: () => void;
   panelId: string;
   input: DataInput;
-  publisher: string;
 }) {
   const store = useSelectionStore();
   const { locale } = useQuartile();
@@ -56,8 +58,7 @@ export function ViewToolbar({
     try {
       const { rows: all, schema } = sourceRows(input);
       // Read at the click, so a view with only a download button never re-renders on selection.
-      const applied = (store?.getSnapshot() ?? []).filter((p) => p.source !== publisher);
-      const shown = applyPredicates(all, applied);
+      const shown = applyPredicates(all, store?.getSnapshot() ?? []);
       const file = csvFileName(name);
       saveText(
         tableToCSV(
@@ -73,7 +74,11 @@ export function ViewToolbar({
     }
   };
   return (
-    <div className="q-spec-actions" role="group" aria-label={`${name ?? 'View'} actions`}>
+    <div
+      className="q-spec-actions"
+      role="group"
+      aria-label={`${name ?? (kind === 'dashboard' ? 'Dashboard' : 'View')} actions`}
+    >
       {actions.includes('table') && (
         <Button
           size="sm"
@@ -112,27 +117,30 @@ export function ViewToolbar({
 }
 
 /**
- * The rows a view is drawn from, after the selections of the other views in its group, ten to
- * a page. The count line says how many of the dataset's rows remain.
+ * The rows behind a view, ten to a page: the dataset's rows under the group's whole selection.
+ * The view's own selection counts too, unlike in its drawing, which keeps every mark so the
+ * reader can choose another: clicking a bar and opening its rows shows that bar's rows. The
+ * count line says how many of the dataset's rows remain.
  */
 export function RowsPanel({
   id,
   name,
+  kind = 'view',
   input,
-  publisher,
 }: {
   id: string;
   name?: string;
+  kind?: 'view' | 'dashboard';
   input: DataInput;
-  publisher: string;
 }) {
   const { locale } = useQuartile();
   const { rows: all, schema } = useMemo(() => sourceRows(input), [input]);
-  const { rows: shown } = useLinkedRows(all, { source: publisher });
+  const { predicates } = useSelection();
+  const shown = useMemo(() => applyPredicates(all, predicates), [all, predicates]);
   const data = useMemo<Dataset>(() => ({ kind: 'dataset', rows: shown, schema }), [shown, schema]);
   const columns = useMemo(() => Object.keys(schema).map((field) => ({ field })), [schema]);
   const count = useMemo(() => makeFormatter('integer', { locale }), [locale]);
-  const label = name ? `Rows behind ${name}` : 'Rows behind this view';
+  const label = `Rows behind ${name ?? `this ${kind}`}`;
   return (
     <div className="q-spec-rows" id={id} role="group" aria-label={label}>
       <p className="q-spec-rows-count q-num" aria-live="polite">

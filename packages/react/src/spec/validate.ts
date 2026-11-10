@@ -112,7 +112,14 @@ function validate(value: unknown, schema: Schema, path: string, errors: SpecErro
       errors.push({ path, message: 'Expected a non-empty string.' });
     }
     if (typeof s.pattern === 'string' && !new RegExp(s.pattern).test(value)) {
-      errors.push({ path, message: `${show(value)} does not match ${s.pattern}.` });
+      const hint = s['x-quartile-hint'];
+      errors.push({
+        path,
+        message:
+          typeof hint === 'string'
+            ? `${show(value)} is not allowed. ${hint}`
+            : `${show(value)} does not match ${s.pattern}.`,
+      });
     }
   }
 
@@ -134,6 +141,12 @@ function validate(value: unknown, schema: Schema, path: string, errors: SpecErro
       errors.push({
         path,
         message: `Expected at least ${s.minItems} item${s.minItems === 1 ? '' : 's'}.`,
+      });
+    }
+    if (typeof s.maxItems === 'number' && value.length > s.maxItems) {
+      errors.push({
+        path,
+        message: `Expected at most ${s.maxItems} item${s.maxItems === 1 ? '' : 's'}.`,
       });
     }
     if (s.items) {

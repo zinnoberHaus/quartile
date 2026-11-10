@@ -19,9 +19,13 @@ beforeAll(() => {
   defineQuartileElements();
 });
 
-afterEach(() => {
+afterEach(async () => {
   document.body.innerHTML = '';
   configureEmbed({ actions: [] });
+  // A removed element unmounts on the next tick; let that happen before the test ends.
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
 });
 
 describe('data-actions', () => {

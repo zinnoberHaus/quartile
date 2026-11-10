@@ -174,6 +174,59 @@ describe('onSelectionChange', () => {
   });
 });
 
+describe('blocks over one dataset', () => {
+  const data = `data sales\n---\n${csv}`;
+
+  it('filter each other without a select: line', () => {
+    const onDocument = vi.fn();
+    render(
+      <QuartileDocument onSelectionChange={onDocument}>
+        <QuartileBlock source={'barlist sum(amount) by region\ndata: sales\n'} />
+        <QuartileBlock source={'kpi sum(amount) as "Revenue"\ndata: sales\n'} />
+        <QuartileBlock source={data} dataDisplay="hidden" />
+      </QuartileDocument>,
+    );
+    expect(total('Revenue')).toContain('$240');
+    apac();
+    expect(total('Revenue')).toContain('$80');
+    expect(onDocument).toHaveBeenCalledTimes(1);
+    expect(onDocument.mock.calls[0][0]).toMatchObject({
+      group: 'sales',
+      predicates: [{ field: 'region', op: 'in', value: ['APAC'] }],
+    });
+  });
+
+  it('stay still for a view that opts out', () => {
+    const onDocument = vi.fn();
+    render(
+      <QuartileDocument onSelectionChange={onDocument}>
+        <QuartileBlock source={'barlist sum(amount) by region\nselect: no\ndata: sales\n'} />
+        <QuartileBlock source={'kpi sum(amount) as "Revenue"\ndata: sales\n'} />
+        <QuartileBlock source={data} dataDisplay="hidden" />
+      </QuartileDocument>,
+    );
+    expect(screen.getAllByText('APAC').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: /^APAC/ })).toBeNull();
+    fireEvent.click(screen.getAllByText('APAC')[0]);
+    expect(total('Revenue')).toContain('$240');
+    expect(onDocument).not.toHaveBeenCalled();
+  });
+
+  it('leave a lone chart with its own rows as it was: not clickable unless it asks', () => {
+    const onChange = vi.fn();
+    render(
+      <QuartileBlock
+        source={`barlist sum(amount) by region\n---\n${csv}`}
+        onSelectionChange={onChange}
+      />,
+    );
+    expect(screen.getAllByText('APAC').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button')).toBeNull();
+    fireEvent.click(screen.getAllByText('APAC')[0]);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
 describe('asking a follow-up from a selection', () => {
   // The example hosts copy: a chat answer whose charts suggest the next question.
   function Answer({ markdown, onAsk }: { markdown: string; onAsk: (question: string) => void }) {

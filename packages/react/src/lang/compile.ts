@@ -1138,7 +1138,16 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
       spec.title = dims.length ? `${what} by ${dims.join(' and ')}` : what;
     }
   }
-  if (ctx.inDashboard && def.link && spec[def.link] === undefined && def.link in schemaProps) {
+  // The view's selection group: `link: name`, else its named dataset; null when it stands alone.
+  const group =
+    link === null
+      ? null
+      : (link ??
+        (Object.hasOwn(ctx.datasets, dataName) || ctx.pending.has(dataName) ? dataName : null));
+  // A view in a named group publishes like one in a dashboard, so blocks over one dataset
+  // filter each other. A block with its own rows publishes only when it asks.
+  const publishes = ctx.inDashboard || group !== null;
+  if (publishes && def.link && spec[def.link] === undefined && def.link in schemaProps) {
     if (!(def.link === 'brush' && spec.brush === false)) spec[def.link] = true;
   }
 
@@ -1218,13 +1227,7 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
   for (const e of result.errors) diagnostics.push(specError(e, lines, view.line, view.kind));
   if (!result.valid) return { pending: false, dataName, link: null };
 
-  const named = Object.hasOwn(ctx.datasets, dataName) || ctx.pending.has(dataName);
-  return {
-    spec,
-    dataName,
-    pending: false,
-    link: link === null ? null : (link ?? (named ? dataName : null)),
-  };
+  return { spec, dataName, pending: false, link: group };
 }
 
 /** Drops undefined keys and writes `{ field }` as the plain field name. */

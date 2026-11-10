@@ -15,6 +15,7 @@ import { type CompiledBlock, compileBlock } from '../lang/compile';
 import { type Diagnostic, hasErrors } from '../lang/diagnostics';
 import { parseBlock } from '../lang/parse';
 import { cx } from '../lib/cx';
+import { useQuartile } from '../provider/QuartileProvider';
 import { Selection, SelectionStoreProvider, useSelectionStore } from '../selection/Selection';
 import { type SelectionChange, type SelectionEvent, SelectionStore } from '../selection/store';
 import { SelectionWatch } from '../selection/watch';
@@ -194,10 +195,15 @@ export function QuartileBlock({
     ) : (
       <BlockError title="This chart could not be drawn" diagnostics={errors} source={source} />
     );
-  } else if (!compiled.spec) {
-    body = <BlockSkeleton title={compiled.title} />;
-  } else if (compiled.type === 'data') {
+  } else if (compiled.type === 'data' && compiled.defines) {
     body = <DataBlock compiled={compiled} display={dataDisplay} />;
+  } else if (!compiled.spec) {
+    // No rows and no fields named to draw an empty chart from: not loading, and not an error.
+    body = compiled.empty ? (
+      <BlockEmpty title={compiled.title} />
+    ) : (
+      <BlockSkeleton title={compiled.title} />
+    );
   } else {
     body = (
       <BlockSelection
@@ -211,6 +217,11 @@ export function QuartileBlock({
     );
   }
   if (body === null) return null;
+  // A reader must not take part of the data for all of it: say so under what was drawn.
+  const drawn =
+    !!compiled.spec &&
+    !(failed && compiled.type !== 'dashboard') &&
+    !(compiled.type === 'data' && dataDisplay === 'hidden');
   return (
     <div
       className={cx('q-block', className)}
@@ -220,7 +231,25 @@ export function QuartileBlock({
       data-warnings={warnings.length || undefined}
     >
       {body}
+      {drawn ? <RowLimitNote limits={compiled.rowLimits} /> : null}
     </div>
+  );
+}
+
+/** "Showing the first 5,000 of 12,400 rows.", under a view whose data was cut to a limit. */
+function RowLimitNote({ limits }: { limits: CompiledBlock['rowLimits'] }) {
+  const { locale } = useQuartile();
+  if (!limits?.length) return null;
+  const count = new Intl.NumberFormat(locale);
+  return (
+    <>
+      {limits.map((limit) => (
+        <p key={limit.data} className="q-block-note">
+          Showing the first {count.format(limit.kept)} of {count.format(limit.total)} rows
+          {limits.length > 1 ? ` of ${limit.data.replace(/^url:/, '')}` : ''}.
+        </p>
+      ))}
+    </>
   );
 }
 
@@ -297,10 +326,15 @@ function BlockSelection({
 }
 
 function DataBlock({ compiled, display }: { compiled: CompiledBlock; display: DataDisplay }) {
-  if (display === 'hidden' || !compiled.defines || !compiled.spec) return null;
+  if (display === 'hidden' || !compiled.defines) return null;
   const { rows, schema } = resolveData(compiled.defines.dataset);
   const columns = Object.keys(schema).length;
-  const table = <SpecView spec={compiled.spec} data={compiled.data} />;
+  // A source that answered with nothing has no columns to lay a table out with.
+  const table = compiled.spec ? (
+    <SpecView spec={compiled.spec} data={compiled.data} />
+  ) : (
+    <BlockEmpty title={compiled.defines.name} />
+  );
   if (display === 'table') return table;
   return (
     <details className="q-block-data">
@@ -322,6 +356,24 @@ function BlockSkeleton({ title }: { title?: string }) {
       {title ? <div className="q-spec-card-title">{title}</div> : null}
       <div className="q-chart" style={{ height: 200 }} data-status="loading" aria-busy="true">
         <ChartState status="loading" loading="Drawing chart…" />
+      </div>
+    </div>
+  );
+}
+
+/** The empty state of a view that has no rows and no named fields to draw an empty chart from. */
+function BlockEmpty({ title }: { title?: string }) {
+  return (
+    <div className="q-block-skeleton" data-state="empty">
+      {title ? <div className="q-spec-card-title">{title}</div> : null}
+      <div
+        className="q-chart"
+        style={{ height: 200 }}
+        data-status="empty"
+        role="figure"
+        aria-label={title ?? 'Chart'}
+      >
+        <ChartState status="empty" />
       </div>
     </div>
   );

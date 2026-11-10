@@ -1,7 +1,7 @@
 import { scaleLinear, scaleLog } from 'd3-scale';
 import { type ReactNode, useMemo } from 'react';
 import type { FieldDef, Formatter } from '../../data/types';
-import { logTicks, type Sides } from '../core/options';
+import { closestTicks, logTicks, type Sides } from '../core/options';
 import { monoTextWidth, tickFormatter } from '../core/scales';
 import { createScatterIndex } from './scatter-picking';
 import type { ScatterMark } from './scatter-types';
@@ -98,15 +98,27 @@ export function ScatterGeometry({
     const maxR = points.reduce((value, point) => Math.max(value, point.r), 4.5);
     const yCount = layout.yTicks ?? 4;
     const log = !!layout.yLog && domains.y[0] > 0;
-    const ys = log
-      ? scaleLog().domain(domains.y).nice()
-      : scaleLinear()
-          .domain(domains.y)
-          .nice(yCount || 1);
     const lower = log && !(layout.yMin !== undefined && layout.yMin > 0) ? undefined : layout.yMin;
-    ys.domain(bound(ys.domain(), lower, layout.yMax));
+    /** A linear axis niced for `nice` ticks, with the author's bounds over the niced ends. */
+    const linear = (domain: [number, number], nice: number, min?: number, max?: number) => {
+      const scale = scaleLinear().domain(domain).nice(nice);
+      scale.domain(bound(scale.domain(), min, max));
+      return scale;
+    };
+    const linearY = (nice: number) => linear(domains.y, nice, lower, layout.yMax);
+    // No setting: four ticks, as always. A setting: the tidy set closest to the count asked for.
+    const y = log
+      ? (() => {
+          const scale = scaleLog().domain(domains.y).nice();
+          scale.domain(bound(scale.domain(), lower, layout.yMax));
+          return { scale, ticks: logTicks(scale, yCount) };
+        })()
+      : layout.yTicks
+        ? closestTicks(layout.yTicks, linearY)
+        : ((scale) => ({ scale, ticks: scale.ticks(4) }))(linearY(4));
+    const ys = y.scale;
     const fmtYTick = tickFormatter(yField, locale, timeZone, format);
-    const yTickVals = yCount === 0 ? [] : log ? logTicks(ys, yCount) : ys.ticks(yCount);
+    const yTickVals = yCount === 0 ? [] : y.ticks;
     const left =
       pad.left ??
       (layout.yAxis === false
@@ -115,14 +127,17 @@ export function ScatterGeometry({
           12);
     const right = Math.max(left + 1, width - (pad.right ?? 4));
     ys.range([bottom - maxR * 0.6, top + maxR * 0.6]);
-    const count = layout.xTicks ?? Math.max(2, Math.min(6, Math.floor((right - left) / 80)));
-    const xs = scaleLinear()
-      .domain(domains.x)
-      .nice(layout.xTicks || 5);
-    xs.domain(bound(xs.domain(), layout.xMin, layout.xMax)).range([
-      left + maxR * 0.6,
-      right - maxR * 0.6,
-    ]);
+    const linearX = (nice: number) => linear(domains.x, nice, layout.xMin, layout.xMax);
+    const x = layout.xTicks
+      ? closestTicks(layout.xTicks, linearX)
+      : ((scale) => ({
+          scale,
+          ticks:
+            layout.xTicks === 0
+              ? []
+              : scale.ticks(Math.max(2, Math.min(6, Math.floor((right - left) / 80)))),
+        }))(linearX(5));
+    const xs = x.scale.range([left + maxR * 0.6, right - maxR * 0.6]);
     const fmtXTick = tickFormatter(xField, locale, timeZone, xFormat);
     const px = points.map((point) => xs(point.x));
     const py = points.map((point) => ys(point.y));
@@ -141,10 +156,7 @@ export function ScatterGeometry({
       nearest,
       order,
       yAt: (value: number) => ys(value),
-      xTicks:
-        count === 0
-          ? []
-          : xs.ticks(count).map((value) => ({ x: xs(value), label: fmtXTick(value) })),
+      xTicks: x.ticks.map((value) => ({ x: xs(value), label: fmtXTick(value) })),
       yTicks: yTickVals.map((value) => ({ y: ys(value), label: fmtYTick(value) })),
     };
   }, [

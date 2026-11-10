@@ -19,7 +19,13 @@ import { useChartKeyboard } from './core/a11y';
 import { type ChartBaseProps, ChartFrame, type ChartTable, statusOf } from './core/ChartFrame';
 import { type BoxStats, boxStats, clamp, orderedKeys } from './core/dist-stats';
 import { AxisLeft, ChartTooltip, GridColumns, GridRows, type TooltipRow } from './core/guides';
-import { type ChartPresentationProps, gridLines, marginSides, tickCount } from './core/options';
+import {
+  type ChartPresentationProps,
+  closestTicks,
+  gridLines,
+  marginSides,
+  tickCount,
+} from './core/options';
 import { monoTextWidth, tickFormatter } from './core/scales';
 
 /**
@@ -270,15 +276,24 @@ export function BoxPlot<R extends Row = Row>(props: BoxPlotProps<R>) {
       {({ width }) => {
         const fmtTick = tickFormatter(valueField, locale, timeZone, format);
         const pad = marginSides(margin);
-        const count = tickCount(horizontal ? xTickCount : yTickCount, 4);
-        const linear = scaleLinear()
-          .domain(domain)
-          .nice(count || 1);
-        const [d0, d1] = linear.domain();
-        const lower = (horizontal ? xMin : yMin) ?? d0;
-        const upper = (horizontal ? xMax : yMax) ?? d1;
-        if (lower < upper) linear.domain([lower, upper]);
-        const ticks = count === 0 ? [] : linear.ticks(count);
+        const tickSetting = horizontal ? xTickCount : yTickCount;
+        const count = tickCount(tickSetting, 4);
+        /** The value axis niced for `nice` ticks, with the author's bounds over the niced ends. */
+        const valueScale = (nice: number) => {
+          const s = scaleLinear().domain(domain).nice(nice);
+          const [d0, d1] = s.domain();
+          const lower = (horizontal ? xMin : yMin) ?? d0;
+          const upper = (horizontal ? xMax : yMax) ?? d1;
+          if (lower < upper) s.domain([lower, upper]);
+          return s;
+        };
+        // No setting: four ticks, as always. A setting: the tidy set closest to the count asked for.
+        const axis =
+          tickSetting === undefined || count === 0
+            ? ((s) => ({ scale: s, ticks: count === 0 ? [] : s.ticks(4) }))(valueScale(4))
+            : closestTicks(count, valueScale);
+        const linear = axis.scale;
+        const ticks = axis.ticks;
         const tickLabels = ticks.map((t) => fmtTick(t));
         // With an axis bound, a box or whisker that reaches past it ends at the plot edge.
         const scale = (v: number) => {

@@ -305,6 +305,9 @@ export function isReferenceKey(name: string, columns: readonly string[]): boolea
   return REFERENCE_KEYS.has(n) && !columns.some((c) => c.toLowerCase() === n);
 }
 
+/** Keys that name the series field on charts that split by one (aliases of `color`). */
+const SERIES_KEYS = new Set(['series', 'split', 'splitby', 'colorby', 'colourby']);
+
 const LEGEND_WORDS: Record<string, string> = {
   above: 'top',
   over: 'top',
@@ -444,6 +447,13 @@ export function readStyleSetting(p: PropEntry, st: StyleState): PropEntry | null
   const target = colorTarget(st);
   if (target && (norm === 'colors' || norm === 'colours' || norm === 'palette')) {
     applyColors(st, p, target);
+    return null;
+  }
+  if (target === 'color' && SERIES_KEYS.has(norm)) {
+    // `series: region` asks for a split these charts do not draw; it must not become a color.
+    st.diagnostics.push(
+      warning(`A ${st.kind} draws one series, so “${p.key}” was ignored.`, p.line),
+    );
     return null;
   }
   if (target && (norm === 'color' || norm === 'colour')) {

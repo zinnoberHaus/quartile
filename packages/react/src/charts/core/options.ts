@@ -7,7 +7,7 @@
 import { max, min } from 'd3-array';
 import { type ScaleContinuousNumeric, scaleLog } from 'd3-scale';
 import { warnOnce } from './colors';
-import { valueScale } from './scales';
+import { monoTextWidth, valueScale } from './scales';
 
 export interface Sides {
   top: number;
@@ -131,6 +131,36 @@ export function referenceLines(reference: ReferenceSetting | undefined): Referen
   return out;
 }
 
+/**
+ * Room in px a chart keeps beside its plot for the text of its reference rules, so the text
+ * never lands on a mark. Zero without rules.
+ */
+export function referenceRoom(texts: readonly string[]): number {
+  return texts.length ? Math.ceil(Math.max(...texts.map((t) => monoTextWidth(t)))) + 14 : 0;
+}
+
+/**
+ * Moves a label clear of a rule that would run through it: `at` is the label's position along
+ * the axis the rule crosses, `before` and `after` how far its box reaches each way. Returns the
+ * position just past the rule on the side given by `toward`.
+ */
+export function clearOfRules(
+  at: number,
+  rules: readonly number[],
+  before: number,
+  after: number,
+  toward: -1 | 1,
+): number {
+  let position = at;
+  // Nearest rule first in the direction of travel, so one pass clears a run of close rules.
+  for (const rule of [...rules].sort((a, b) => (a - b) * toward)) {
+    if (rule > position - before && rule < position + after) {
+      position = toward < 0 ? rule - after - 1 : rule + before + 1;
+    }
+  }
+  return position;
+}
+
 /** "Reference line Target at $1,000,000." for the chart's accessible summary. */
 export function describeReferences(
   lines: readonly ReferenceLine[],
@@ -143,6 +173,58 @@ export function describeReferences(
         : `Reference line at ${format(line.value)}.`,
     )
     .join(' ');
+}
+
+/**
+ * The tick set closest in size to `count`. d3 rounds a requested count to the nearest tidy step,
+ * which can land far from it (three asked, five drawn), so the sets for the counts around the
+ * request (two below to two above) are compared and the one nearest in size wins. `make(n)`
+ * builds the scale niced for `n` ticks; the same `n` then draws them, so the end ticks still
+ * bound the data.
+ *
+ * Between sets equally near the request, the better axis wins: first the tighter domain, so the
+ * data fills the plot (0, 2, 4, 6 rather than 0, 10 for values up to 5); then, under the same
+ * domain, the ticks that reach further across it (2%, 3%, 4%, 5% rather than 2%, 4% between
+ * bounds of 2% and 5%); then the smaller set.
+ */
+export function closestTicks<S extends { ticks(count: number): number[]; domain(): number[] }>(
+  count: number,
+  make: (nice: number) => S,
+): { scale: S; ticks: number[] } {
+  interface Candidate {
+    scale: S;
+    ticks: number[];
+    /** Distance from the count asked for. */
+    off: number;
+    /** Extent of the niced domain. */
+    span: number;
+    /** Extent the ticks mark, first to last. */
+    reach: number;
+  }
+  const same = (a: number, b: number) =>
+    Math.abs(a - b) <= 1e-9 * Math.max(Math.abs(a), Math.abs(b));
+  const better = (a: Candidate, b: Candidate) => {
+    if (a.off !== b.off) return a.off < b.off;
+    if (!same(a.span, b.span)) return a.span < b.span;
+    if (!same(a.reach, b.reach)) return a.reach > b.reach;
+    return a.ticks.length < b.ticks.length;
+  };
+  let best: Candidate | undefined;
+  for (let n = Math.max(1, count - 2); n <= count + 2; n++) {
+    const scale = make(n);
+    const ticks = scale.ticks(n);
+    const domain = scale.domain();
+    const candidate: Candidate = {
+      scale,
+      ticks,
+      // One tick marks no interval: such a set only wins when one tick was asked for.
+      off: Math.abs(ticks.length - count) + (ticks.length < Math.min(2, count) ? 100 : 0),
+      span: Math.abs(domain[domain.length - 1] - domain[0]),
+      reach: ticks.length > 1 ? Math.abs(ticks[ticks.length - 1] - ticks[0]) : 0,
+    };
+    if (!best || better(candidate, best)) best = candidate;
+  }
+  return best as Candidate;
 }
 
 /** An approximate tick count: a whole number from 0 to 20, or `fallback` with no setting. */
@@ -268,28 +350,37 @@ export function valueAxis(
     note = LOG_NEEDS_POSITIVE;
   }
 
-  const scale = valueScale(
-    data.length ? data : [0],
-    range,
-    options.ticks === undefined && options.zero === undefined
-      ? undefined
-      : { zero: options.zero ?? true, ticks: count || 1 },
-  );
-  if (lower !== undefined || upper !== undefined) {
-    const [d0, d1] = scale.domain();
-    const next: [number, number] = [lower ?? d0, upper ?? d1];
-    // Bounds that leave no extent are ignored rather than drawing a collapsed axis.
-    if (next[0] < next[1]) scale.domain(next);
-    else lower = upper = undefined;
-  }
+  /** The scale niced for `nice` ticks, with the author's bounds over the niced ends. */
+  const linear = (nice: number | undefined) => {
+    const scale = valueScale(
+      data.length ? data : [0],
+      range,
+      nice === undefined && options.zero === undefined
+        ? undefined
+        : { zero: options.zero ?? true, ticks: nice ?? 4 },
+    );
+    if (lower !== undefined || upper !== undefined) {
+      const [d0, d1] = scale.domain();
+      const next: [number, number] = [lower ?? d0, upper ?? d1];
+      // Bounds that leave no extent are ignored rather than drawing a collapsed axis.
+      if (next[0] < next[1]) scale.domain(next);
+    }
+    return scale;
+  };
+  // No setting: four ticks, as always. A setting: the tidy set closest to the count asked for.
+  const { scale, ticks } =
+    options.ticks === undefined || count === 0
+      ? ((s) => ({ scale: s, ticks: count === 0 ? [] : s.ticks(count) }))(linear(undefined))
+      : closestTicks(count, linear);
   const [d0, d1] = scale.domain();
+  const bounded = (lower !== undefined && d0 === lower) || (upper !== undefined && d1 === upper);
   return {
     scale,
-    ticks: count === 0 ? [] : scale.ticks(count),
+    ticks,
     log: false,
     note,
     clipped: lo < d0 || hi > d1,
-    bounds: lower !== undefined || upper !== undefined ? [d0, d1] : undefined,
+    bounds: bounded ? [d0, d1] : undefined,
   };
 }
 

@@ -315,11 +315,11 @@ describe('a custom chart built from public exports', () => {
     expect((container.querySelector('[data-mark] circle') as SVGElement).style.fill).toBe(
       'var(--q-positive)',
     );
-    const unsafe = render(
-      <Lollipop data={orders} category="region" value="amount" color="url(https://example.com)" />,
+    const css = render(
+      <Lollipop data={orders} category="region" value="amount" color="rebeccapurple" />,
     );
-    expect((unsafe.container.querySelector('[data-mark] circle') as SVGElement).style.fill).toBe(
-      'var(--q-cat-1)',
+    expect((css.container.querySelector('[data-mark] circle') as SVGElement).style.fill).toBe(
+      'rebeccapurple',
     );
   });
 

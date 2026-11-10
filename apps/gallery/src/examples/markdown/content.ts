@@ -12,6 +12,9 @@ export interface LanguageExample {
   source: string;
 }
 
+/** A static, API-shaped JSON file served next to the plain-HTML embed demo. */
+export const TICKETS_URL = '/examples/embed/tickets.json';
+
 export const LANGUAGE_EXAMPLES: LanguageExample[] = [
   {
     id: 'bar',
@@ -112,6 +115,119 @@ y: documents
 }
 `,
   },
+  {
+    id: 'details',
+    label: 'Tune the details',
+    note: 'Presentation settings: series colors, the y range and its ticks, names at the line ends instead of a legend, room for them in the right margin, and a labelled reference line.',
+    source: `line conversion by week and channel
+title: Checkout conversion by channel
+colors: signal, #f26b3a
+y.min: 2%
+y.max: 6%
+y.ticks: 5
+labels: yes
+legend: none
+margin.right: 96
+reference: 4.5%
+reference.label: Target
+---
+week,channel,conversion
+2026-08-03,Web,3.1%
+2026-08-03,App,3.9%
+2026-08-10,Web,3.3%
+2026-08-10,App,4.2%
+2026-08-17,Web,3.2%
+2026-08-17,App,4.6%
+2026-08-24,Web,3.6%
+2026-08-24,App,4.9%
+2026-08-31,Web,3.8%
+2026-08-31,App,5.3%
+`,
+  },
+  {
+    id: 'source-rows',
+    label: 'Source and rows',
+    note: '"source" and "asof" state where the figures came from, under the chart. "actions" adds buttons that open the rows behind the chart and download them as CSV.',
+    source: `bar sum(revenue) by region
+title: Revenue by region, Q3 2026
+source: Kestrel Goods finance export (fictional)
+asof: 2026-09-30
+actions: rows, download
+---
+region,product,revenue
+EMEA,Desks,412000
+EMEA,Chairs,238000
+EMEA,Lamps,96000
+APAC,Desks,301000
+APAC,Chairs,187000
+APAC,Lamps,84000
+Americas,Desks,688000
+Americas,Chairs,415000
+Americas,Lamps,152000
+`,
+  },
+  {
+    id: 'json-api',
+    label: 'From a JSON API',
+    note: 'An API response pasted as it arrived. "path" says where the rows are inside the envelope; the rest of the response is ignored.',
+    source: `bar sum(tickets) by week and priority
+title: Support tickets opened per week
+stacked: yes
+path: data.results
+---
+{
+  "status": "ok",
+  "data": {
+    "results": [
+      { "week": "2026-09-07", "priority": "Urgent", "tickets": 14 },
+      { "week": "2026-09-07", "priority": "Normal", "tickets": 128 },
+      { "week": "2026-09-14", "priority": "Urgent", "tickets": 9 },
+      { "week": "2026-09-14", "priority": "Normal", "tickets": 136 },
+      { "week": "2026-09-21", "priority": "Urgent", "tickets": 17 },
+      { "week": "2026-09-21", "priority": "Normal", "tickets": 119 }
+    ],
+    "next_cursor": null
+  },
+  "meta": { "request_id": "req_sample_0001" }
+}
+`,
+  },
+  {
+    id: 'json-url',
+    label: 'JSON from a URL',
+    note: '"src" names a URL and the page decides whether to load it. This page loads from its own origin only: point "src" at another site and the block says it is not allowed.',
+    source: `bar sum(tickets) by week and priority
+title: Support tickets opened per week
+stacked: yes
+src: ${TICKETS_URL}
+path: data.results
+`,
+  },
+  {
+    id: 'explorer',
+    label: 'Explorer',
+    note: 'A table to work in: search, filters, sorting, grouping, column choices and CSV export, from one line.',
+    source: `explorer product, region, channel, amount
+title: Orders, first week of September
+sort: -amount
+page size: 5
+amount.format: currency USD
+---
+product,region,channel,amount
+Standing desk,EMEA,Web,1290
+Task chair,EMEA,Store,420
+Desk lamp,APAC,Web,85
+Standing desk,Americas,Web,1290
+Monitor arm,Americas,Partner,160
+Task chair,APAC,Web,420
+Bookshelf,EMEA,Web,310
+Desk lamp,Americas,Store,85
+Monitor arm,EMEA,Web,160
+Standing desk,APAC,Partner,1190
+Bookshelf,Americas,Web,310
+Task chair,Americas,Web,440
+`,
+  },
 ];
 
 export const ANSWER_QUESTION =
@@ -139,6 +255,8 @@ ${F}quartile
 line sum(mrr) by month and plan
 title: MRR by plan
 format: currency USD
+source: Billing export (fictional sample)
+asof: 2026-09-30
 ---
 month,plan,mrr
 2026-01,Starter,98000
@@ -174,6 +292,7 @@ ${F}quartile
 barlist sum(change) by plan
 title: MRR change, January to September
 format: currency USD
+select: true
 ---
 plan,change
 Enterprise,84000
@@ -187,11 +306,14 @@ Enterprise growth accelerated in August and September. If that pace holds, it wi
 /** A report written as one Markdown document: data defined once, charts linked by it. */
 export const REPORT_MARKDOWN = `# Q3 2026 sales review
 
-*Fictional sample data.* Online revenue rose from July to September in every region, while retail stayed within a few percent of July. The charts below read one dataset, defined once at the end of this document. **Click a region or a channel** and every chart that reads the same data follows.
+*Fictional sample data.* Online revenue rose from July to September in every region, while retail stayed within a few percent of July. The charts below read one dataset, defined once at the end of this document. **Click a region or a channel** and every chart that reads the same data follows. **Rows** opens the records behind the first dashboard, narrowed to whatever is selected; **Download CSV** saves them.
 
 ${F}quartile
 dashboard Quarter at a glance
 data: sales
+source: Kestrel Goods sales ledger (fictional)
+asof: 2026-09-30
+actions: rows, download
 kpi sum(revenue) as "Revenue"
 format: currency USD
 kpi sum(orders) as "Orders"

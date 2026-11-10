@@ -38,6 +38,7 @@ import {
   marginSides,
   readOut,
   referenceLines,
+  referenceRoom,
   sideLegendWidth,
   spreadLabels,
   tickCount,
@@ -94,7 +95,10 @@ export interface AreaChartProps<R extends Row = Row>
    * Defaults to true for 2+ series.
    */
   legend?: LegendSetting;
-  /** Series colors, by index or by series key. Defaults to the categorical palette in order. */
+  /**
+   * Series colors, by index or by series key: palette names, 1–8 or any CSS color. Defaults to
+   * the categorical palette in order.
+   */
   colors?: ChartColor[] | Record<string, ChartColor>;
   /** Writes each series' name and last value at the end of its line. */
   labels?: boolean;
@@ -326,11 +330,15 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
               return [{ key: s.key, at, level, text, color: s.color }];
             })
           : [];
-        const right =
-          pad.right ??
-          (ends.length
-            ? Math.ceil(Math.max(...ends.map((e) => monoTextWidth(e.text)))) + 14
-            : MARGIN.right);
+        // Line-end labels and the text of reference rules share the right margin, beside the plot.
+        const refTexts = refs.map((r) => r.label ?? fmtTick(r.value));
+        const refRoom = referenceRoom(refTexts);
+        const endRoom = ends.length
+          ? Math.ceil(Math.max(...ends.map((e) => monoTextWidth(e.text)))) + 14
+          : 0;
+        const right = pad.right ?? Math.max(MARGIN.right, endRoom, refRoom);
+        // With a margin the author made too narrow for it, a rule's text sits on the rule.
+        const refsOutside = right >= refRoom;
         const x0 = left;
         const x1 = width - right;
         const xs = continuous ? continuousX(xField, xsRaw, [x0, x1]) : null;
@@ -346,8 +354,12 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
           labelCount(xTickCount, Math.max(2, Math.min(6, Math.floor((x1 - x0) / 90)))),
         ).map((i) => ({ x: px[i], label: fmtXTick(xsRaw[i]) }));
         const lines = gridLines(grid, { x: false, y: true });
-        const endYs = spreadLabels(
-          ends.map((e) => yScale(e.level)),
+        const refMarks = refs
+          .map((r, i) => ({ at: yScale(r.value), text: refTexts[i] }))
+          .filter((m) => m.at >= top - 0.5 && m.at <= bottom + 0.5);
+        // One column of text beside the plot: labels that would overlap are spread apart.
+        const sideYs = spreadLabels(
+          [...ends.map((e) => yScale(e.level)), ...(refsOutside ? refMarks.map((m) => m.at) : [])],
           13,
           top + 4,
           bottom - 4,
@@ -534,12 +546,13 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
                 {yAxis && <AxisLeft ticks={yTicks} x={x0 - 10} />}
                 {xAxis && <AxisBottom ticks={xTicks} y={bottom + 8} x0={x0} x1={x1} />}
                 {clipped ? <g clipPath={`url(#${gradientId}-clip)`}>{marks}</g> : marks}
-                {refs.length > 0 && (
+                {refMarks.length > 0 && (
                   <ReferenceRules
-                    marks={refs.map((r) => ({
-                      at: yScale(r.value),
-                      text: r.label ?? fmtTick(r.value),
+                    marks={refMarks.map((m, i) => ({
+                      ...m,
+                      labelAt: refsOutside ? sideYs[ends.length + i] : undefined,
                     }))}
+                    outside={refsOutside}
                     from={x0}
                     to={x1}
                     min={top}
@@ -551,7 +564,7 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
                     labels={ends.map((e, i) => ({
                       key: e.key,
                       x: px[e.at] + 8,
-                      y: endYs[i],
+                      y: sideYs[i],
                       text: e.text,
                       color: e.color,
                     }))}

@@ -9,7 +9,7 @@ import { useChartKeyboard } from './core/a11y';
 import { type ChartBaseProps, ChartFrame, type ChartTable, statusOf } from './core/ChartFrame';
 import { type ChartColor, pickColor, seriesColors } from './core/colors';
 import { type LegendSetting, legendPlacement } from './core/options';
-import { seriesColor } from './core/scales';
+import { monoTextWidth, seriesColor } from './core/scales';
 import { useSettled } from './core/settled';
 import { type Aggregate, aggregateBy, pluralLabel, type SortOrder } from './core/trends-aggregate';
 import { isKeyboardFocus } from './core/trends-focus';
@@ -38,7 +38,10 @@ export interface DonutChartProps<R extends Row = Row> extends ChartBaseProps {
    * Defaults to true.
    */
   legend?: LegendSetting;
-  /** Slice colors, by index or by category. Defaults to the categorical palette in order. */
+  /**
+   * Slice colors, by index or by category: palette names, 1–8 or any CSS color. Defaults to the
+   * categorical palette in order.
+   */
   colors?: ChartColor[] | Record<string, ChartColor>;
   /** Adds each slice's value to its legend row, next to the share. */
   labels?: boolean;
@@ -64,6 +67,18 @@ function arcPath(cx: number, r: number, a0: number, a1: number): string {
     return `${(cx + r * Math.cos(t)).toFixed(2)},${(cx + r * Math.sin(t)).toFixed(2)}`;
   };
   return `M${pt(a0)}A${r},${r} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${pt(a1)}`;
+}
+
+/** A number format written as options, with compact notation: same currency or unit, "4.59M". */
+function compactTwin(format: Formatter | undefined): Formatter | undefined {
+  if (!format || typeof format !== 'object') return undefined;
+  if ('type' in format && format.type !== 'number') return undefined;
+  return {
+    ...format,
+    notation: 'compact',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  } as Formatter;
 }
 
 /** Part-to-whole ring with a center total and a legend of mono shares. Hover or focus a slice. */
@@ -140,6 +155,22 @@ export function DonutChart<R extends Row = Row>(props: DonutChartProps<R>) {
     () => makeFieldFormatter(catField, { locale, timeZone }),
     [catField, locale, timeZone],
   );
+  // The same value in its compact form ("$4.59M"), for a centre figure wider than the ring's hole.
+  const fmtCompact = useMemo(() => {
+    const chosen = format ?? (measureField ? undefined : 'integer');
+    const options = {
+      locale,
+      timeZone: measureField?.timeZone ?? timeZone,
+      currency: measureField?.currency,
+      short: true,
+    };
+    if (chosen !== undefined) return makeFormatter(compactTwin(chosen) ?? chosen, options);
+    // The field's own short form: its axis format when it has one, else its format, shortened.
+    const twin = measureField?.axisFormat ? undefined : compactTwin(measureField?.format);
+    return twin
+      ? makeFormatter(twin, options)
+      : makeFieldFormatter(measureField, { locale, timeZone, surface: 'axis', short: true });
+  }, [measureField, locale, timeZone, format]);
   const fmtTip = useMemo(
     () =>
       makeFieldFormatter(
@@ -200,6 +231,22 @@ export function DonutChart<R extends Row = Row>(props: DonutChartProps<R>) {
   const autoHeight = status === 'ready' && frame.view !== 'table';
   const c = size / 2;
   const r = c - thickness / 2 - 3;
+  // The centre figure is one 18px line above its caption, so the hole is narrower along it than
+  // across the middle: the room is the chord at the top of that line, less a little air.
+  const hole = c - thickness - 3;
+  const room = 2 * Math.sqrt(Math.max(0, hole * hole - 19 * 19)) - 8;
+  const centre = (value: number, full: string) => {
+    if (monoTextWidth(full, 18) <= room) return { text: full };
+    const compact = fmtCompact(value);
+    // The full value stays in the summary and the table; here it is the hover title.
+    return compact.length < full.length ? { text: compact, full } : { text: full };
+  };
+  const figure =
+    shown != null
+      ? centre(slices[shown].value, fmtTip(slices[shown].value))
+      : centerValue == null
+        ? centre(total, fmtLabel(total))
+        : null;
   const kind = 'Donut chart';
 
   return (
@@ -257,8 +304,8 @@ export function DonutChart<R extends Row = Row>(props: DonutChartProps<R>) {
               })}
             </svg>
             <div className="q-donut-center">
-              <span className="q-donut-value">
-                {shown != null ? fmtTip(slices[shown].value) : (centerValue ?? fmtLabel(total))}
+              <span className="q-donut-value" title={figure?.full}>
+                {figure ? figure.text : centerValue}
               </span>
               <span className="q-donut-label">
                 {shown != null

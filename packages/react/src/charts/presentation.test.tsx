@@ -60,7 +60,10 @@ const summary = (root: ParentNode) => root.querySelector('p.q-visually-hidden')?
 const draw = (el: ReactElement) => render(el).container;
 const html = (el: ReactElement) => renderToStaticMarkup(el);
 
-const REFUSED = ['red', 'rgb(47, 69, 232)', 'url(https://example.com/p.svg#a)', 'var(--x)', '#12'];
+// React props are the developer's code: any CSS color works there. (Blocks and specs are held
+// to tokens and hex; that is tested where their text is read: lang/style.test.ts,
+// spec/presentation-schema.test.ts and spec/color-gates.test.tsx.)
+const CSS_COLORS = ['rebeccapurple', 'rgb(20 80 200)', 'var(--brand)'];
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -100,17 +103,21 @@ describe('LineChart presentation', () => {
     expect(byKey).toContain('stroke:var(--q-cat-5)');
   });
 
-  it('never lets a refused color into the markup', () => {
+  it('takes any CSS color from a developer, without a warning', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const markup = html(
-      <LineChart data={plans} x="month" y="users" color="plan" colors={REFUSED} />,
+      <LineChart data={plans} x="month" y="users" color="plan" colors={CSS_COLORS} />,
     );
-    expect(markup).toContain('stroke:var(--q-cat-1)');
-    expect(markup).toContain('stroke:var(--q-cat-2)');
-    for (const value of REFUSED) expect(markup).not.toContain(value);
-    expect(markup).not.toContain('example.com');
-    expect(warn).toHaveBeenCalled();
-    expect(String(warn.mock.calls[0][0])).toMatch(/Ignored the color .*hex color such as #2f45e8/);
+    expect(markup).toContain('stroke:rebeccapurple');
+    expect(markup).toContain('stroke:rgb(20 80 200)');
+    expect(markup).not.toContain('--q-cat-1');
+    expect(warn).not.toHaveBeenCalled();
+
+    // A prop that is not a color at all leaves that series on the palette, and says so.
+    const gap = html(<LineChart data={plans} x="month" y="users" color="plan" colors={[12, '']} />);
+    expect(gap).toContain('stroke:var(--q-cat-1)');
+    expect(gap).toContain('stroke:var(--q-cat-2)');
+    expect(String(warn.mock.calls[0][0])).toMatch(/Ignored the color 12\. .*or a CSS color/);
   });
 
   it('bounds the y axis and clips the line to the plot', () => {
@@ -155,18 +162,21 @@ describe('LineChart presentation', () => {
     expect(cx(dates)[0]).toBe(32);
   });
 
-  it('takes approximate tick counts for both axes', () => {
-    const count = (props: Record<string, unknown>, axis: number) =>
-      texts(axes(draw(<LineChart data={year} x="month" y="users" {...props} />))[axis], 'text')
-        .length;
-    expect(count({}, 0)).toBe(6);
-    expect(count({ yTicks: 2 }, 0)).toBe(3);
-    expect(count({ yTicks: 10 }, 0)).toBe(13);
-    expect(count({ yTicks: 0 }, 0)).toBe(0);
-    expect(count({}, 1)).toBe(6);
-    expect(count({ xTicks: 3 }, 1)).toBe(3);
-    expect(count({ xTicks: 12 }, 1)).toBe(12);
-    expect(count({ xTicks: 0 }, 1)).toBe(0);
+  it('draws the tidy tick set closest to the count asked for', () => {
+    const labels = (props: Record<string, unknown>, axis: number) =>
+      texts(axes(draw(<LineChart data={year} x="month" y="users" {...props} />))[axis], 'text');
+    // Values run to 210. With no setting the axis is as it always was.
+    expect(labels({}, 0)).toEqual(['0', '50', '100', '150', '200', '250']);
+    expect(labels({ yTicks: 2 }, 0)).toEqual(['0', '500']);
+    expect(labels({ yTicks: 3 }, 0)).toEqual(['0', '200', '400']);
+    expect(labels({ yTicks: 6 }, 0)).toEqual(['0', '50', '100', '150', '200', '250']);
+    expect(labels({ yTicks: 10 }, 0)).toHaveLength(13);
+    expect(labels({ yTicks: 0 }, 0)).toEqual([]);
+    // x labels sit on data points, so their count is exact.
+    expect(labels({}, 1)).toHaveLength(6);
+    expect(labels({ xTicks: 3 }, 1)).toHaveLength(3);
+    expect(labels({ xTicks: 12 }, 1)).toHaveLength(12);
+    expect(labels({ xTicks: 0 }, 1)).toHaveLength(0);
   });
 
   it('draws horizontal gridlines by default, and none, vertical or both on request', () => {
@@ -294,7 +304,7 @@ describe('AreaChart presentation', () => {
   it('applies margins, colors, ticks, gridlines and hidden axes like a line chart', () => {
     const root = draw(area({ margin: { left: 70, right: 40 }, yTicks: 2, grid: 'both' }));
     expect([num(rows(root)[0], 'x1'), num(rows(root)[0], 'x2')]).toEqual([70, WIDTH - 40]);
-    expect(rows(root)).toHaveLength(3);
+    expect(rows(root)).toHaveLength(2);
     expect(columns(root)).toHaveLength(2);
     expect(axes(draw(area({ xAxis: false, yAxis: false })))).toHaveLength(0);
 
@@ -364,14 +374,14 @@ describe('BarChart presentation', () => {
     expect(num(custom[custom.length - 1], 'y1')).toBe(30.5);
   });
 
-  it('colors bars from the palette or hex, and refuses anything else', () => {
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  it('colors bars from the palette, hex or any CSS color', () => {
     const markup = html(grouped({ colors: ['muted', '#2f45e8'] }));
     expect(markup).toContain('fill:var(--q-series-muted)');
     expect(markup).toContain('fill:#2f45e8');
-    const refused = html(grouped({ colors: REFUSED }));
-    expect(refused).toContain('fill:var(--q-cat-1)');
-    for (const value of REFUSED) expect(refused).not.toContain(value);
+    const css = html(grouped({ colors: CSS_COLORS }));
+    expect(css).toContain('fill:rebeccapurple');
+    expect(css).toContain('fill:rgb(20 80 200)');
+    expect(html(grouped({ colors: { 2026: 'var(--brand)' } }))).toContain('fill:var(--brand)');
   });
 
   it('refuses axis bounds that would cut a bar, and accepts bounds that add room', () => {
@@ -391,7 +401,8 @@ describe('BarChart presentation', () => {
 
   it('takes tick counts, gridline and axis switches', () => {
     expect(texts(axes(draw(bars()))[0], 'text')).toHaveLength(4);
-    expect(texts(axes(draw(bars({ yTicks: 2 })))[0], 'text')).toHaveLength(3);
+    expect(texts(axes(draw(bars({ yTicks: 2 })))[0], 'text')).toEqual(['0', '200']);
+    expect(texts(axes(draw(bars({ yTicks: 3 })))[0], 'text')).toEqual(['0', '100', '200']);
     expect(draw(bars({ grid: false })).querySelectorAll('.q-chart-grid line')).toHaveLength(0);
     const noY = draw(bars({ yAxis: false }));
     expect(axes(noY)).toHaveLength(1);
@@ -468,6 +479,200 @@ describe('BarChart presentation', () => {
   });
 });
 
+describe('labels and reference rules together', () => {
+  type Box = { x0: number; x1: number; y0: number; y1: number };
+  const overlap = (a: Box, b: Box) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+  /** Mono text at the axis size is about 6.6px a character and 11px tall. */
+  const textBox = (el: Element): Box => {
+    const x = num(el, 'x');
+    const y = num(el, 'y');
+    const w = (el.textContent ?? '').length * 6.6;
+    const anchor = el.getAttribute('text-anchor') ?? 'start';
+    const x0 = anchor === 'middle' ? x - w / 2 : anchor === 'end' ? x - w : x;
+    // `dy="0.32em"` centers the text on y; otherwise y is the baseline.
+    const centered = el.getAttribute('dy') === '0.32em';
+    return { x0, x1: x0 + w, y0: centered ? y - 6 : y - 10, y1: centered ? y + 6 : y + 3 };
+  };
+  /** A vertical bar's path: `M x,bottom v -(h - r) q … h (w - 2r) q … v … z`. */
+  const barBox = (path: Element): Box => {
+    const d = path.getAttribute('d') ?? '';
+    const [, x, bottom] = /^M([\d.-]+),([\d.-]+)/.exec(d)!.map(Number);
+    const rise = Number(/v(-[\d.]+)/.exec(d)![1]);
+    const r = Number(/q0,-([\d.]+)/.exec(d)![1]);
+    const across = Number(/h([\d.]+)/.exec(d)![1]);
+    return { x0: x, x1: x + across + 2 * r, y0: bottom + rise - r, y1: bottom };
+  };
+  const boxes = (root: ParentNode, selector: string, of: (el: Element) => Box) =>
+    Array.from(root.querySelectorAll(selector)).map(of);
+
+  // The case that showed the problem: a rule at 1M across bars of 1.2M, 860K and 2.1M. Its text
+  // landed on the tallest bar, and the rule ran through the 860K label just under it.
+  const revenue = [
+    { region: 'EMEA', revenue: 1200000 },
+    { region: 'APAC', revenue: 860000 },
+    { region: 'Americas', revenue: 2100000 },
+  ];
+  const target = { value: 1000000, label: 'Target' };
+
+  it('keeps the text of a rule off the bars and the rule off the value labels', () => {
+    const root = draw(<BarChart data={revenue} x="region" y="revenue" labels reference={target} />);
+    const bars = boxes(root, '.q-bar-marks path', barBox);
+    const rule = root.querySelector('.q-chart-reference line')!;
+    const ruleText = root.querySelector('.q-chart-reference text')!;
+    const values = Array.from(root.querySelectorAll('.q-chart-value-labels text'));
+    expect(bars).toHaveLength(3);
+    expect(values.map((v) => v.textContent)).toEqual(['$1.2M', '$860K', '$2.1M']);
+    expect(ruleText.textContent).toBe('Target');
+
+    // The text is beside the plot, past the last bar, so no bar can be under it.
+    const label = textBox(ruleText);
+    for (const bar of bars) expect(overlap(label, bar)).toBe(false);
+    expect(label.x0).toBeGreaterThan(Math.max(...bars.map((b) => b.x1)));
+    expect(label.x0).toBeGreaterThan(num(rule, 'x2'));
+    expect(label.x1).toBeLessThanOrEqual(WIDTH);
+    // It is level with its rule.
+    expect(Math.abs((label.y0 + label.y1) / 2 - num(rule, 'y1'))).toBeLessThan(1);
+
+    // The rule passes clear of every value label, and each label is still over its own bar.
+    const ruleY = num(rule, 'y1');
+    values.forEach((value, i) => {
+      const box = textBox(value);
+      expect(ruleY < box.y0 || ruleY > box.y1).toBe(true);
+      expect(box.y1).toBeLessThanOrEqual(bars[i].y0);
+      expect((box.x0 + box.x1) / 2).toBeCloseTo((bars[i].x0 + bars[i].x1) / 2, 5);
+      expect(overlap(box, label)).toBe(false);
+      for (const bar of bars) expect(overlap(box, bar)).toBe(false);
+    });
+    // The 860K label was the one in the way: it now stands just above the rule.
+    expect(textBox(values[1]).y1).toBeLessThan(ruleY);
+    expect(ruleY - textBox(values[1]).y1).toBeLessThan(4);
+  });
+
+  it('leaves labels where they were when no rule is near them', () => {
+    const plain = draw(<BarChart data={revenue} x="region" y="revenue" labels />);
+    const far = draw(
+      <BarChart data={revenue} x="region" y="revenue" labels reference={{ value: 400000 }} />,
+    );
+    const ys = (root: ParentNode) =>
+      Array.from(root.querySelectorAll('.q-chart-value-labels text')).map((t) => num(t, 'y'));
+    expect(ys(far)).toEqual(ys(plain));
+    // A rule without a label is named by its value, also beside the plot.
+    const text = far.querySelector('.q-chart-reference text')!;
+    expect(text.textContent).toBe('$400K');
+    expect(num(text, 'x')).toBeGreaterThan(num(far.querySelector('.q-chart-reference line'), 'x2'));
+  });
+
+  it('puts the text on the rule when the author leaves no room beside the plot', () => {
+    const root = draw(
+      <BarChart data={revenue} x="region" y="revenue" reference={target} margin={{ right: 4 }} />,
+    );
+    const text = root.querySelector('.q-chart-reference text')!;
+    expect(text.getAttribute('text-anchor')).toBe('end');
+    expect(num(text, 'x')).toBeLessThan(WIDTH - 4);
+  });
+
+  it('stacks several rule texts without overlap', () => {
+    const root = draw(
+      <BarChart
+        data={revenue}
+        x="region"
+        y="revenue"
+        reference={[
+          { value: 1000000, label: 'Target' },
+          { value: 1040000, label: 'Stretch' },
+        ]}
+      />,
+    );
+    const [a, b] = boxes(root, '.q-chart-reference text', textBox);
+    expect(overlap(a, b)).toBe(false);
+    expect(Math.abs(a.y0 - b.y0)).toBeGreaterThanOrEqual(13);
+  });
+
+  it('moves the value of a horizontal bar past a rule that would run through it', () => {
+    const root = draw(
+      <BarChart
+        data={revenue}
+        x="region"
+        y="revenue"
+        orientation="horizontal"
+        reference={{ value: 900000, label: 'Target' }}
+      />,
+    );
+    const ruleX = num(root.querySelector('.q-chart-reference line'), 'x1');
+    const values = Array.from(root.querySelectorAll('.q-bar-value'));
+    expect(values.map((v) => v.textContent)).toEqual(['$1.2M', '$860K', '$2.1M']);
+    for (const value of values) {
+      const box = textBox(value);
+      expect(ruleX < box.x0 || ruleX > box.x1).toBe(true);
+    }
+    // 860K ends just short of the rule, so its label starts after it.
+    expect(textBox(values[1]).x0).toBeGreaterThan(ruleX);
+    expect(root.querySelector('.q-bar-labels')?.classList.contains('q-chart-haloed')).toBe(true);
+    const plain = draw(<BarChart data={revenue} x="region" y="revenue" orientation="horizontal" />);
+    expect(plain.querySelector('.q-bar-labels')?.getAttribute('class')).toBe('q-bar-labels');
+  });
+
+  it('shares the right margin between line-end labels and rule texts', () => {
+    // Team ends at 180 and Pro at 95: rules at both values would print on top of the labels.
+    for (const Chart of [LineChart, AreaChart]) {
+      const root = draw(
+        <Chart
+          data={plans}
+          x="month"
+          y="users"
+          color="plan"
+          labels
+          reference={[
+            { value: 180, label: 'Plan' },
+            { value: 95, label: 'Floor' },
+          ]}
+        />,
+      );
+      const ends = boxes(root, '.q-chart-end-labels text', textBox);
+      const rules = boxes(root, '.q-chart-reference text', textBox);
+      expect(texts(root, '.q-chart-end-labels text')).toEqual(['Team 180', 'Pro 95']);
+      expect(texts(root, '.q-chart-reference text')).toEqual(['Plan', 'Floor']);
+      const all = [...ends, ...rules];
+      for (let i = 0; i < all.length; i++) {
+        for (let j = i + 1; j < all.length; j++) expect(overlap(all[i], all[j])).toBe(false);
+      }
+      // All of it is beside the plot, inside the chart.
+      const plotRight = num(root.querySelector('.q-chart-reference line'), 'x2');
+      for (const box of all) {
+        expect(box.x0).toBeGreaterThan(plotRight);
+        expect(box.x1).toBeLessThanOrEqual(WIDTH);
+      }
+    }
+  });
+
+  it('names an unlabelled rule by its value on every chart that draws one', () => {
+    expect(
+      texts(
+        draw(<LineChart data={trend} x="month" y="users" reference={160} />),
+        '.q-chart-reference text',
+      ),
+    ).toEqual(['160']);
+    expect(
+      texts(
+        draw(<AreaChart data={trend} x="month" y="users" reference={160} />),
+        '.q-chart-reference text',
+      ),
+    ).toEqual(['160']);
+    expect(
+      texts(
+        draw(<BarChart data={flat} x="region" y="users" reference={100} />),
+        '.q-chart-reference text',
+      ),
+    ).toEqual(['100']);
+    const scatter = draw(<ScatterPlot data={points} x="weight" y="score" reference={3.5} />);
+    const text = scatter.querySelector('.q-chart-reference text')!;
+    expect(text.textContent).toBe('3.5');
+    expect(num(text, 'x')).toBeGreaterThan(
+      num(scatter.querySelector('.q-chart-reference line'), 'x2'),
+    );
+  });
+});
+
 describe('ScatterPlot presentation', () => {
   const scatter = (props: Record<string, unknown> = {}) => (
     <ScatterPlot data={points} x="weight" y="score" {...props} />
@@ -488,10 +693,9 @@ describe('ScatterPlot presentation', () => {
     expect(grouped).toContain('#111111');
     expect(grouped).toContain('var(--q-warning)');
     expect(html(scatter({ colors: ['negative'] }))).toContain('var(--q-negative)');
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const refused = html(scatter({ colors: REFUSED }));
-    for (const value of REFUSED) expect(refused).not.toContain(value);
-    expect(refused).toContain('var(--q-cat-1)');
+    const css = html(scatter({ color: 'seg', colors: CSS_COLORS }));
+    expect(css).toContain('rebeccapurple');
+    expect(css).toContain('rgb(20 80 200)');
   });
 
   it('bounds both axes, leaves out points beyond them and says so', () => {
@@ -507,10 +711,33 @@ describe('ScatterPlot presentation', () => {
   });
 
   it('takes tick counts and gridline directions', () => {
-    const root = draw(scatter({ xTicks: 2, yTicks: 2, grid: 'both' }));
+    const root = draw(scatter({ xTicks: 3, yTicks: 3, grid: 'both' }));
     expect(texts(axes(root)[0], 'text')).toEqual(['2', '4', '6']);
     expect(texts(axes(root)[1], 'text')).toEqual(['0', '20', '40']);
     expect([rows(root).length, columns(root).length]).toEqual([3, 3]);
+    // Two ticks that still bound the data mean a wider axis.
+    const two = draw(scatter({ xTicks: 2, yTicks: 2 }));
+    expect(texts(axes(two)[0], 'text')).toEqual(['0', '10']);
+    expect(texts(axes(two)[1], 'text')).toEqual(['0', '50']);
+    // y from 1 to 4.9, three ticks asked: d3 offers 0, 10 and 0, 2, 4, 6, equally near in size.
+    // The axis the points fill wins.
+    const yLabels = (scores: number[]) =>
+      texts(
+        axes(
+          draw(
+            <ScatterPlot
+              data={scores.map((score, i) => ({ weight: 10 + i, score }))}
+              x="weight"
+              y="score"
+              yTicks={3}
+            />,
+          ),
+        )[0],
+        'text',
+      );
+    expect(yLabels([1, 4.9, 3, 2.2, 4])).toEqual(['0', '2', '4', '6']);
+    // With whole values from 1 to 5 the tightest tidy axis is 0 to 5, marked at its ends.
+    expect(yLabels([1, 5, 3, 2, 4])).toEqual(['0', '5']);
     expect(texts(axes(draw(scatter()))[0], 'text')).toEqual(['2', '3', '4', '5']);
     expect(draw(scatter({ grid: false })).querySelector('.q-chart-grid')).toBeNull();
     expect(columns(draw(scatter({ grid: 'x' }))).length).toBeGreaterThan(0);
@@ -551,15 +778,14 @@ describe('Histogram presentation', () => {
     ]);
   });
 
-  it('takes one validated bar color', () => {
+  it('takes one bar color', () => {
     expect(html(histogram({ color: 'positive' }))).toContain('fill:var(--q-positive)');
     expect(html(histogram({ color: '#2f45e8' }))).toContain('fill:#2f45e8');
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
-    for (const value of REFUSED) {
-      const markup = html(histogram({ color: value }));
-      expect(markup).toContain('fill:var(--q-dist-fill)');
-      expect(markup).not.toContain(value);
+    for (const value of CSS_COLORS) {
+      expect(html(histogram({ color: value }))).toContain(`fill:${value}`);
     }
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(html(histogram({ color: '' }))).toContain('fill:var(--q-dist-fill)');
   });
 
   it('labels bars, hides the axis and marks a reference value with a vertical rule', () => {
@@ -592,9 +818,13 @@ describe('BoxPlot presentation', () => {
     expect(usual.querySelector('.q-chart-grid')).toBeNull();
     expect(texts(usual, '.q-boxplot-label')).toEqual(['web', 'api']);
 
-    const custom = draw(box({ xTicks: 2, xMin: 0, xMax: 100, grid: true, margin: { left: 90 } }));
+    const custom = draw(box({ xTicks: 3, xMin: 0, xMax: 100, grid: true, margin: { left: 90 } }));
     expect(texts(custom, '.q-chart-axis text')).toEqual(['0', '50', '100']);
     expect(columns(custom)).toHaveLength(3);
+    expect(texts(draw(box({ xTicks: 2, xMin: 0, xMax: 100 })), '.q-chart-axis text')).toEqual([
+      '0',
+      '100',
+    ]);
     expect(num(columns(custom)[0], 'x1')).toBe(90.5);
 
     const bare = draw(box({ yAxis: false, xAxis: false }));
@@ -603,7 +833,7 @@ describe('BoxPlot presentation', () => {
   });
 
   it('uses the y settings for vertical boxes', () => {
-    const root = draw(box({ orientation: 'vertical', yTicks: 2, yMax: 100, grid: false }));
+    const root = draw(box({ orientation: 'vertical', yTicks: 3, yMax: 100, grid: false }));
     expect(texts(axes(root)[0], 'text')).toEqual(['0', '50', '100']);
     expect(root.querySelector('.q-chart-grid')).toBeNull();
     expect(rows(draw(box({ orientation: 'vertical' }))).length).toBe(5);
@@ -615,14 +845,13 @@ describe('DonutChart presentation', () => {
     <DonutChart data={flat} category="region" value="users" {...props} />
   );
 
-  it('colors slices and refuses anything but tokens', () => {
+  it('colors slices from the palette, hex or any CSS color', () => {
     const markup = html(donut({ colors: ['signal', '#f26b3a'] }));
     expect(markup).toContain('stroke:var(--q-signal)');
     expect(markup).toContain('stroke:#f26b3a');
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const refused = html(donut({ colors: REFUSED }));
-    expect(refused).toContain('stroke:var(--q-cat-1)');
-    for (const value of REFUSED) expect(refused).not.toContain(value);
+    const css = html(donut({ colors: { EMEA: 'rebeccapurple', APAC: 'var(--brand)' } }));
+    expect(css).toContain('stroke:rebeccapurple');
+    expect(css).toContain('stroke:var(--brand)');
   });
 
   it('places the legend and adds values to it', () => {
@@ -648,15 +877,12 @@ describe('DonutChart presentation', () => {
 });
 
 describe('single-color charts', () => {
-  it('colors a sparkline line from a token and falls back when refused', () => {
+  it('colors a sparkline line from a token or any CSS color', () => {
     expect(html(<Sparkline data={[1, 3, 2]} color="signal" />)).toContain('stroke:var(--q-signal)');
     expect(html(<Sparkline data={[1, 3, 2]} color="#2f45e8" />)).toContain('stroke:#2f45e8');
     expect(html(<Sparkline data={[1, 3, 2]} />)).toContain('stroke:var(--q-text)');
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
-    for (const value of REFUSED) {
-      const markup = html(<Sparkline data={[1, 3, 2]} color={value} />);
-      expect(markup).toContain('stroke:var(--q-text)');
-      expect(markup).not.toContain(value);
+    for (const value of CSS_COLORS) {
+      expect(html(<Sparkline data={[1, 3, 2]} color={value} />)).toContain(`stroke:${value}`);
     }
   });
 
@@ -670,11 +896,6 @@ describe('single-color charts', () => {
       '--q-bar-list-fill:color-mix(in srgb, var(--q-positive) 16%, transparent)',
     );
     expect(html(list())).not.toContain('--q-bar-list-color');
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
-    for (const value of REFUSED) {
-      const refused = html(list({ color: value }));
-      expect(refused).not.toContain('--q-bar-list-color');
-      expect(refused).not.toContain(value);
-    }
+    expect(html(list({ color: 'rebeccapurple' }))).toContain('--q-bar-list-color:rebeccapurple');
   });
 });

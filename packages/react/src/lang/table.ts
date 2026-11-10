@@ -19,6 +19,8 @@ export interface ParsedTable {
   diagnostics: Diagnostic[];
   /** Streaming: a trailing record was held back because it may still be incomplete. */
   truncated: boolean;
+  /** How many rows the data held, when `maxRows` cut it; `rows` are the first of them. */
+  rowsTotal?: number;
 }
 
 export interface TableOptions {
@@ -570,6 +572,8 @@ interface JsonRows {
   key?: string;
   /** The key beside the rows that their column names were read from. */
   header?: string;
+  /** Column names of a list of arrays, which outlive its rows: a header with nothing under it. */
+  names?: string[];
   warning?: string;
 }
 
@@ -671,6 +675,7 @@ function rowsFromJson(
           Object.fromEntries(names.map((n, i) => [n, r[i] ?? null])),
         ),
         header: beside?.key,
+        names,
       };
     }
     return { rows: [], problem: 'Expected an array of objects or an array of arrays.' };
@@ -877,13 +882,16 @@ export function parseTable(input: unknown, options: TableOptions = {}): ParsedTa
       diagnostics.push(warning(`Kept the first ${maxRows} of ${rows.length} rows.`, firstLine));
     }
     for (const note of typed.notes) diagnostics.push(info(note, firstLine));
+    // A header with no rows under it still says which columns exist.
+    const bare = rows.length === 0 ? read.names : undefined;
     return {
       format,
-      columns: typed.columns,
+      columns: bare ?? typed.columns,
       rows: typed.rows,
-      fields: typed.fields,
+      fields: bare ? Object.fromEntries(bare.map((name) => [name, {}])) : typed.fields,
       diagnostics,
       truncated,
+      ...(rows.length > maxRows ? { rowsTotal: rows.length } : {}),
     };
   }
 
@@ -930,8 +938,10 @@ export function parseTable(input: unknown, options: TableOptions = {}): ParsedTa
   const width = columns.length;
   const raw: (string | null)[][] = columns.map(() => []);
   let kept = 0;
+  let rowsTotal: number | undefined;
   for (const rec of data) {
     if (kept >= maxRows) {
+      rowsTotal = data.length;
       diagnostics.push(
         warning(
           `Kept the first ${maxRows} rows; ${data.length - maxRows} more were ignored.`,
@@ -971,7 +981,17 @@ export function parseTable(input: unknown, options: TableOptions = {}): ParsedTa
       rows[r][name] = v;
     });
     if (typed.meta) fields[name] = typed.meta;
+    // A header with no rows under it still says which columns exist.
+    else if (kept === 0) fields[name] = {};
     if (typed.note) diagnostics.push(info(typed.note, head.line));
   });
-  return { format, columns, rows, fields, diagnostics, truncated };
+  return {
+    format,
+    columns,
+    rows,
+    fields,
+    diagnostics,
+    truncated,
+    ...(rowsTotal === undefined ? {} : { rowsTotal }),
+  };
 }

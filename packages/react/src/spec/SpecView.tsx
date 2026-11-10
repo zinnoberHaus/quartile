@@ -7,6 +7,7 @@ import {
   useState,
 } from 'react';
 import * as Charts from '../charts';
+import { specColors } from '../charts/core/colors';
 import { FigureDescriptionContext } from '../charts/core/figure-context';
 import { originOf } from '../data/origin';
 import { applyPredicates, type Predicate } from '../data/predicates';
@@ -171,7 +172,8 @@ function useSpecProps(spec: ComponentSpec, input: DataInput | undefined) {
       const isDim = shape.dims.includes(key);
       const isMeasure = shape.measures.includes(key);
       if (!isDim && !isMeasure) {
-        props[key] = raw;
+        // `colors`, and `color` where it is not a field, are colors: only tokens and hex pass.
+        props[key] = key === 'colors' || key === 'color' ? specColors(raw) : raw;
         continue;
       }
       if (Array.isArray(raw)) {

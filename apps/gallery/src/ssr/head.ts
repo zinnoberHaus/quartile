@@ -14,7 +14,7 @@ export const OG_IMAGE = {
   path: `${EXAMPLES_PATH}/og-image.png`,
   width: 1200,
   height: 630,
-  alt: 'The Quartile wordmark and the headline “Build data apps, not just charts.” beside a sample bar chart.',
+  alt: 'The Quartile wordmark and the headline “Write a sentence. Get a chart.” beside a sample bar chart.',
 };
 
 const ESCAPES: Record<string, string> = {
@@ -61,7 +61,7 @@ export function structuredData(route: GalleryRoute, options: { modified?: string
       '@type': 'SoftwareSourceCode',
       name: SITE_NAME,
       description:
-        'Open-source React toolkit of charts, tables and interface controls. A 0.1 preview that is not published to npm.',
+        'Open-source chart block for Markdown, AI answers and web pages. A 0.1 preview that is not on npm yet.',
       codeRepository: REPOSITORY_URL,
       programmingLanguage: 'TypeScript',
       license: 'https://www.apache.org/licenses/LICENSE-2.0',

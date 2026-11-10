@@ -27,7 +27,7 @@ import {
   type ViewNode,
 } from './parse';
 import { checkSourceUrl, isProvenanceKey, legacyDataSource, readProvenance } from './provenance';
-import { readSourceSettings, SOURCE_KEYS, sourceDataset } from './source';
+import { markRowLimit, readSourceSettings, rowLimitOf, SOURCE_KEYS, sourceDataset } from './source';
 import { finishStyle, isReferenceKey, readStyleSetting, styleJsonSpec, styleState } from './style';
 import { type FieldMeta, parseTable, wholeCurrency } from './table';
 
@@ -71,6 +71,14 @@ export interface CompiledBlock {
   complete: boolean;
   /** Waiting for rows: a streaming block without data yet, or a source that is loading. */
   pending: boolean;
+  /**
+   * The data has no rows and the block leaves its fields to be inferred from them, so there is
+   * nothing to draw yet and nothing wrong. A view that names its fields keeps its `spec` and
+   * renders its own empty state instead.
+   */
+  empty?: boolean;
+  /** Datasets drawn in part, because at most `kept` of their `total` rows were kept. */
+  rowLimits?: { data: string; kept: number; total: number }[];
 }
 
 type JsonSchema = Record<string, unknown>;
@@ -196,9 +204,11 @@ interface FieldResolver {
   type(name: string): FieldDef['type'];
 }
 
-function makeResolver(schema: Record<string, FieldDef>): FieldResolver {
+function makeResolver(schema: Record<string, FieldDef>, open = false): FieldResolver {
   const columns = Object.keys(schema);
   const resolve = (name: string, line: number | undefined, diagnostics: Diagnostic[]) => {
+    // No rows and no header: there is nothing to check a name against, so it stands as written.
+    if (open) return name;
     if (Object.hasOwn(schema, name)) return name;
     const lower = columns.find((c) => c.toLowerCase() === name.toLowerCase());
     if (lower) return lower;
@@ -432,6 +442,8 @@ interface ViewContext {
   complete: boolean;
   diagnostics: Diagnostic[];
   blockColors: boolean;
+  /** Reports, once per dataset, that a view draws rows the host's limit cut. */
+  rowLimit(name: string, rows: readonly Row[], line?: number): void;
 }
 
 interface CompiledView {
@@ -439,6 +451,9 @@ interface CompiledView {
   dataName?: string;
   pending: boolean;
   link: string | null;
+  /** No rows to infer the view's fields from; `title` is what it is called meanwhile. */
+  empty?: boolean;
+  title?: string;
 }
 
 function lookupDataset(ctx: ViewContext, name: string): DataInput | undefined {
@@ -671,8 +686,12 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
   }
   const { rows, schema } = resolveData(input);
   if (rows.length === 0 && !ctx.complete) return { pending: true, dataName, link: null };
+  ctx.rowLimit(dataName, rows, dataProp?.line ?? view.line);
+  // No rows is an answer, not a mistake: the view draws its empty state. Field names are
+  // checked only against a header that came without rows.
+  const empty = rows.length === 0;
   const errorsBefore = diagnostics.filter((d) => d.severity === 'error').length;
-  const resolver = makeResolver(schema);
+  const resolver = makeResolver(schema, empty && Object.keys(schema).length === 0);
   const used = new Set<string>();
   const resolve = (name: string | null, line?: number) => {
     if (name === null) return null;
@@ -985,7 +1004,7 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
   }
 
   // 4. Fill encodings the author left out from the columns' types.
-  inferEncodings(view.kind, spec, resolver, used, rows, diagnostics, view.line);
+  inferEncodings(view.kind, spec, resolver, used, rows, empty ? [] : diagnostics, view.line);
 
   // 5. Derived data: row counts, explicit order for categories on a continuous axis.
   let viewInput: DataInput = input;
@@ -1080,7 +1099,7 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
   }
 
   // Lines and areas need a continuous x. Categories keep the order they appear in.
-  if (def.continuousX && typeof spec.x === 'string') {
+  if (def.continuousX && typeof spec.x === 'string' && !empty) {
     const x = spec.x;
     const type = (fieldMeta[x]?.type ?? resolver.type(x)) as FieldDef['type'];
     if (type !== 'quantitative' && type !== 'temporal') {
@@ -1127,7 +1146,7 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
       const field = typeof m === 'string' ? m : m?.field;
       spec.label =
         spec.title ??
-        (typeof m === 'object' && m?.label) ??
+        (typeof m === 'object' ? m?.label : undefined) ??
         (field === countName
           ? 'Rows'
           : field
@@ -1245,6 +1264,12 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
 
   // 6. Validate against the JSON schema and point errors at source lines.
   const result = validateSpec(spec);
+  // Without rows the fields the author left out cannot be inferred: the view waits for them.
+  const missing = (e: SpecError) => e.message.startsWith('Missing required property');
+  if (empty && result.errors.length > 0 && result.errors.every(missing)) {
+    const title = [spec.title, spec.label].find((t): t is string => typeof t === 'string');
+    return { pending: false, empty: true, dataName, link: group, title };
+  }
   for (const e of result.errors) diagnostics.push(specError(e, lines, view.line, view.kind));
   if (!result.valid) return { pending: false, dataName, link: null };
 
@@ -1622,6 +1647,25 @@ export function compileBlock(
     result.pending = !complete;
     return result;
   }
+  // A dataset cut to the host's row limit is recorded once, with what the reader is shown.
+  const rowLimit = (name: string, rows: readonly Row[], line?: number) => {
+    const cut = rowLimitOf(rows);
+    if (!cut || result.rowLimits?.some((l) => l.data === name)) return;
+    result.rowLimits ??= [];
+    result.rowLimits.push({ data: name, kept: cut.kept, total: cut.total });
+    // Rows written in the block were reported where they were read.
+    if (cut.loaded) {
+      diagnostics.push(
+        warning(
+          `Kept the first ${cut.kept} of ${cut.total} rows.`,
+          line,
+          'The page keeps a limited number of rows from a source; its host can raise `maxRows`.',
+        ),
+      );
+    }
+  };
+  // The block's own rows could not be read: that is the one thing to report.
+  let dataFailed = false;
 
   // Inline rows after `---`.
   const blockProps = block.type === 'view' ? (block.views[0]?.props ?? []) : block.props;
@@ -1642,6 +1686,8 @@ export function compileBlock(
       pathLine: settings.pathLine,
     });
     diagnostics.push(...table.diagnostics);
+    dataFailed = hasErrors(table.diagnostics);
+    if (table.rowsTotal !== undefined) markRowLimit(table.rows, table.rowsTotal);
     inlineName = block.type === 'data' && block.name ? block.name : 'data';
     const meta = fieldMetaFrom(
       block.type === 'dashboard' || block.type === 'data' ? block.props : [],
@@ -1701,6 +1747,12 @@ export function compileBlock(
         ...readProvenance(block.props, diagnostics),
       } as ComponentSpec;
       result.link = block.name;
+      rowLimit(block.name, resolveData(ds).rows, srcProp?.line);
+      // A table needs a column: a source that answered with nothing has none to show yet.
+      if (columns.length === 0) {
+        delete result.spec;
+        result.empty = true;
+      }
     } else {
       result.pending = pending.has(block.name) || !complete;
     }
@@ -1708,6 +1760,11 @@ export function compileBlock(
   }
 
   for (const p of block.props) if (p.norm === 'version') checkVersion(p, diagnostics);
+  if (dataFailed) {
+    result.pending = !complete;
+    result.data = { ...datasets, ...local };
+    return result;
+  }
 
   // Views.
   const dashboardData =
@@ -1733,6 +1790,7 @@ export function compileBlock(
     complete,
     diagnostics,
     blockColors: options.blockColors !== false,
+    rowLimit,
   };
 
   if (block.type === 'view') {
@@ -1744,8 +1802,9 @@ export function compileBlock(
     const compiled = compileView(view, ctx);
     result.spec = compiled.spec;
     result.pending = compiled.pending;
+    if (compiled.empty) result.empty = true;
     result.link = compiled.link;
-    result.title = compiled.spec?.title as string | undefined;
+    result.title = (compiled.spec?.title as string | undefined) ?? compiled.title;
     result.data = { ...datasets, ...local };
     return result;
   }
@@ -1754,10 +1813,12 @@ export function compileBlock(
   const items: ComponentSpec[] = [];
   const kinds: { kind: ViewKind; span?: number }[] = [];
   let anyPending = false;
+  let anyEmpty = false;
   let link: string | null | undefined;
   for (const view of block.views) {
     const compiled = compileView(view, ctx);
     if (compiled.pending) anyPending = true;
+    if (compiled.empty) anyEmpty = true;
     if (compiled.spec) {
       items.push(compiled.spec);
       kinds.push({ kind: view.kind, span: compiled.spec.span as number | undefined });
@@ -1781,6 +1842,7 @@ export function compileBlock(
   result.title = title;
   result.link = link ?? null;
   result.pending = anyPending && items.length === 0;
+  if (anyEmpty && !anyPending && items.length === 0) result.empty = true;
   result.data = { ...datasets, ...local };
   if (items.length) {
     const dash: DashboardSpec = { layout: items };

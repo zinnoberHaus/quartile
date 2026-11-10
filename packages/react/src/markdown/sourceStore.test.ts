@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveData } from '../data/schema';
+import { rowLimitOf } from '../lang/source';
 import { SourceStore } from './sourceStore';
 
 const csv = (n: number) => `region,amount\nEMEA,${n}\n`;
@@ -62,6 +63,28 @@ describe('SourceStore', () => {
     // Nothing asked for a refresh, so nothing is scheduled.
     await vi.advanceTimersByTimeAsync(3_600_000);
     expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps at most maxRows rows of a source and remembers how many there were', async () => {
+    let limit: number | undefined = 2;
+    const load = vi.fn(async () => 'n\n1\n2\n3\n4\n');
+    const store = new SourceStore({ loader: () => load, maxRows: () => limit });
+    store.request({ name: 'x', url: '/x.csv' });
+    await vi.advanceTimersByTimeAsync(0);
+    const kept = resolveData(store.getSnapshot().loaded.x).rows;
+    expect(kept).toEqual([{ n: 1 }, { n: 2 }]);
+    expect(rowLimitOf(kept)).toEqual({ kept: 2, total: 4, loaded: true });
+    // The limit is read at each load.
+    limit = undefined;
+    await store.reload();
+    const all = resolveData(store.getSnapshot().loaded.x).rows;
+    expect(all).toHaveLength(4);
+    expect(rowLimitOf(all)).toBeUndefined();
+    // A plain number works too.
+    const fixed = new SourceStore({ loader: () => load, maxRows: 3 });
+    fixed.request({ name: 'x', url: '/x.csv' });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(resolveData(fixed.getSnapshot().loaded.x).rows).toHaveLength(3);
   });
 
   it('does nothing without a loader', async () => {

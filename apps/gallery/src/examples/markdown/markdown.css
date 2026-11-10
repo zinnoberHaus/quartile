@@ -191,8 +191,26 @@
   color: var(--q-text-3);
 }
 
-.md-table tr:last-child > * {
+.md-table tbody:last-child tr:last-child > * {
   border-bottom: 0;
+}
+
+/* The settings reference: one tbody per group, each under a heading row. */
+.md-settings th[scope="row"] {
+  white-space: nowrap;
+}
+
+.md-settings td:nth-child(2) {
+  min-width: 220px;
+}
+
+.md-table .md-settings-group {
+  padding-top: 14px;
+  font: 600 11px var(--q-font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--q-text-3);
+  background: var(--q-muted);
 }
 
 .md-cards {
@@ -251,6 +269,29 @@
 .md-turn-assistant {
   border: 1px solid var(--q-line);
   background: var(--q-surface);
+}
+
+/* A follow-up question suggested from a selection in the answer's charts. */
+.md-followup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--q-line);
+}
+
+.md-followup:empty {
+  display: none;
+}
+
+.md-turn-demo {
+  border: 1px dashed var(--q-line-strong);
+}
+
+.md-turn-demo .md-muted {
+  margin: 8px 0 0;
 }
 
 .md-raw {

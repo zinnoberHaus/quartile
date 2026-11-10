@@ -22,7 +22,12 @@ beforeAll(() => {
 
 afterEach(() => {
   document.body.innerHTML = '';
-  configureEmbed({ sources: 'none', loadSource: undefined, minRefresh: undefined });
+  configureEmbed({
+    sources: 'none',
+    loadSource: undefined,
+    minRefresh: undefined,
+    maxRows: undefined,
+  });
   vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -399,5 +404,31 @@ describe('source allowlist', () => {
     await tick(0);
     expect(fetch).toHaveBeenCalledTimes(3);
     expect(shadow(kpi).querySelector('.q-kpi')?.textContent).toContain('€3');
+  });
+});
+
+describe('what a source answers with', () => {
+  it('shows no rows as the empty state, and a long answer as a counted part', async () => {
+    const fetch = vi.fn(
+      async (url: string) =>
+        new Response(
+          String(url).includes('none') ? '{"results": [], "total": 0}' : 'amount\n1\n2\n3\n4\n5\n',
+        ),
+    );
+    vi.stubGlobal('fetch', fetch);
+    configureEmbed({ sources: 'same-origin', maxRows: 2 });
+    document.body.innerHTML = `
+      <quartile-chart>bar sum(amount) by region\ntitle: None yet\nsrc: /data/none.json\n</quartile-chart>
+      <quartile-chart>kpi sum(amount) as "Part"\nsrc: /data/long-embed.csv\nformat: integer\n</quartile-chart>`;
+    const [none, part] = [...document.querySelectorAll('quartile-chart')];
+    await waitFor(() => expect(shadow(none).textContent).toContain('No data to show'));
+    expect(shadow(none).textContent).toContain('None yet');
+    expect(shadow(none).querySelector('.q-block-error')).toBeNull();
+    await waitFor(() =>
+      expect(shadow(part).querySelector('.q-block-note')?.textContent).toBe(
+        'Showing the first 2 of 5 rows.',
+      ),
+    );
+    expect(shadow(part).querySelector('.q-kpi')?.textContent).toContain('3');
   });
 });

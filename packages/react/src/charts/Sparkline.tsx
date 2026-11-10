@@ -26,7 +26,7 @@ export interface SparklineProps<R extends Row = Row> extends ChartStateProps {
   /** Fills under the line with a faint wash of the line color. */
   area?: boolean;
   /**
-   * Line color: a palette name such as `signal`, 1–8, a hex color, or a Quartile token such as
+   * Line color: a palette name such as `signal`, 1–8, or any CSS color such as
    * `var(--q-signal)`. Defaults to the text color.
    */
   color?: ChartColor;

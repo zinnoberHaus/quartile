@@ -32,8 +32,11 @@ export interface SourceStoreOptions {
   loader: () => ((url: string, signal: AbortSignal) => unknown) | undefined;
   /** Shortest refresh interval in seconds. Default 10; never below 1. */
   minRefresh?: () => number | undefined;
-  /** Rows kept per source. Defaults to the table reader's limit. */
-  maxRows?: number;
+  /**
+   * Rows kept per source; a view drawn from a longer one says so. Defaults to the table reader's
+   * limit of 5,000.
+   */
+  maxRows?: number | (() => number | undefined);
   /** How long a failed source waits before a block's request tries it again. Default 5,000 ms. */
   retryAfterMs?: number;
 }
@@ -248,9 +251,10 @@ export class SourceStore {
           if (state.controller !== controller) return;
           for (const entry of this.at(url)) {
             try {
+              const { maxRows } = this.options;
               entry.data = readSourceValue(value, {
                 path: entry.path,
-                maxRows: this.options.maxRows,
+                maxRows: typeof maxRows === 'function' ? maxRows() : maxRows,
               });
               entry.error = undefined;
               entry.failedAt = undefined;

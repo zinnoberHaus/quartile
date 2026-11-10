@@ -113,7 +113,7 @@ export const routes: readonly GalleryRoute[] = [
     name: 'Quartile examples',
     title: 'Quartile examples: charts and dashboards in Markdown, AI answers and web pages',
     description:
-      'Runnable examples of Quartile, an open-source React toolkit in preview: a Markdown chart playground, a streamed AI answer, a Markdown report, a script-tag embed, dashboards, data-science workspaces and App Studio.',
+      'Runnable examples of Quartile, an open-source chart block for Markdown, AI answers and web pages: a playground, a streamed AI answer, a Markdown report, a script-tag embed, dashboards, data-science workspaces and App Studio. A 0.1 preview, not on npm yet.',
     heading: 'Examples',
     render: 'hydrate',
     sources: [`${gallery}/examples/index`, `${gallery}/routes.ts`],

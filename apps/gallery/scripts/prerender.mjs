@@ -234,9 +234,9 @@ await writeFile(
   join(examples, 'llms.txt'),
   `# ${SITE_NAME} examples
 
-> Runnable example pages for ${SITE_NAME}, an open-source React and TypeScript toolkit of charts, tables and interface controls that share one theme, one data model and one selection state. ${SITE_NAME} is a 0.1 preview: it builds, is tested and renders these pages, but it is not published to npm and its API may change before 0.1.0 is released.
+> Runnable example pages for ${SITE_NAME}, an open-source chart block for Markdown, AI answers and web pages: a few lines of text become an interactive chart, KPI, table or dashboard. ${SITE_NAME} is a 0.1 preview that is not on npm yet; the block language and the APIs may change before 0.1.0 is released.
 
-The pages render from the repository's source (Apache-2.0). They start from fictional, deterministic sample data; App Studio loads public APIs. To use the preview in another app, build and pack it locally as the [installation guide](${doc('docs/guides/installation.md')}) describes; there is no npm release yet.
+The pages render from the repository's source (Apache-2.0). They start from fictional, deterministic sample data; App Studio loads public APIs. To use ${SITE_NAME} in your own project, install the preview build from GitHub Releases as the [installation guide](${links.docs}/docs/installation) describes. The registry install does not exist yet.
 
 ${GROUPS.map(
   (group) =>

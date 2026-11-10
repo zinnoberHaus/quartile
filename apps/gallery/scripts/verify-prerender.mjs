@@ -120,7 +120,9 @@ try {
   assert.equal(llms.status, 200, 'llms.txt');
   assert.match(llms.body, /^# Quartile examples\n\n> \S/);
   assert.match(llms.body, /^## /m);
-  assert.match(llms.body, /not published to npm/);
+  assert.match(llms.body, /not on npm yet/);
+  assert.match(llms.body, /\[installation guide\]\(https?:[^)]*\/docs\/installation\)/);
+  assert.doesNotMatch(llms.body, /React toolkit|pack it locally/);
   for (const [, url] of llms.body.matchAll(/\]\((https?:[^)\s]+)\)/g)) {
     if (new URL(url).origin === origin && underExamples(new URL(url).pathname)) {
       assert.ok(locs.includes(url), `llms.txt links ${url}, which the sitemap does not list`);

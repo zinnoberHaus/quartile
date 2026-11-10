@@ -26,7 +26,14 @@ describe('parseTable', () => {
       format: { style: 'currency', currency: 'USD', maximumFractionDigits: 0 },
       axisFormat: 'currency-compact',
     });
-    expect(parseTable('k,v\na,$1.50\n').fields.v).toMatchObject({ format: 'currency' });
+    // Amounts with cents display in full as well, with the currency's own decimals.
+    const cents = parseTable('k,v\na,$1.50\n').fields.v;
+    expect(cents).toEqual({
+      currency: 'USD',
+      unit: 'USD',
+      format: { type: 'number', style: 'currency', currency: 'USD' },
+      axisFormat: 'currency-compact',
+    });
   });
 
   it('rejoins numbers split by an unquoted thousands separator', () => {

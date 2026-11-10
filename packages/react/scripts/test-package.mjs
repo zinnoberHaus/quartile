@@ -22,7 +22,24 @@ try {
     `import { DataExplorer, DataTable, KPI, LineChart, QuartileProvider, Selection, dataset, formatParts, makeFieldFormatter, makeRangeFormatter, validateFormat, type NumberFormat } from '@quartile/react';
 import { QueryKPI, type QuerySource } from '@quartile/react/query';
 import { AssistantPanel, createAnalysisContext, profileDataset, useAnalysisAssistant, type AssistantAdapter } from '@quartile/react/ai';
+import { QuartileBlock, QuartileDocument, QuartilePre, quartileRenderer, type CompiledBlock } from '@quartile/react';
+import { compileBlock, quartilePrompt, quartileChartTool, chartToolInputToBlock, dbtFields, type Diagnostic } from '@quartile/react/lang';
+import { renderBlockToHTML, remarkQuartile, markdownItQuartile } from '@quartile/react/server';
+import { configureEmbed, defineQuartileElements, upgradeBlocks } from '@quartile/react/embed';
 import '@quartile/react/styles.css';
+export const compiled: CompiledBlock = compileBlock('bar sum(amount) by region\\n---\\nregion,amount\\nEU,1\\n');
+export const notes: Diagnostic[] = compiled.diagnostics;
+export const prompt: string = quartilePrompt({ datasets: [{ name: 'orders', columns: [{ name: 'amount' }] }] });
+export const tool = quartileChartTool();
+export const block: string = chartToolInputToBlock({ kind: 'bar', title: null, measures: ['amount'], by: ['region'], format: null, columns: ['region', 'amount'], rows: [['EU', 1]] });
+export const fields = dbtFields({ nodes: {} }, 'fct_orders');
+export const html: string = renderBlockToHTML('kpi count\\n---\\nid\\n1\\n', { theme: 'dark', timeZone: 'UTC' });
+export const plugins = [remarkQuartile({ languages: ['quartile'] }), markdownItQuartile];
+export function Embed() { configureEmbed({ sources: 'same-origin' }); defineQuartileElements(); return upgradeBlocks(document); }
+export function MarkdownBlocks({ md }: { md: string }) {
+  return <QuartileDocument markdown={md} theme="auto" host="shadcn" accent="#e11d48"><QuartileBlock source={md} streaming={false} /><QuartilePre>x</QuartilePre></QuartileDocument>;
+}
+export const renderers = [quartileRenderer()];
 export const RemoteMetric = ({ source }: { source: QuerySource }) => <QueryKPI data={source} label="Remote count" aggregate="count" />;
 const data = dataset([{ date: '2026-09-01', region: 'Europe', amount: 120 }]);
 const numberFormat: NumberFormat = { type: 'number', notation: 'engineering', maximumSignificantDigits: 4, suffix: ' ms' };
@@ -53,7 +70,7 @@ export function App() {
 import { existsSync, readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
-import { DataExplorer, DataTable, KPI, LineChart, QuartileProvider, Selection, dataset, validateSpec, validateFormat, makeFormatter, formatParts, tableToCSV } from '@quartile/react';
+import { DataExplorer, DataTable, KPI, LineChart, QuartileBlock, QuartileProvider, Selection, dataset, validateSpec, validateFormat, makeFormatter, formatParts, tableToCSV } from '@quartile/react';
 import { QueryKPI } from '@quartile/react/query';
 import { AssistantPanel, createAnalysisContext, profileDataset, useAnalysisAssistant, validateAnalysisPlan } from '@quartile/react/ai';
 const adapter = { id: 'consumer', label: 'Consumer', mode: 'live', generate: async () => { throw new Error('SSR must not invoke a model'); } };
@@ -96,7 +113,28 @@ assert(formatParts({ style: 'currency', currency: 'EUR' }, -1).some(part => part
 assert(tableToCSV(data.rows, [{ field: 'amount' }], { mode: 'formatted', schema: data.schema, locale: 'de-DE' }).includes('120,00'));
 assert.match(readFileSync(new URL('../LICENSE', import.meta.resolve('@quartile/react')), 'utf8'), /Apache License/);
 assert.match(readFileSync(new URL('../README.md', import.meta.resolve('@quartile/react')), 'utf8'), /0.1 preview/);
-console.log('Packed import, SSR, CSS, schema, license and README passed.');
+// The Markdown language, static rendering and embed entries.
+const langEntry = readFileSync(new URL(import.meta.resolve('@quartile/react/lang')), 'utf8');
+const serverEntry = readFileSync(new URL(import.meta.resolve('@quartile/react/server')), 'utf8');
+assert(!/^['"]use client['"]/.test(langEntry.trimStart()), 'lang must be callable from server components');
+assert(!/^['"]use client['"]/.test(serverEntry.trimStart()), 'server must be callable from server code');
+const { compileBlock, quartilePrompt, scanDocument } = await import('@quartile/react/lang');
+const compiled = compileBlock('line sum(revenue) by quarter\\n---\\nquarter,revenue\\nQ1,10\\nQ2,12\\n');
+assert.equal(compiled.diagnostics.filter((d) => d.severity === 'error').length, 0);
+assert.equal(compiled.spec.component, 'LineChart');
+assert(quartilePrompt().includes('quartile'));
+assert.equal(scanDocument('~~~quartile\\ndata orders\\n---\\na\\n1\\n~~~').blocks.length, 1);
+const { renderBlockToHTML } = await import('@quartile/react/server');
+const staticHtml = renderBlockToHTML('bar sum(amount) by region\\n---\\nregion,amount\\nEU,1\\nUS,2\\n', { timeZone: 'UTC' });
+assert.match(staticHtml, /<svg[^>]*viewBox="0 0 640/);
+assert.match(staticHtml, /data-quartile-source=/);
+const blockHtml = renderToString(createElement(QuartileBlock, { source: 'kpi count as "Rows"\\n---\\nid\\n1\\n2\\n' }));
+assert.match(blockHtml, /Rows/);
+const standalone = readFileSync(new URL(import.meta.resolve('@quartile/react/embed/standalone.global.js')), 'utf8');
+assert(standalone.includes('quartile-chart'), 'standalone embed defines <quartile-chart>');
+assert(standalone.length < 900_000, 'standalone embed stays under 900 kB minified');
+assert.deepEqual(warnings, [], 'Static rendering should not emit React warnings');
+console.log('Packed import, SSR, CSS, schema, language, static rendering, embed, license and README passed.');
 `,
   );
   for (const [react, types] of [

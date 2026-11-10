@@ -47,6 +47,20 @@ export function Selection({ id, onChange, children }: SelectionProps) {
   return <SelectionContext.Provider value={store}>{children}</SelectionContext.Provider>;
 }
 
+/**
+ * Provides an existing store to a subtree, so separately rendered views (for example several
+ * Markdown blocks over one dataset) share one selection. The caller owns the store.
+ */
+export function SelectionStoreProvider({
+  store,
+  children,
+}: {
+  store: SelectionStore;
+  children?: ReactNode;
+}) {
+  return <SelectionContext.Provider value={store}>{children}</SelectionContext.Provider>;
+}
+
 const EMPTY: Predicate[] = [];
 const noop = () => () => {};
 

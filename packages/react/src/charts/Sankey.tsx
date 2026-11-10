@@ -372,7 +372,12 @@ export function Sankey<R extends Row = Row>(props: SankeyProps<R>) {
             onFocus={() => setActive((a) => a ?? 0)}
             onPointerLeave={() => setHover(null)}
           >
-            <svg width={width} height={height} aria-hidden="true">
+            <svg
+              width={width}
+              height={height}
+              viewBox={`0 0 ${width} ${height}`}
+              aria-hidden="true"
+            >
               <g fill="none">
                 {links.map((l, i) => {
                   const lit = linkLit(l);

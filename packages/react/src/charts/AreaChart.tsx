@@ -310,7 +310,12 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
         return (
           <>
             <div style={{ position: 'relative', height: plotHeight }}>
-              <svg width={width} height={plotHeight} aria-hidden="true">
+              <svg
+                width={width}
+                height={plotHeight}
+                viewBox={`0 0 ${width} ${plotHeight}`}
+                aria-hidden="true"
+              >
                 {!stacks && (
                   <defs>
                     {visible.map((s, i) => (

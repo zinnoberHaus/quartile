@@ -191,6 +191,7 @@ function AcceleratedScatter({ marks, width, height, renderer, onRendererChange }
       className="q-scatter-marks"
       width={width}
       height={height}
+      viewBox={`0 0 ${width} ${height}`}
       aria-hidden="true"
       data-renderer="svg"
       data-fallback-reason={reason}

@@ -47,7 +47,7 @@ const measure = (description: string): JsonSchema => ({ ...ref('Measure'), descr
 const format = (description: string): JsonSchema => ({ ...ref('Format'), description });
 const measures = (description: string): JsonSchema => ({
   description,
-  oneOf: [ref('Measure'), { type: 'array', items: ref('Field'), minItems: 1 }],
+  oneOf: [ref('Measure'), { type: 'array', items: ref('Measure'), minItems: 1 }],
 });
 
 const LOCALE = { type: 'string', minLength: 1, description: 'BCP 47 locale identifier.' };
@@ -284,7 +284,7 @@ const COMPONENT_DEFS: Record<string, JsonSchema> = {
     'Conversion through ordered steps.',
     {
       step: field('Field naming each step, in order.'),
-      value: field('Count at each step.'),
+      value: measure('Count at each step; an aggregate combines rows per step.'),
       format: format('Value format.'),
       align: oneOfEnum(['start', 'center'], 'Bar alignment.'),
       overall: bool('Show the overall conversion.'),
@@ -296,7 +296,7 @@ const COMPONENT_DEFS: Record<string, JsonSchema> = {
     'A small line without axes.',
     {
       x: field('Field to order points by.'),
-      y: field('Values to draw.'),
+      y: measure('Values to draw; an aggregate combines rows per x.'),
       compare: field('Comparison values, drawn dashed.'),
       area: bool('Fill under the line.'),
       curve: CURVE,

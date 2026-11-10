@@ -4,6 +4,11 @@ Quartile is an Apache-2.0 React preview. Start with a working example, then adap
 
 | Task | Guide | Working source |
 | --- | --- | --- |
+| Write charts and dashboards in Markdown | [Language reference](../language.md), [Markdown sites](markdown.md) | [Playground](https://quartile-design.vercel.app/language), [Markdown report](../../apps/gallery/src/examples/markdown) |
+| Render charts inside AI answers, while they stream | [AI answers](ai-responses.md) | [Streamed answer](https://quartile-design.vercel.app/examples/ai-answer) |
+| Put charts on any HTML page and match its styling | [Embedding and styling](embedding.md) | [Plain-HTML demo](../../apps/gallery/public/embed/demo.html) |
+| Render charts on a server, at build time or for SEO | [Server rendering](server-rendering.md) | [Static renderer](../../packages/react/src/server/index.ts) |
+| Chart dbt models with their documentation | [dbt](dbt.md) | [dbt example](../../examples/dbt) |
 | Try the library in an existing app | [Install the preview](installation.md) | [Gallery workspace](../../apps/gallery) |
 | Connect a CSV/JSON file or data endpoint | [Bring your data](connecting-data.md) | [Source loading example](../../apps/gallery/src/examples/science/DatasetSource.tsx) |
 | Fetch weather, earthquake or development data | [Connect API data](api-data.md) | [Standalone source adapter](../../apps/gallery/src/examples/studio/sources.ts) |

@@ -1,0 +1,198 @@
+/*
+ * Host themes: Quartile takes its colors and font from the page it is embedded in.
+ *
+ * A host provides a few base tokens (background, surface, text, accent; optionally borders, muted
+ * text and series colors) and every other neutral is mixed from them, so charts follow the host's
+ * light and dark modes without their own switch. `data-host="auto"` reads the base colors from
+ * the page with JavaScript (QuartileProvider theme="auto"); the named presets map well-known CSS
+ * variables in plain CSS and also work in server-rendered and static pages.
+ *
+ * Selectors pair [data-host] with [data-theme] so these rules outrank the built-in light and
+ * dark palettes on the same element (the provider root and its overlay portal).
+ */
+
+[data-host][data-theme] {
+  font-family: inherit;
+  --q-bg: var(--q-host-bg, #ffffff);
+  --q-surface: var(--q-host-surface, var(--q-bg));
+  --q-text: var(--q-host-text, #16150f);
+
+  --q-subtle: color-mix(in oklab, var(--q-text) 5%, var(--q-surface));
+  --q-muted: color-mix(in oklab, var(--q-text) 2.5%, var(--q-surface));
+  --q-raised: var(--q-surface);
+  --q-hover: color-mix(in oklab, var(--q-text) 8%, var(--q-surface));
+  --q-pressed: color-mix(in oklab, var(--q-text) 12%, var(--q-surface));
+  --q-grid: color-mix(in oklab, var(--q-text) 8%, var(--q-surface));
+  --q-line: color-mix(in oklab, var(--q-text) 13%, var(--q-surface));
+  --q-line-strong: color-mix(in oklab, var(--q-text) 22%, var(--q-surface));
+  --q-line-input: color-mix(in oklab, var(--q-text) 28%, var(--q-surface));
+  --q-text-4: color-mix(in oklab, var(--q-text) 38%, var(--q-surface));
+  --q-text-3: color-mix(in oklab, var(--q-text) 60%, var(--q-surface));
+  --q-text-2: color-mix(in oklab, var(--q-text) 78%, var(--q-surface));
+
+  --q-ink: var(--q-text);
+  --q-ink-hover: color-mix(in oklab, var(--q-text) 85%, var(--q-surface));
+  --q-ink-pressed: var(--q-text);
+  --q-on-ink: var(--q-surface);
+  --q-series-muted: color-mix(in oklab, var(--q-text) 35%, var(--q-surface));
+  --q-div-0: color-mix(in oklab, var(--q-text) 7%, var(--q-surface));
+  --q-focus-ring: 0 0 0 2px var(--q-surface), 0 0 0 4px var(--q-signal);
+}
+
+/* Everything that carries the accent, mixed from it: hover, soft fills, the sequential ramp. */
+[data-host][data-theme],
+[data-accent][data-theme] {
+  --q-signal-hover: color-mix(in oklab, var(--q-signal) 88%, var(--q-text));
+  --q-signal-pressed: color-mix(in oklab, var(--q-signal) 78%, var(--q-text));
+  --q-signal-soft: color-mix(in oklab, var(--q-signal) 12%, var(--q-surface));
+  --q-signal-soft-2: color-mix(in oklab, var(--q-signal) 26%, var(--q-surface));
+  --q-signal-ink: color-mix(in oklab, var(--q-signal) 72%, var(--q-text));
+  --q-on-signal: var(--q-surface);
+  --q-cat-1: var(--q-signal);
+
+  --q-seq-0: color-mix(in oklab, var(--q-signal) 7%, var(--q-surface));
+  --q-seq-1: color-mix(in oklab, var(--q-signal) 18%, var(--q-surface));
+  --q-seq-2: color-mix(in oklab, var(--q-signal) 32%, var(--q-surface));
+  --q-seq-3: color-mix(in oklab, var(--q-signal) 48%, var(--q-surface));
+  --q-seq-4: color-mix(in oklab, var(--q-signal) 66%, var(--q-surface));
+  --q-seq-5: color-mix(in oklab, var(--q-signal) 84%, var(--q-surface));
+  --q-seq-6: var(--q-signal);
+  --q-seq-7: color-mix(in oklab, var(--q-signal) 70%, var(--q-text));
+  --q-div-p1: color-mix(in oklab, var(--q-signal) 30%, var(--q-surface));
+  --q-div-p2: color-mix(in oklab, var(--q-signal) 62%, var(--q-surface));
+  --q-div-p3: var(--q-signal);
+  --q-input-ring: 0 0 0 3px var(--q-signal-soft-2);
+}
+
+/* Inherit the page's typeface for interface text; numbers stay in the tabular mono face. */
+[data-host][data-theme] .q-chart,
+[data-host][data-theme] .q-kpi,
+[data-host][data-theme] .q-spec {
+  font-family: inherit;
+}
+
+/* shadcn/ui (Tailwind v4 era: complete OKLCH/hex colors in --background, --foreground …). */
+[data-host="shadcn"][data-theme] {
+  --q-bg: var(--background);
+  --q-surface: var(--card, var(--background));
+  --q-text: var(--card-foreground, var(--foreground));
+  --q-text-3: var(--muted-foreground);
+  --q-line: var(--border);
+  --q-line-input: var(--input, var(--border));
+  --q-signal: var(--primary);
+  --q-on-signal: var(--primary-foreground);
+  --q-cat-1: var(--chart-1);
+  --q-cat-2: var(--chart-2);
+  --q-cat-3: var(--chart-3);
+  --q-cat-4: var(--chart-4);
+  --q-cat-5: var(--chart-5);
+}
+
+/* shadcn/ui with Tailwind v3 channels ("0 0% 100%"): a defined but bare value never falls back. */
+[data-host="shadcn-hsl"][data-theme] {
+  --q-bg: hsl(var(--background));
+  --q-surface: hsl(var(--card, var(--background)));
+  --q-text: hsl(var(--card-foreground, var(--foreground)));
+  --q-text-3: hsl(var(--muted-foreground));
+  --q-line: hsl(var(--border));
+  --q-line-input: hsl(var(--input, var(--border)));
+  --q-signal: hsl(var(--primary));
+  --q-on-signal: hsl(var(--primary-foreground));
+  --q-cat-1: hsl(var(--chart-1));
+  --q-cat-2: hsl(var(--chart-2));
+  --q-cat-3: hsl(var(--chart-3));
+  --q-cat-4: hsl(var(--chart-4));
+  --q-cat-5: hsl(var(--chart-5));
+}
+
+/* VitePress default theme. */
+[data-host="vitepress"][data-theme] {
+  --q-bg: var(--vp-c-bg);
+  --q-surface: var(--vp-c-bg);
+  --q-text: var(--vp-c-text-1);
+  --q-text-3: var(--vp-c-text-2);
+  --q-line: var(--vp-c-divider);
+  --q-line-strong: var(--vp-c-border);
+  --q-signal: var(--vp-c-brand-1);
+  --q-font-sans: var(--vp-font-family-base);
+  --q-font-mono: var(--vp-font-family-mono);
+}
+
+/* Docusaurus (Infima). */
+[data-host="docusaurus"][data-theme] {
+  --q-bg: var(--ifm-background-color);
+  --q-surface: var(--ifm-background-surface-color, var(--ifm-background-color));
+  --q-text: var(--ifm-font-color-base);
+  --q-text-3: var(--ifm-color-content-secondary);
+  --q-line: var(--ifm-color-emphasis-300);
+  --q-signal: var(--ifm-color-primary);
+  --q-font-sans: var(--ifm-font-family-base);
+  --q-font-mono: var(--ifm-font-family-monospace);
+}
+
+/* Astro Starlight. */
+[data-host="starlight"][data-theme] {
+  --q-bg: var(--sl-color-bg);
+  --q-surface: var(--sl-color-bg);
+  --q-text: var(--sl-color-white, var(--sl-color-text));
+  --q-text-3: var(--sl-color-gray-3);
+  --q-line: var(--sl-color-hairline);
+  --q-signal: var(--sl-color-accent);
+  --q-font-sans: var(--sl-font-system);
+}
+
+/* Material for MkDocs. */
+[data-host="mkdocs"][data-theme] {
+  --q-bg: var(--md-default-bg-color);
+  --q-surface: var(--md-default-bg-color);
+  --q-text: var(--md-typeset-color, var(--md-default-fg-color));
+  --q-text-3: var(--md-default-fg-color--light);
+  --q-line: var(--md-default-fg-color--lightest);
+  --q-signal: var(--md-accent-fg-color);
+}
+
+/* GitHub Primer. */
+[data-host="primer"][data-theme] {
+  --q-bg: var(--bgColor-default);
+  --q-surface: var(--bgColor-default);
+  --q-text: var(--fgColor-default);
+  --q-text-3: var(--fgColor-muted);
+  --q-line: var(--borderColor-default);
+  --q-signal: var(--fgColor-accent);
+}
+
+/* Pico CSS. */
+[data-host="pico"][data-theme] {
+  --q-bg: var(--pico-background-color);
+  --q-surface: var(--pico-card-background-color, var(--pico-background-color));
+  --q-text: var(--pico-color);
+  --q-text-3: var(--pico-muted-color);
+  --q-line: var(--pico-muted-border-color);
+  --q-signal: var(--pico-primary);
+  --q-font-sans: var(--pico-font-family);
+}
+
+/* Radix Themes. */
+[data-host="radix"][data-theme] {
+  --q-bg: var(--color-background);
+  --q-surface: var(--color-panel-solid, var(--color-background));
+  --q-text: var(--gray-12);
+  --q-text-3: var(--gray-11);
+  --q-line: var(--gray-a6);
+  --q-signal: var(--accent-9);
+  --q-on-signal: var(--accent-contrast);
+}
+
+/* Open Props (theme.css). */
+[data-host="open-props"][data-theme] {
+  --q-bg: var(--surface-1);
+  --q-surface: var(--surface-2, var(--surface-1));
+  --q-text: var(--text-1);
+  --q-text-3: var(--text-2);
+  --q-signal: var(--brand, var(--link));
+}
+
+/* A fixed accent, e.g. a brand color passed as accent="#e11d48". */
+[data-accent][data-theme] {
+  --q-signal: var(--q-host-accent);
+}

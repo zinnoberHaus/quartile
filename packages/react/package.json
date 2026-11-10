@@ -22,7 +22,9 @@
   ],
   "type": "module",
   "sideEffects": [
-    "**/*.css"
+    "**/*.css",
+    "./dist/embed/quartile.js",
+    "./dist/embed/quartile.global.js"
   ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -43,6 +45,20 @@
       "types": "./dist/duckdb/index.d.ts",
       "import": "./dist/duckdb/index.js"
     },
+    "./lang": {
+      "types": "./dist/lang/index.d.ts",
+      "import": "./dist/lang/index.js"
+    },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js"
+    },
+    "./embed": {
+      "types": "./dist/embed/index.d.ts",
+      "import": "./dist/embed/index.js"
+    },
+    "./embed/standalone": "./dist/embed/quartile.js",
+    "./embed/standalone.global.js": "./dist/embed/quartile.global.js",
     "./styles.css": "./dist/styles.css",
     "./schema.json": "./dist/schema.json"
   },
@@ -52,7 +68,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsup && node scripts/build-css.mjs && node scripts/build-schema.mjs",
+    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsup && node scripts/build-css.mjs && node scripts/build-schema.mjs && tsup --config tsup.embed.config.ts",
     "prepack": "npm run build",
     "dev": "tsup --watch",
     "test": "vitest run",
@@ -87,14 +103,21 @@
     "@testing-library/react": "16.3.3",
     "@types/d3-array": "3.2.2",
     "@types/d3-sankey": "0.12.5",
+    "@types/markdown-it": "14.2.0",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "apache-arrow": "17.0.0",
     "jsdom": "30.1.2",
+    "markdown-it": "15.0.3",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "react-markdown": "10.1.0",
+    "rehype-stringify": "10.0.1",
+    "remark-parse": "11.0.0",
+    "remark-rehype": "11.1.2",
     "tsup": "8.5.1",
     "typescript": "5.9.3",
+    "unified": "11.0.5",
     "vitest": "5.0.3"
   }
 }

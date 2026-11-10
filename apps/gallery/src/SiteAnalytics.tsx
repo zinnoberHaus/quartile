@@ -1,4 +1,5 @@
 import { Analytics, type BeforeSendEvent } from '@vercel/analytics/react';
+import { useEffect, useState } from 'react';
 
 // Page URLs can contain user-supplied data-source URLs and other private state.
 function redactUrl(event: BeforeSendEvent): BeforeSendEvent {
@@ -8,6 +9,9 @@ function redactUrl(event: BeforeSendEvent): BeforeSendEvent {
   return { ...event, url: url.toString() };
 }
 
+/** Browser only: renders nothing on the server or while hydrating, then loads analytics. */
 export function SiteAnalytics() {
-  return <Analytics beforeSend={redactUrl} />;
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  return mounted ? <Analytics beforeSend={redactUrl} /> : null;
 }

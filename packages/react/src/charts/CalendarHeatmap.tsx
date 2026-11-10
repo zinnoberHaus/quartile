@@ -92,10 +92,12 @@ export function CalendarHeatmap<R extends Row = Row>(props: CalendarHeatmapProps
     style,
     ...frame
   } = props;
-  const { locale, timeZone } = useQuartile();
+  const { locale, timeZone, initialWidth } = useQuartile();
   const source = useSourceId(id);
   const wrap = useRef<HTMLDivElement>(null);
-  const { width: measured } = useElementSize(wrap);
+  const { width: measuredWidth } = useElementSize(wrap);
+  // Size cells for the assumed width until the container can be measured, matching ChartFrame.
+  const measured = measuredWidth > 0 ? measuredWidth : initialWidth;
   const { rows: allRows, schema } = useMemo(() => resolveData(data), [data]);
   const { rows, selection: sel } = useLinkedRows(allRows, { selection, source });
   const valueField = value ? fieldOf(schema, value, allRows) : null;
@@ -322,7 +324,12 @@ export function CalendarHeatmap<R extends Row = Row>(props: CalendarHeatmapProps
 
           return (
             <div style={{ position: 'relative', height }}>
-              <svg width={width} height={gridH + MONTH_H} aria-hidden="true">
+              <svg
+                width={width}
+                height={gridH + MONTH_H}
+                viewBox={`0 0 ${width} ${gridH + MONTH_H}`}
+                aria-hidden="true"
+              >
                 {dayLabels && (
                   <g className="q-chart-axis">
                     {[1, 3, 5].map((row) => {

@@ -6,7 +6,10 @@
       "@quartile/react": ["../../packages/react/src/index.ts"],
       "@quartile/react/ai": ["../../packages/react/src/ai/index.ts"],
       "@quartile/react/query": ["../../packages/react/src/query/index.ts"],
-      "@quartile/react/duckdb": ["../../packages/react/src/duckdb/index.ts"]
+      "@quartile/react/duckdb": ["../../packages/react/src/duckdb/index.ts"],
+      "@quartile/react/lang": ["../../packages/react/src/lang/index.ts"],
+      "@quartile/react/server": ["../../packages/react/src/server/index.ts"],
+      "@quartile/react/embed": ["../../packages/react/src/embed/index.ts"]
     }
   },
   "include": ["src", "vite.config.ts"]

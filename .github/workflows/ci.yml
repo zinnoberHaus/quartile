@@ -25,6 +25,7 @@ jobs:
         run: |
           python3 -m unittest discover -s examples/python -p 'test_*.py'
           node --test examples/ai-server/server.test.mjs
+          node --test examples/dbt/dbt.test.mjs
       - name: Install browser for integration verification
         run: pnpm exec playwright install --with-deps chromium
       - name: Verify linked queries in a production browser build
@@ -44,6 +45,8 @@ jobs:
           node apps/gallery/src/examples/studio/verify.mjs http://127.0.0.1:4178 /tmp/quartile-browser-evidence/studio
           node apps/gallery/scripts/verify-starter.mjs /tmp/quartile-browser-evidence/studio/quartile-react-starter.zip
           node apps/gallery/scripts/verify-starter.mjs /tmp/quartile-browser-evidence/studio/quartile-custom-starter.zip
+          node apps/gallery/src/examples/markdown/verify.mjs http://127.0.0.1:4178 /tmp/quartile-browser-evidence/markdown
+          node apps/gallery/scripts/verify-prerender.mjs http://127.0.0.1:4178 /tmp/quartile-browser-evidence/prerender
       - name: Save browser evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

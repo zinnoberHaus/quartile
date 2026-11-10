@@ -1,11 +1,15 @@
 import {
   Component,
+  type ComponentType,
   lazy,
   type ReactNode,
+  StrictMode,
   Suspense,
   useDeferredValue,
+  useEffect,
   useLayoutEffect,
   useRef,
+  useState,
 } from 'react';
 import {
   completeNavigation,
@@ -13,39 +17,104 @@ import {
   RouteLocationProvider,
   useBrowserLocation,
 } from './router';
+import { type GalleryRoute, matchRoute, type PageId } from './routes';
+import { SiteAnalytics } from './SiteAnalytics';
+import { applyRouteHead } from './ssr/head';
 import './shell/transitions.css';
 
-const DesignSystemPage = lazy(() =>
-  import('./design-system/DesignSystemPage').then((m) => ({ default: m.DesignSystemPage })),
-);
-const StorefrontExample = lazy(() =>
-  import('./examples/storefront/StorefrontExample').then((m) => ({ default: m.StorefrontExample })),
-);
-const Workbench = lazy(() =>
-  import('./examples/workbench/Workbench').then((m) => ({ default: m.Workbench })),
-);
-const ScaleWorkbench = lazy(() =>
-  import('./examples/scale/ScaleWorkbench').then((m) => ({ default: m.ScaleWorkbench })),
-);
-const ScienceWorkbench = lazy(() =>
-  import('./examples/science/ScienceWorkbench').then((m) => ({ default: m.ScienceWorkbench })),
-);
-const AssistantWorkbench = lazy(() =>
-  import('./examples/science/AssistantWorkbench').then((m) => ({ default: m.AssistantWorkbench })),
-);
-const StudioPage = lazy(() =>
-  import('./examples/studio/StudioPage').then((m) => ({ default: m.StudioPage })),
-);
-const FormattingWorkbench = lazy(() =>
-  import('./examples/formatting/FormattingWorkbench').then((m) => ({
-    default: m.FormattingWorkbench,
-  })),
-);
+/**
+ * A code-split page and the module it lives in (prerendering links that module's stylesheets).
+ * `preload` lets main.tsx load it before the first render, so prerendered markup is hydrated or
+ * replaced in one pass rather than through the loading skeleton.
+ */
+function page<P extends object>(module: string, load: () => Promise<ComponentType<P>>) {
+  let loaded: ComponentType<P> | undefined;
+  let pending: Promise<ComponentType<P>> | undefined;
+  const preload = () =>
+    (pending ??= load().then(
+      (component) => (loaded = component),
+      (error) => {
+        pending = undefined;
+        throw error;
+      },
+    ));
+  const Lazy = lazy(() => preload().then((component) => ({ default: component })));
+  function CodeSplitPage(props: P) {
+    // Chosen once per mount: swapping Lazy for the loaded component later would remount it.
+    const [Component] = useState(() => loaded ?? Lazy);
+    return <Component {...props} />;
+  }
+  return Object.assign(CodeSplitPage, { module, preload });
+}
+
+const markdownPages = 'src/examples/markdown/MarkdownPages.tsx';
+const PAGES = {
+  'design-system': page('src/design-system/DesignSystemPage.tsx', () =>
+    import('./design-system/DesignSystemPage').then((m) => m.DesignSystemPage),
+  ),
+  language: page(markdownPages, () =>
+    import('./examples/markdown/MarkdownPages').then((m) => m.LanguagePage),
+  ),
+  'ai-answer': page(markdownPages, () =>
+    import('./examples/markdown/MarkdownPages').then((m) => m.AIAnswerPage),
+  ),
+  'markdown-report': page(markdownPages, () =>
+    import('./examples/markdown/MarkdownPages').then((m) => m.MarkdownReportPage),
+  ),
+  storefront: page('src/examples/storefront/StorefrontExample.tsx', () =>
+    import('./examples/storefront/StorefrontExample').then((m) => m.StorefrontExample),
+  ),
+  workbench: page('src/examples/workbench/Workbench.tsx', () =>
+    import('./examples/workbench/Workbench').then((m) => m.Workbench),
+  ),
+  scale: page('src/examples/scale/ScaleWorkbench.tsx', () =>
+    import('./examples/scale/ScaleWorkbench').then((m) => m.ScaleWorkbench),
+  ),
+  science: page('src/examples/science/ScienceWorkbench.tsx', () =>
+    import('./examples/science/ScienceWorkbench').then((m) => m.ScienceWorkbench),
+  ),
+  assistant: page('src/examples/science/AssistantWorkbench.tsx', () =>
+    import('./examples/science/AssistantWorkbench').then((m) => m.AssistantWorkbench),
+  ),
+  formatting: page('src/examples/formatting/FormattingWorkbench.tsx', () =>
+    import('./examples/formatting/FormattingWorkbench').then((m) => m.FormattingWorkbench),
+  ),
+  studio: page('src/examples/studio/StudioPage.tsx', () =>
+    import('./examples/studio/StudioPage').then((m) => m.StudioPage),
+  ),
+} satisfies Record<PageId, { module: string; preload: () => Promise<unknown> }>;
+
+/** The source module of each page, for the prerender script's chunk manifest lookups. */
+export const PAGE_MODULES = Object.fromEntries(
+  Object.entries(PAGES).map(([id, entry]) => [id, entry.module]),
+) as Record<PageId, string>;
+
+/** Loads the page a route renders. */
+export function preloadPage(route: GalleryRoute): Promise<unknown> {
+  return PAGES[route.page].preload();
+}
 
 // The scratch page is for local development only and is left out of production builds.
 const Scratch = import.meta.env.DEV
   ? lazy(() => import('./dev/Scratch').then((m) => ({ default: m.Scratch })))
   : null;
+
+function RoutePage({ route }: { route: GalleryRoute }) {
+  switch (route.page) {
+    case 'workbench': {
+      const Workbench = PAGES.workbench;
+      return <Workbench key={route.kind} kind={route.kind} />;
+    }
+    case 'science': {
+      const ScienceWorkbench = PAGES.science;
+      return <ScienceWorkbench key={route.kind} kind={route.kind} />;
+    }
+    default: {
+      const Page = PAGES[route.page];
+      return <Page />;
+    }
+  }
+}
 
 function InitialLoading() {
   return (
@@ -110,6 +179,9 @@ export function App() {
   const location = useDeferredValue(requested);
   const pending = requested !== location;
   const path = location.pathname;
+  const route = matchRoute(path);
+  // After the page commits, so it also wins over a title a page sets for itself.
+  useEffect(() => applyRouteHead(route), [route]);
   if (Scratch && path.startsWith('/_dev')) {
     return (
       <Suspense fallback={<InitialLoading />}>
@@ -121,7 +193,6 @@ export function App() {
       </Suspense>
     );
   }
-  const kind = path.split('/')[2];
   return (
     <>
       <div
@@ -135,27 +206,20 @@ export function App() {
       <Suspense fallback={<InitialLoading />}>
         <RouteErrorBoundary key={path + location.search} location={location}>
           <RouteFrame key={path + location.search} location={location}>
-            {path === '/examples/formatting' ? (
-              <FormattingWorkbench />
-            ) : path === '/studio' ? (
-              <StudioPage />
-            ) : path.startsWith('/examples/storefront') ? (
-              <StorefrontExample />
-            ) : path === '/examples/scale' ? (
-              <ScaleWorkbench />
-            ) : path === '/examples/assistant' ? (
-              <AssistantWorkbench />
-            ) : kind === 'explore' || kind === 'cohorts' || kind === 'model-evaluation' ? (
-              <ScienceWorkbench key={kind} kind={kind} />
-            ) : path.startsWith('/examples/') &&
-              (kind === 'saas' || kind === 'operations' || kind === 'ai-dashboard') ? (
-              <Workbench key={kind} kind={kind} />
-            ) : (
-              <DesignSystemPage />
-            )}
+            <RoutePage route={route} />
           </RouteFrame>
         </RouteErrorBoundary>
       </Suspense>
     </>
+  );
+}
+
+/** The whole page. The prerender renders exactly this tree, so hydration sees the same one. */
+export function GalleryRoot() {
+  return (
+    <StrictMode>
+      <App />
+      <SiteAnalytics />
+    </StrictMode>
   );
 }

@@ -1,5 +1,5 @@
 /**
- * Draws the 1200×630 social preview image, public/og-image.png, with the repository's
+ * Draws the 1200×630 social preview image, public/examples/og-image.png, with the repository's
  * Playwright Chromium. Run it by hand after changing the design below and commit the PNG:
  *   node apps/gallery/scripts/prerender-og-image.mjs
  * Builds do not run it (they have no browser); the prerendered pages link the committed file.
@@ -8,7 +8,7 @@
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
-const target = fileURLToPath(new URL('../public/og-image.png', import.meta.url));
+const target = fileURLToPath(new URL('../public/examples/og-image.png', import.meta.url));
 const bars = [34, 52, 41, 66, 58, 88, 72, 61, 79, 95, 84, 112];
 const html = `<!doctype html>
 <html>

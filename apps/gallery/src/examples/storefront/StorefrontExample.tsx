@@ -184,7 +184,7 @@ function Dashboard({
 
   useHotkey('mod+k', () => setCommand((o) => !o), { enabled: !embedded });
 
-  // Standalone page: name the tab after the example, restore the gallery's title on leave.
+  // Standalone page: name the tab after the example, restore the previous title on leave.
   useEffect(() => {
     if (embedded) return;
     const before = document.title;

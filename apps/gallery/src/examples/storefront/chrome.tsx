@@ -158,10 +158,10 @@ export function SfSidebar({
         />
       </SidebarSection>
       <SidebarSection title="Explore Quartile">
-        <Link className="sf-example-link" to="/">
-          Component gallery ↗
+        <Link className="sf-example-link" to="/examples">
+          All examples ↗
         </Link>
-        <Link className="sf-example-link" to="/studio">
+        <Link className="sf-example-link" to="/examples/studio">
           Build with Studio ↗
         </Link>
       </SidebarSection>

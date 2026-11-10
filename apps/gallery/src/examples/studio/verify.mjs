@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { chromium } from 'playwright';
+import { watchRequests } from '../../../scripts/examples-only.mjs';
 
 const base = process.argv[2] ?? 'http://127.0.0.1:5177';
 const output = resolve(process.argv[3] ?? '/tmp/quartile-studio-evidence');
@@ -14,6 +15,8 @@ const context = await browser.newContext({
 const page = await context.newPage();
 const errors = [];
 page.on('pageerror', (error) => errors.push(error.message));
+// The starter export downloads the packed library from /examples/starter.
+const outsideExamples = watchRequests(context, base);
 const weather = {
   timezone: 'GMT',
   utc_offset_seconds: 0,
@@ -97,7 +100,7 @@ await context.route('https://api.worldbank.org/**', (route) =>
   route.fulfill({ contentType: 'application/json', body: JSON.stringify(development) }),
 );
 try {
-  await page.goto(`${base}/studio?source=weather`);
+  await page.goto(`${base}/examples/studio?source=weather`);
   await page.getByText('6 records', { exact: true }).waitFor();
   assert.equal(await page.locator('[data-block-id]').count(), 5);
   // Field formatting is a schema overlay, never a refetch or selection reset.
@@ -353,6 +356,7 @@ try {
   );
   await page.screenshot({ path: `${output}/studio-mobile.png`, fullPage: true });
   assert.deepEqual(errors, []);
+  assert.deepEqual(outsideExamples(), [], 'requests outside /examples');
   await writeFile(
     `${output}/result.json`,
     JSON.stringify(

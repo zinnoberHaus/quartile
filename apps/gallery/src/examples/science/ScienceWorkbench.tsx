@@ -24,7 +24,7 @@ import {
 import { profileDataset } from '@quartile/react/ai';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from '../../router';
-import { Wordmark } from '../../shell/Logo';
+import { ExamplesBrand } from '../../shell/Brand';
 import { links } from '../../shell/links';
 import {
   cohortMembership,
@@ -82,9 +82,7 @@ const laboratory = dataset(
 export function ScienceHeader({ current }: { current: string }) {
   return (
     <header className="sc-header">
-      <Link to="/">
-        <Wordmark />
-      </Link>
+      <ExamplesBrand />
       <nav aria-label="Data science examples">
         {routes.map(([route, title]) => (
           <Link
@@ -95,7 +93,7 @@ export function ScienceHeader({ current }: { current: string }) {
             {title}
           </Link>
         ))}
-        <Link to="/studio">App Studio</Link>
+        <Link to="/examples/studio">App Studio</Link>
       </nav>
       <a href={links.docs}>Docs</a>
     </header>

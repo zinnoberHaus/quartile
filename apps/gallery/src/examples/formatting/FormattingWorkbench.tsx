@@ -12,7 +12,7 @@ import {
 } from '@quartile/react';
 import { useMemo, useState } from 'react';
 import { Link } from '../../router';
-import { Wordmark } from '../../shell/Logo';
+import { ExamplesBrand } from '../../shell/Brand';
 import { links } from '../../shell/links';
 import './formatting.css';
 
@@ -222,12 +222,10 @@ export function FormattingWorkbench() {
   return (
     <QuartileProvider locale={locale} timeZone={timeZone} className="fm-page">
       <header className="fm-header">
-        <Link to="/">
-          <Wordmark />
-        </Link>
+        <ExamplesBrand />
         <nav aria-label="Formatting workspace">
           <Link to="/examples/explore">Dataset explorer</Link>
-          <Link to="/studio">App Studio</Link>
+          <Link to="/examples/studio">App Studio</Link>
           <a href={`${links.github}/blob/main/docs/guides/formatting.md`}>Formatting guide</a>
         </nav>
       </header>

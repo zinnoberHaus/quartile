@@ -1,8 +1,17 @@
-import { absoluteUrl, type GalleryRoute, REPOSITORY_URL, SITE_NAME } from '../routes';
+import {
+  absoluteUrl,
+  EXAMPLES_PATH,
+  type GalleryRoute,
+  REPOSITORY_URL,
+  SITE_NAME,
+} from '../routes';
 
-/** Social preview image, committed at public/og-image.png (see scripts/prerender-og-image.mjs). */
+/**
+ * Social preview image, committed at public/examples/og-image.png (see
+ * scripts/prerender-og-image.mjs).
+ */
 export const OG_IMAGE = {
-  path: '/og-image.png',
+  path: `${EXAMPLES_PATH}/og-image.png`,
   width: 1200,
   height: 630,
   alt: 'The Quartile wordmark and the headline “Build data apps, not just charts.” beside a sample bar chart.',
@@ -17,16 +26,24 @@ const ESCAPES: Record<string, string> = {
 };
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (c) => ESCAPES[c]);
 
-/** schema.org data: WebSite for the home page, TechArticle about the source code elsewhere. */
+/** The title of a path no example lives at; the fallback page carries no other head tags. */
+export const NOT_FOUND_TITLE = 'Page not found · Quartile examples';
+
+/** schema.org data: CollectionPage for the index, TechArticle about the source code elsewhere. */
 export function structuredData(route: GalleryRoute, options: { modified?: string } = {}) {
   const url = absoluteUrl(route.path);
+  // The site the pages are published on; the examples are one section of it.
   const site = { '@type': 'WebSite', name: SITE_NAME, url: absoluteUrl('/') };
-  if (route.path === '/') {
+  if (route.page === 'index') {
     return {
       '@context': 'https://schema.org',
-      ...site,
+      '@type': 'CollectionPage',
+      name: route.name,
       description: route.description,
+      url,
       inLanguage: 'en',
+      ...(options.modified ? { dateModified: options.modified } : {}),
+      isPartOf: site,
     };
   }
   return {
@@ -64,7 +81,7 @@ export function headTags(route: GalleryRoute, options: { modified?: string } = {
     meta('name', 'description', route.description),
     `<link rel="canonical" href="${escapeHtml(url)}" />`,
     meta('property', 'og:site_name', SITE_NAME),
-    meta('property', 'og:type', route.path === '/' ? 'website' : 'article'),
+    meta('property', 'og:type', route.page === 'index' ? 'website' : 'article'),
     meta('property', 'og:title', route.title),
     meta('property', 'og:description', route.description),
     meta('property', 'og:url', url),
@@ -83,8 +100,12 @@ export function headTags(route: GalleryRoute, options: { modified?: string } = {
 }
 
 /** Client navigation keeps the tab title and the page's head tags on the current route. */
-export function applyRouteHead(route: GalleryRoute) {
+export function applyRouteHead(route: GalleryRoute | undefined) {
   if (typeof document === 'undefined') return;
+  if (!route) {
+    document.title = NOT_FOUND_TITLE;
+    return;
+  }
   const url = absoluteUrl(route.path);
   document.title = route.title;
   const updates: [string, string, string][] = [

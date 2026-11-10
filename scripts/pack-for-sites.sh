@@ -14,8 +14,8 @@ for site in "${sites[@]}"; do
   mkdir -p "$site/vendor"
   rm -f "$site"/vendor/quartile-react-*.tgz
   cp "$tarball" "$site/vendor/"
-  # Sample data shared by every demo
-  if [ -d "$site/src/data" ]; then cp "$root/apps/gallery/src/data/kestrel.ts" "$site/src/data/kestrel.ts"; fi
+  # Sample data, refreshed for a site that keeps a copy
+  if [ -f "$site/src/data/kestrel.ts" ]; then cp "$root/apps/gallery/src/data/kestrel.ts" "$site/src/data/kestrel.ts"; fi
   # Markdown guides, for a site that renders them (it opts in by having content/library)
   if [ -d "$site/content/library" ]; then
     rm -rf "$site/content/library/language.md" "$site/content/library/guides"

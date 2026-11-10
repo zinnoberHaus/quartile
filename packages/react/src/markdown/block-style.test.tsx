@@ -124,7 +124,7 @@ describe('documented examples', () => {
     const legend = root.querySelector('.q-legend')!;
     expect(legend.getAttribute('data-position')).toBe('bottom');
     expect(legend.previousElementSibling?.querySelector('svg')).not.toBeNull();
-    expect(texts(root, '.q-chart-end-labels text')).toEqual(['Team $189.0K', 'Pro $104.0K']);
+    expect(texts(root, '.q-chart-end-labels text')).toEqual(['Team $189K', 'Pro $104K']);
   });
 
   it('reference: a labelled rule that is also in the accessible summary', () => {

@@ -428,12 +428,19 @@ export function makeFieldFormatter(
       : opts.surface === 'tooltip'
         ? field?.tooltipFormat
         : undefined;
+  // A deliberately chosen role format is already a presentation decision, with one exception:
+  // a compact format on an axis still drops trailing zeros ("$500K", not "$500.0K"), because
+  // ticks are round values and the padding only adds noise there.
+  const compactAxis =
+    opts.surface === 'axis' &&
+    override === undefined &&
+    (roleFormat === 'compact' || roleFormat === 'currency-compact');
   return makeFormatter(override ?? roleFormat ?? field?.format, {
     ...opts,
     currency: opts.currency ?? field?.currency,
     timeZone: field?.timeZone ?? opts.timeZone,
-    // A deliberately chosen role format is already a presentation decision.
-    short: override !== undefined || roleFormat !== undefined ? false : opts.short,
+    short:
+      override !== undefined || (roleFormat !== undefined && !compactAxis) ? false : opts.short,
   });
 }
 export function formatField(

@@ -145,6 +145,30 @@ export function describeReferences(
     .join(' ');
 }
 
+/**
+ * The tick set closest in size to `count`. d3 rounds a requested count to the nearest tidy step,
+ * which can land far from it (three asked, five drawn), so the sets for the counts around the
+ * request are compared and the one nearest in size wins, the smaller on a tie. `make(n)` builds
+ * the scale niced for `n` ticks; the same `n` then draws them, so the end ticks still bound
+ * the data.
+ */
+export function closestTicks<S extends { ticks(count: number): number[] }>(
+  count: number,
+  make: (nice: number) => S,
+): { scale: S; ticks: number[] } {
+  let best: { scale: S; ticks: number[]; off: number } | undefined;
+  for (let n = Math.max(1, count - 2); n <= count + 2; n++) {
+    const scale = make(n);
+    const ticks = scale.ticks(n);
+    // One tick marks no interval: such a set only wins when one tick was asked for.
+    const off = Math.abs(ticks.length - count) + (ticks.length < Math.min(2, count) ? 100 : 0);
+    if (!best || off < best.off || (off === best.off && ticks.length < best.ticks.length)) {
+      best = { scale, ticks, off };
+    }
+  }
+  return best as { scale: S; ticks: number[] };
+}
+
 /** An approximate tick count: a whole number from 0 to 20, or `fallback` with no setting. */
 export function tickCount(setting: number | undefined, fallback: number): number {
   if (typeof setting !== 'number' || !Number.isFinite(setting)) return fallback;
@@ -268,28 +292,37 @@ export function valueAxis(
     note = LOG_NEEDS_POSITIVE;
   }
 
-  const scale = valueScale(
-    data.length ? data : [0],
-    range,
-    options.ticks === undefined && options.zero === undefined
-      ? undefined
-      : { zero: options.zero ?? true, ticks: count || 1 },
-  );
-  if (lower !== undefined || upper !== undefined) {
-    const [d0, d1] = scale.domain();
-    const next: [number, number] = [lower ?? d0, upper ?? d1];
-    // Bounds that leave no extent are ignored rather than drawing a collapsed axis.
-    if (next[0] < next[1]) scale.domain(next);
-    else lower = upper = undefined;
-  }
+  /** The scale niced for `nice` ticks, with the author's bounds over the niced ends. */
+  const linear = (nice: number | undefined) => {
+    const scale = valueScale(
+      data.length ? data : [0],
+      range,
+      nice === undefined && options.zero === undefined
+        ? undefined
+        : { zero: options.zero ?? true, ticks: nice ?? 4 },
+    );
+    if (lower !== undefined || upper !== undefined) {
+      const [d0, d1] = scale.domain();
+      const next: [number, number] = [lower ?? d0, upper ?? d1];
+      // Bounds that leave no extent are ignored rather than drawing a collapsed axis.
+      if (next[0] < next[1]) scale.domain(next);
+    }
+    return scale;
+  };
+  // No setting: four ticks, as always. A setting: the tidy set closest to the count asked for.
+  const { scale, ticks } =
+    options.ticks === undefined || count === 0
+      ? ((s) => ({ scale: s, ticks: count === 0 ? [] : s.ticks(count) }))(linear(undefined))
+      : closestTicks(count, linear);
   const [d0, d1] = scale.domain();
+  const bounded = (lower !== undefined && d0 === lower) || (upper !== undefined && d1 === upper);
   return {
     scale,
-    ticks: count === 0 ? [] : scale.ticks(count),
+    ticks,
     log: false,
     note,
     clipped: lo < d0 || hi > d1,
-    bounds: lower !== undefined || upper !== undefined ? [d0, d1] : undefined,
+    bounds: bounded ? [d0, d1] : undefined,
   };
 }
 

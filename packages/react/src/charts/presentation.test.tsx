@@ -162,18 +162,21 @@ describe('LineChart presentation', () => {
     expect(cx(dates)[0]).toBe(32);
   });
 
-  it('takes approximate tick counts for both axes', () => {
-    const count = (props: Record<string, unknown>, axis: number) =>
-      texts(axes(draw(<LineChart data={year} x="month" y="users" {...props} />))[axis], 'text')
-        .length;
-    expect(count({}, 0)).toBe(6);
-    expect(count({ yTicks: 2 }, 0)).toBe(3);
-    expect(count({ yTicks: 10 }, 0)).toBe(13);
-    expect(count({ yTicks: 0 }, 0)).toBe(0);
-    expect(count({}, 1)).toBe(6);
-    expect(count({ xTicks: 3 }, 1)).toBe(3);
-    expect(count({ xTicks: 12 }, 1)).toBe(12);
-    expect(count({ xTicks: 0 }, 1)).toBe(0);
+  it('draws the tidy tick set closest to the count asked for', () => {
+    const labels = (props: Record<string, unknown>, axis: number) =>
+      texts(axes(draw(<LineChart data={year} x="month" y="users" {...props} />))[axis], 'text');
+    // Values run to 210. With no setting the axis is as it always was.
+    expect(labels({}, 0)).toEqual(['0', '50', '100', '150', '200', '250']);
+    expect(labels({ yTicks: 2 }, 0)).toEqual(['0', '500']);
+    expect(labels({ yTicks: 3 }, 0)).toEqual(['0', '200', '400']);
+    expect(labels({ yTicks: 6 }, 0)).toEqual(['0', '50', '100', '150', '200', '250']);
+    expect(labels({ yTicks: 10 }, 0)).toHaveLength(13);
+    expect(labels({ yTicks: 0 }, 0)).toEqual([]);
+    // x labels sit on data points, so their count is exact.
+    expect(labels({}, 1)).toHaveLength(6);
+    expect(labels({ xTicks: 3 }, 1)).toHaveLength(3);
+    expect(labels({ xTicks: 12 }, 1)).toHaveLength(12);
+    expect(labels({ xTicks: 0 }, 1)).toHaveLength(0);
   });
 
   it('draws horizontal gridlines by default, and none, vertical or both on request', () => {
@@ -301,7 +304,7 @@ describe('AreaChart presentation', () => {
   it('applies margins, colors, ticks, gridlines and hidden axes like a line chart', () => {
     const root = draw(area({ margin: { left: 70, right: 40 }, yTicks: 2, grid: 'both' }));
     expect([num(rows(root)[0], 'x1'), num(rows(root)[0], 'x2')]).toEqual([70, WIDTH - 40]);
-    expect(rows(root)).toHaveLength(3);
+    expect(rows(root)).toHaveLength(2);
     expect(columns(root)).toHaveLength(2);
     expect(axes(draw(area({ xAxis: false, yAxis: false })))).toHaveLength(0);
 
@@ -398,7 +401,8 @@ describe('BarChart presentation', () => {
 
   it('takes tick counts, gridline and axis switches', () => {
     expect(texts(axes(draw(bars()))[0], 'text')).toHaveLength(4);
-    expect(texts(axes(draw(bars({ yTicks: 2 })))[0], 'text')).toHaveLength(3);
+    expect(texts(axes(draw(bars({ yTicks: 2 })))[0], 'text')).toEqual(['0', '200']);
+    expect(texts(axes(draw(bars({ yTicks: 3 })))[0], 'text')).toEqual(['0', '100', '200']);
     expect(draw(bars({ grid: false })).querySelectorAll('.q-chart-grid line')).toHaveLength(0);
     const noY = draw(bars({ yAxis: false }));
     expect(axes(noY)).toHaveLength(1);
@@ -513,10 +517,14 @@ describe('ScatterPlot presentation', () => {
   });
 
   it('takes tick counts and gridline directions', () => {
-    const root = draw(scatter({ xTicks: 2, yTicks: 2, grid: 'both' }));
+    const root = draw(scatter({ xTicks: 3, yTicks: 3, grid: 'both' }));
     expect(texts(axes(root)[0], 'text')).toEqual(['2', '4', '6']);
     expect(texts(axes(root)[1], 'text')).toEqual(['0', '20', '40']);
     expect([rows(root).length, columns(root).length]).toEqual([3, 3]);
+    // Two ticks that still bound the data mean a wider axis.
+    const two = draw(scatter({ xTicks: 2, yTicks: 2 }));
+    expect(texts(axes(two)[0], 'text')).toEqual(['0', '10']);
+    expect(texts(axes(two)[1], 'text')).toEqual(['0', '50']);
     expect(texts(axes(draw(scatter()))[0], 'text')).toEqual(['2', '3', '4', '5']);
     expect(draw(scatter({ grid: false })).querySelector('.q-chart-grid')).toBeNull();
     expect(columns(draw(scatter({ grid: 'x' }))).length).toBeGreaterThan(0);
@@ -597,9 +605,13 @@ describe('BoxPlot presentation', () => {
     expect(usual.querySelector('.q-chart-grid')).toBeNull();
     expect(texts(usual, '.q-boxplot-label')).toEqual(['web', 'api']);
 
-    const custom = draw(box({ xTicks: 2, xMin: 0, xMax: 100, grid: true, margin: { left: 90 } }));
+    const custom = draw(box({ xTicks: 3, xMin: 0, xMax: 100, grid: true, margin: { left: 90 } }));
     expect(texts(custom, '.q-chart-axis text')).toEqual(['0', '50', '100']);
     expect(columns(custom)).toHaveLength(3);
+    expect(texts(draw(box({ xTicks: 2, xMin: 0, xMax: 100 })), '.q-chart-axis text')).toEqual([
+      '0',
+      '100',
+    ]);
     expect(num(columns(custom)[0], 'x1')).toBe(90.5);
 
     const bare = draw(box({ yAxis: false, xAxis: false }));
@@ -608,7 +620,7 @@ describe('BoxPlot presentation', () => {
   });
 
   it('uses the y settings for vertical boxes', () => {
-    const root = draw(box({ orientation: 'vertical', yTicks: 2, yMax: 100, grid: false }));
+    const root = draw(box({ orientation: 'vertical', yTicks: 3, yMax: 100, grid: false }));
     expect(texts(axes(root)[0], 'text')).toEqual(['0', '50', '100']);
     expect(root.querySelector('.q-chart-grid')).toBeNull();
     expect(rows(draw(box({ orientation: 'vertical' }))).length).toBe(5);

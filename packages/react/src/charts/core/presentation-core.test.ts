@@ -11,6 +11,7 @@ import {
 } from './colors';
 import {
   boundX,
+  closestTicks,
   describeLimits,
   describeReferences,
   gridLines,
@@ -239,15 +240,68 @@ describe('valueAxis', () => {
     expect(valueAxis([], [200, 10]).scale.domain()).toEqual(valueScale([0], [200, 10]).domain());
   });
 
-  it('honors bounds and an approximate tick count', () => {
+  it('honors bounds', () => {
     const axis = valueAxis(values, [200, 10], { min: 100, max: 200 });
     expect(axis.scale.domain()).toEqual([100, 200]);
     expect(axis.clipped).toBe(false);
+    expect(axis.bounds).toEqual([100, 200]);
     expect(valueAxis(values, [200, 10], { min: 140 }).clipped).toBe(true);
-    expect(valueAxis(values, [200, 10], { ticks: 2 }).ticks).toEqual([0, 100, 200]);
-    expect(valueAxis(values, [200, 10], { ticks: 0 }).ticks).toEqual([]);
     // Bounds that leave no extent are ignored.
-    expect(valueAxis(values, [200, 10], { min: 300, max: 100 }).scale.domain()).toEqual([0, 200]);
+    const none = valueAxis(values, [200, 10], { min: 300, max: 100 });
+    expect(none.scale.domain()).toEqual([0, 200]);
+    expect(none.bounds).toBeUndefined();
+  });
+
+  it('draws the tidy tick set closest to the count asked for', () => {
+    const ticks = (data: number[], count: number) =>
+      valueAxis(data, [200, 10], { ticks: count }).ticks;
+    // d3 alone answers 0, 200 … 800 (five ticks) to a request for three here.
+    const upTo610 = [120, 610, 340];
+    expect(ticks(upTo610, 2)).toEqual([0, 1000]);
+    expect(ticks(upTo610, 3)).toEqual([0, 500, 1000]);
+    expect(ticks(upTo610, 5)).toEqual([0, 200, 400, 600, 800]);
+    expect(ticks(upTo610, 8)).toEqual([0, 100, 200, 300, 400, 500, 600, 700]);
+
+    const millions = [1200000, 860000, 2100000];
+    expect(ticks(millions, 2)).toEqual([0, 5000000]);
+    expect(ticks(millions, 3)).toEqual([0, 2000000, 4000000]);
+    expect(ticks(millions, 5)).toEqual([0, 1000000, 2000000, 3000000]);
+    expect(ticks(millions, 8)).toEqual([0, 500000, 1000000, 1500000, 2000000, 2500000]);
+
+    const aroundZero = [-40, 35];
+    expect(ticks(aroundZero, 2)).toEqual([-50, 0, 50]);
+    expect(ticks(aroundZero, 3)).toEqual([-50, 0, 50]);
+    expect(ticks(aroundZero, 5)).toEqual([-50, 0, 50, 100]);
+    expect(ticks(aroundZero, 8)).toEqual([-40, -20, 0, 20, 40, 60]);
+
+    for (const data of [upTo610, millions, aroundZero, [0.031, 0.042], [7], [3, 99999]]) {
+      for (const count of [1, 2, 3, 4, 5, 6, 8, 12, 20]) {
+        const axis = valueAxis(data, [200, 10], { ticks: count });
+        const direct = valueScale(data, [200, 10], { ticks: count }).ticks(count);
+        // Never further from the request than d3's own answer for that count …
+        expect(Math.abs(axis.ticks.length - count)).toBeLessThanOrEqual(
+          Math.abs(direct.length - count),
+        );
+        // … and the end ticks still bound the data, as the domain is niced with the same count.
+        if (axis.ticks.length > 1) {
+          expect(axis.ticks[0]).toBeLessThanOrEqual(Math.min(0, ...data));
+          expect(axis.ticks.at(-1)).toBeGreaterThanOrEqual(Math.max(...data));
+          expect(axis.scale.domain()).toEqual([axis.ticks[0], axis.ticks.at(-1)]);
+        }
+      }
+    }
+    expect(valueAxis(values, [200, 10], { ticks: 0 }).ticks).toEqual([]);
+  });
+
+  it('prefers the smaller set on a tie, and a set of two over a lone tick', () => {
+    const scale = (sizes: Record<number, number>) => (nice: number) => ({
+      ticks: () => Array.from({ length: sizes[nice] ?? 0 }, (_, i) => i),
+    });
+    // Asked for 3: two ticks and four ticks are equally close.
+    expect(closestTicks(3, scale({ 1: 2, 2: 2, 3: 4, 4: 4, 5: 7 })).ticks).toHaveLength(2);
+    expect(closestTicks(3, scale({ 1: 2, 2: 3, 3: 5, 4: 5, 5: 8 })).ticks).toHaveLength(3);
+    expect(closestTicks(2, scale({ 1: 1, 2: 3, 3: 3, 4: 5 })).ticks).toHaveLength(3);
+    expect(closestTicks(1, scale({ 1: 1, 2: 3, 3: 3 })).ticks).toHaveLength(1);
   });
 
   it('refuses bounds that would cut marks measured from zero', () => {

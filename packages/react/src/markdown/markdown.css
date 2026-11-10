@@ -142,3 +142,67 @@
   color: var(--q-text);
   white-space: pre;
 }
+
+/*
+ * A page's own prose rules (`.markdown-body h2`, `article p`, `.post button`) outrank Quartile's
+ * single-class rules. Inside a block, the elements those rules commonly reach keep Quartile's
+ * values. `not-prose` on the block covers Tailwind Typography; these cover the rest.
+ */
+.q-block .q-spec-title {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.q-block .q-spec-card-title {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.q-block .q-spec-desc,
+.q-block .q-spec-card-desc,
+.q-block .q-spec-source,
+.q-block .q-block-note {
+  padding: 0;
+  border: 0;
+}
+
+.q-block .q-spec-desc {
+  margin: 4px 0 0;
+  font-size: 13px;
+}
+
+.q-block .q-spec-source {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.q-block .q-block-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.q-block :is(.q-bar-list-row, .q-dt-sort) {
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+.q-block .q-block-error-list {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.q-block .q-block-error-list > li {
+  margin: 0;
+}

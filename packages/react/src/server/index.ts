@@ -84,7 +84,7 @@ export function renderBlockToHTML(source: string, options: StaticRenderOptions =
     ),
   );
   const kind = compiled.type === 'dashboard' ? 'dashboard' : compiled.type;
-  return `<div class="quartile-static" data-quartile-block="${kind}" data-quartile-source="${escapeHtml(source)}">${markup}</div>`;
+  return `<div class="quartile-static not-prose" data-quartile-block="${kind}" data-quartile-source="${escapeHtml(source)}">${markup}</div>`;
 }
 
 export interface MarkdownRenderOptions extends StaticRenderOptions {

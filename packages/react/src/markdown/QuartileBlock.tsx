@@ -226,7 +226,7 @@ export function QuartileBlock({
     !(compiled.type === 'data' && dataDisplay === 'hidden');
   return (
     <div
-      className={cx('q-block', className)}
+      className={cx('q-block not-prose', className)}
       style={style}
       data-kind={kind}
       data-streaming={streaming || undefined}

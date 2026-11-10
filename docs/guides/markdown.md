@@ -59,6 +59,8 @@ export function Page({ markdown }: { markdown: string }) {
 
 Renderers that only let you replace `code` can use `QuartileCode`; `quartileComponents()` returns a ready `components` object.
 
+Your page's prose styles stop at the block. Each block carries `not-prose`, which Tailwind Typography skips, and keeps its own titles, source lines, buttons and lists against rules written for bare elements, such as `.markdown-body h2` or `article p`. The package checks this against Tailwind Typography, GitHub's `markdown-body` and bare `article` rules (`packages/react/scripts/verify-prose.mjs`).
+
 ## MDX sites
 
 MDX renders through React, so register the same component:

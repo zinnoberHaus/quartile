@@ -85,7 +85,7 @@ const html = renderBlockToHTML('bar sum(revenue) by region\n---\nregion,revenue\
 });
 ```
 
-The result is a `<div class="quartile-static" data-quartile-source="…">` containing the chart's SVG, its accessible summary and an HTML table of the plotted values. Include `@quartile/react/styles.css` on the page. `remarkQuartile` and `markdownItQuartile` apply the same rendering to whole Markdown documents, and `renderMarkdownBlocks` returns one rendering per block; see [Markdown and documentation sites](markdown.md).
+The result is a `<div class="quartile-static not-prose" data-quartile-source="…">` containing the chart's SVG, its accessible summary and an HTML table of the plotted values. Include `@quartile/react/styles.css` on the page. `remarkQuartile` and `markdownItQuartile` apply the same rendering to whole Markdown documents, and `renderMarkdownBlocks` returns one rendering per block; see [Markdown and documentation sites](markdown.md).
 
 Blocks that name a `src:` URL are loaded once, at render time, through the `loadSource` function you pass to `remarkQuartile` or `renderMarkdownBlocks`. `createSourceLoader` from `@quartile/react/lang` builds one that reads only the origins you list:
 

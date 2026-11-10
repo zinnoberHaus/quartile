@@ -21,7 +21,7 @@ describe('renderBlockToHTML', () => {
   it('writes the chart as SVG plus an HTML table, with the source for later upgrade', () => {
     const html = renderBlockToHTML(block);
     expect(html).toMatch(
-      /^<div class="quartile-static" data-quartile-block="view" data-quartile-source="bar sum\(amount\)/,
+      /^<div class="quartile-static not-prose" data-quartile-block="view" data-quartile-source="bar sum\(amount\)/,
     );
     expect(html).toContain('<svg');
     expect(html).toContain('viewBox="0 0 640');
@@ -90,7 +90,7 @@ describe('remarkQuartile', () => {
       .process(markdown);
     const html = String(file);
     expect(html).toContain('<h1>Report</h1>');
-    expect(html.match(/class="quartile-static"/g)).toHaveLength(3);
+    expect(html.match(/class="quartile-static not-prose"/g)).toHaveLength(3);
     expect(html).toContain('$200');
     expect(html).not.toContain('$200.00');
     expect(html).toContain('data-quartile-block="data"');
@@ -124,7 +124,7 @@ describe('markdownItQuartile', () => {
         '```',
       ].join('\n'),
     );
-    expect(html.match(/class="quartile-static"/g)).toHaveLength(2);
+    expect(html.match(/class="quartile-static not-prose"/g)).toHaveLength(2);
     expect(html).toContain('<svg');
     expect(html).toContain('<code class="language-js">const x = 1 &lt; 2;');
   });

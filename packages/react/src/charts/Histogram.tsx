@@ -74,6 +74,9 @@ export interface HistogramProps<R extends Row = Row>
 
 const AXIS_H = 22;
 
+/** More bins than this cannot be told apart on a screen and only cost memory. */
+const MAX_BINS = 200;
+
 export function Histogram<R extends Row = Row>(props: HistogramProps<R>) {
   const {
     data,
@@ -121,7 +124,7 @@ export function Histogram<R extends Row = Row>(props: HistogramProps<R>) {
           present.map((r) => new Date(at(r))),
           interval,
         )
-      : linearBins(present.map(at), binCount);
+      : linearBins(present.map(at), Math.min(MAX_BINS, Math.max(1, Math.round(binCount) || 1)));
     const totals = fillBins(bins, allRows, at, weight);
     const linked = rows === allRows ? totals : fillBins(bins, rows, at, weight);
     const med = temporal

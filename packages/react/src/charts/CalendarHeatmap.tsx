@@ -70,6 +70,9 @@ const MONTH_H = 20;
 const LEGEND_H = 20;
 const DAY_LABEL_W = 30;
 
+/** Ten years of weeks; more cannot be read as cells and only cost memory. */
+const MAX_WEEKS = 520;
+
 export function CalendarHeatmap<R extends Row = Row>(props: CalendarHeatmapProps<R>) {
   const {
     data,
@@ -166,7 +169,7 @@ export function CalendarHeatmap<R extends Row = Row>(props: CalendarHeatmapProps
   const avail = Math.max(0, measured - labelW);
   const shownWeeks = Math.max(
     1,
-    weeks ??
+    (weeks === undefined ? undefined : Math.min(MAX_WEEKS, Math.round(weeks) || 1)) ??
       (measured > 0
         ? Math.min(dataWeeks, Math.floor((avail + GAP) / (MIN_CELL + GAP)))
         : Math.min(dataWeeks, 26)),

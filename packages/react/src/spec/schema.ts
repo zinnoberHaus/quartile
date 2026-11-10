@@ -480,7 +480,7 @@ const COMPONENT_DEFS: Record<string, JsonSchema> = {
     'The distribution of a quantitative field, or counts per day, week or month.',
     {
       x: fieldRef('Field to bin.'),
-      bins: int('Number of equal-width bins.'),
+      bins: int('Number of equal-width bins, at most 200.', 1, 200),
       interval: oneOfEnum(['day', 'week', 'month'], 'Calendar bucket for a date x.'),
       value: field('Sum this field per bin instead of counting rows.'),
       format: format('Format for x.'),
@@ -555,7 +555,7 @@ const COMPONENT_DEFS: Record<string, JsonSchema> = {
       date: fieldRef('Date field.'),
       value: measure('Measure per day; omit to count rows.'),
       format: format('Value format.'),
-      weeks: int('Number of weeks to show.'),
+      weeks: int('Number of weeks to show, at most 520 (ten years).', 1, 520),
       weekStart: oneOfEnum([0, 1], 'First day of the week: 0 Sunday, 1 Monday.'),
       dayLabels: bool('Show weekday labels.'),
       countLabel: str('Label for counts in the tooltip when `value` is not set.'),

@@ -39,11 +39,11 @@ const html = `<!doctype html>
     </svg>
     quartile
   </div>
-  <h1>Build data apps, not just charts.</h1>
-  <p>Open-source React charts, tables and controls on one theme, one data model and one selection.</p>
+  <h1>Write a sentence. Get a chart.</h1>
+  <p>The open-source chart block for Markdown, AI answers and web pages.</p>
   <div class="tag">0.1 preview · Apache-2.0 · not yet on npm</div>
   <div class="panel" aria-hidden="true">
-    <div class="kpi">SAMPLE CHART</div>
+    <div class="kpi">bar sum(revenue) by region</div>
     <div class="plot">
       ${bars.map((h, i) => `<span class="${i === bars.length - 1 ? 'signal' : ''}" style="height:${h * 1.6}px"></span>`).join('')}
     </div>

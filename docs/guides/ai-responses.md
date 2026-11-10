@@ -1,10 +1,10 @@
 # Charts in AI answers
 
-Let a model answer with charts by writing ```` ```quartile ```` blocks in its normal Markdown. Your site renders them with the components it already uses for Markdown; no chart library has to be chosen per answer, and the charts take your site's styling. The [live replay](https://quartile-design.vercel.app/examples/ai-answer) shows the result with Vercel's Streamdown. The evidence behind this design is in the [November research](../research/markdown-ai-embedding-2026-11.md#3-what-models-get-right-and-wrong).
+Let a model answer with charts by writing ```` ```quartile ```` blocks in its normal Markdown. Your site renders them with the components it already uses for Markdown, while the answer streams; no chart library has to be chosen per answer, and the charts take your site's styling. Quartile ships no model and calls none: you bring the model, and this page covers the prompt, the rendering, the data and the validation. The [live replay](https://docs.usequartile.com/examples/ai-answer) shows the result with Vercel's Streamdown. The evidence behind this design is in the [November research](../research/markdown-ai-embedding-2026-11.md#3-what-models-get-right-and-wrong).
 
 ## 1. Teach the syntax
 
-`quartilePrompt()` returns a system-prompt section (about 3,300 characters) generated from the language's own tables: the block shape, the kinds, measures and formats, two complete examples, and rules (chart only data you have, at most 60 rows, no code or URLs). Every example in it is compiled in the test suite.
+`quartilePrompt()` returns a system-prompt section (about 3,300 characters) generated from the language's own tables: the block shape, the kinds, measures and formats, two complete examples, and rules (chart only data you have, at most 60 rows, no code or URLs). Every example in it is compiled in the test suite. `npx quartile prompt` prints the same text in a terminal.
 
 ```ts
 import { quartilePrompt } from '@quartile/react/lang';
@@ -74,6 +74,8 @@ Data a model writes inline is only as reliable as the model. Where the numbers m
 
 The model then writes only the chart (`bar sum(amount) by region` + `data: orders`), and the compiler checks every field against the real columns. Blocks over the same dataset share a selection, so a model can lay out a small dashboard across several blocks.
 
+The prompt tells the model not to write URLs, and a page that passes no `loadSource` fetches nothing. If answers should read a live endpoint, the choice is yours to make in host code: pass a loader limited to origins you control, for example `loadSource={createSourceLoader({ origins: ['same-origin'] })}`, and tell the model which `src:` URLs exist. An allowlist limits the origin, not the path or the query, so allow only endpoints where a GET request with a path the model chose is harmless. [Data sources](data-sources.md) covers `path:`, `refresh:`, authentication and the [security model](data-sources.md#12-security-model).
+
 ## 4. Validate and repair
 
 `compileBlock` returns the spec and line-numbered diagnostics. Unknown columns are errors that list the real columns; a close misspelling is corrected with a warning; settings that do not exist are ignored with the closest suggestion. Use errors for one repair turn; research found that repair loops help when they carry concrete feedback, not otherwise.
@@ -90,6 +92,8 @@ if (problems.length) {
   // Ask the model once to fix exactly these, then render whatever it returns.
 }
 ```
+
+For answers saved as Markdown files, such as test fixtures or evaluation outputs, [`quartile check`](coding-agents.md#quartile-check) prints the same diagnostics from the command line.
 
 ## 5. Tool calls and structured output
 
@@ -112,7 +116,11 @@ Render the result with `<QuartileBlock source={block} />`. The JSON spec (`@quar
 ## Safety
 
 - Blocks are data: no scripts, HTML, styles, SQL or event handlers are executed or injected.
-- Nothing is fetched unless you pass `loadSource`. A prompt-injected answer cannot make the page send data to a URL in a `src:` line.
+- Nothing is fetched unless you pass `loadSource` (or, with the script, list origins in `data-sources`). A prompt-injected answer cannot make the page send data to a URL in a `src:` line. With a loader from `createSourceLoader`, only the origins you listed are read, without cookies for other origins, and a block cannot add request headers.
 - Inline rows are capped (5,000 by default); the prompt asks for at most 60.
 - Colors and fonts come from your page. A model cannot style a block to look like your interface.
 - A schema-valid chart can still answer the wrong question. Keep row grain, units and denominators explicit in prompts and datasets, as in the [data-app recipes](use-cases.md).
+
+## Adding this with a coding agent
+
+`quartilePrompt()` is for the model that writes answers at run time. To have a coding agent add the renderer and the prompt to your app, see [AI coding agents](coding-agents.md), which also explains how the two differ.

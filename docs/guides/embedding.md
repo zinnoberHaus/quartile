@@ -1,14 +1,14 @@
 # Embedding and styling
 
-Quartile renders on any HTML page through one script, and takes its colors and fonts from the page it lands on. React applications use the components directly; everything else uses the `<quartile-chart>` element.
+One script draws Quartile blocks on an HTML page, with no build step, and takes its colors and fonts from the page it lands on. React applications use the components directly; other pages use the script and the `<quartile-chart>` element.
 
 ## The script
 
 ```html
-<script src="/assets/quartile.global.js" data-theme="auto" data-sources="same-origin"></script>
+<script src="/assets/quartile.global.js" data-theme="auto"></script>
 ```
 
-`quartile.global.js` is a standalone build (React, the components and the stylesheet in one file; about 209 kB with gzip -9, measured on this preview). Copy it from `@quartile/react/dist/embed/` and serve it from your own site; it makes no network requests of its own. An ES module build sits next to it as `quartile.js`. The [plain-HTML demo](https://quartile-design.vercel.app/embed/demo) is a page with no build step.
+`quartile.global.js` is a standalone build: React, the components and the stylesheet in one file. Download it from the preview build's GitHub release, or copy it from `node_modules/@quartile/react/dist/embed/` after installing the package ([installation](installation.md)), and serve it from your own site. It makes no network requests of its own. An ES module build sits next to it as `quartile.js`. The [plain-HTML demo](https://docs.usequartile.com/examples/embed/demo) is a page with no build step.
 
 On load the script:
 
@@ -24,11 +24,12 @@ Each original stays where it was, hidden, and the chart is inserted after it. Fr
 | `data-theme` | `auto`, `system`, `light`, `dark` | `auto` |
 | `data-host` | a [host preset](#host-presets) | none |
 | `data-accent` | any CSS color | none |
-| `data-sources` | `none`, `same-origin` | `none` |
-| `data-languages` | fence names, comma separated | `quartile` |
+| `data-sources` | `none`, `same-origin` and exact origins such as `https://api.example.com`, separated by spaces or commas | `none` |
+| `data-min-refresh` | the shortest `refresh:` interval a block may ask for, in seconds | `10` |
+| `data-languages` | fence names, separated by spaces or commas | `quartile` |
 | `data-auto` | `false` to skip upgrading on load | upgrade |
 
-The same options can be set before the script with `window.QuartileConfig = { sources: 'same-origin', host: 'vitepress' }`. The ES module exports `configure`, `upgrade`, `observe` and `QuartileChartElement` for manual control.
+The same options can be set before the script with `window.QuartileConfig = { sources: 'same-origin', host: 'vitepress' }` (`sources`, `minRefresh`, `theme`, `host`, `accent`, `languages`, `auto`). After it has loaded, the script is the global `Quartile`: `Quartile.configure(options)`, `Quartile.upgrade(root)`, `Quartile.observe(root)`, `Quartile.reload(url?)` and `Quartile.QuartileChartElement`. The ES module `quartile.js` exports the same names.
 
 ## The element
 
@@ -56,13 +57,37 @@ observeBlocks(document);
 
 ## Loading data
 
-A block's `src:` line names a URL. Pages decide what is fetched:
+A block's `src:` line names a URL. The page decides what is fetched, and by default nothing is:
 
-- `none` (default): nothing is fetched; the block explains that the page does not load remote data.
-- `same-origin`: files from the page's own origin, such as `src: data/sales.csv` next to a docs page. Requests send same-origin credentials. CSV, TSV and JSON responses are parsed like inline rows (up to 50,000 rows).
-- A custom loader: `configure({ loadSource: (url, signal) => myApi(url, signal) })`, which may map your own URL schemes to authorized queries.
+```html
+<script
+  src="/assets/quartile.global.js"
+  data-sources="same-origin https://api.example.com"
+  data-min-refresh="30"
+></script>
+```
 
-Never allow arbitrary origins on pages that display model output: a prompt-injected block could otherwise encode data into a URL.
+| `data-sources` value | Allows |
+|---|---|
+| `none` (default) | Nothing. The block explains that the page does not load remote data. |
+| `same-origin` | Files and endpoints on the page's own origin, such as `src: data/sales.csv` next to a docs page. These requests send the page's cookies. |
+| an exact origin | That origin: scheme, host and port, such as `https://api.example.com`. Cookies are not sent, and the API must allow your page with CORS headers. |
+
+Origins are matched whole. There are no wildcards; a value that is not `none`, `same-origin` or an exact http(s) origin is ignored with a console warning.
+
+- **Responses.** CSV, TSV and JSON are parsed like inline rows, up to 50,000 rows, 5 MB and 15 seconds per response. A block's `path:` says where the rows are in a JSON response.
+- **Refresh.** A block's `refresh: 30s` reloads its URL while the page is visible. `data-min-refresh` sets the shortest interval a block may ask for (10 seconds by default).
+- **Reload.** `Quartile.reload()` fetches the page's sources again; `Quartile.reload('/api/orders.json')` reloads one URL. Charts keep their rows until the new ones arrive.
+- **Configure from JavaScript.** `Quartile.configure({ sources, minRefresh, maxBytes, timeoutMs, loadSource })`. `sources` is the same list as a string or an array, or a function `(url: URL) => boolean`. `loadSource: (url, signal) => myApi(url, signal)` replaces fetching with your own function, which may map your own names to authorized queries and return rows, text or parsed JSON.
+
+```html
+<script>
+  Quartile.configure({ sources: ['same-origin', 'https://api.example.com'], timeoutMs: 8000 });
+  document.querySelector('#refresh').addEventListener('click', () => Quartile.reload());
+</script>
+```
+
+Do not allow origins you do not control on pages that display model output: a prompt-injected block could otherwise encode data into a URL. An allowlist limits the origin, not the path or the query a block writes. The [data sources guide](data-sources.md) covers `path:`, `refresh:`, authentication, the error messages and the [security model](data-sources.md#12-security-model).
 
 ## Styling
 

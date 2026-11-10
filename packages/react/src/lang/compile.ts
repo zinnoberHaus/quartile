@@ -24,6 +24,7 @@ import {
   parseFieldExpr,
   type ViewNode,
 } from './parse';
+import { readSourceSettings, SOURCE_KEYS, sourceDataset } from './source';
 import { type FieldMeta, parseTable, wholeCurrency } from './table';
 
 export interface CompileOptions extends ParseOptions {
@@ -33,6 +34,11 @@ export interface CompileOptions extends ParseOptions {
   pendingDatasets?: readonly string[];
   /** Keep at most this many inline rows. Defaults to 5,000. */
   maxRows?: number;
+  /**
+   * The host's shortest refresh interval in seconds. A block asking for a shorter `refresh:` is
+   * raised to it with a note. Without it the block's value is recorded as written.
+   */
+  minRefresh?: number;
 }
 
 export interface CompiledBlock {
@@ -43,8 +49,11 @@ export interface CompiledBlock {
   data: Record<string, DataInput>;
   /** A `data <name>` block's dataset. */
   defines?: { name: string; dataset: Dataset };
-  /** URLs the block asks the host to load (`src:`). Nothing is fetched by the compiler. */
-  sources: { name: string; url: string; line: number }[];
+  /**
+   * URLs the block asks the host to load (`src:`), with where the rows are in a JSON response
+   * (`path:`) and how often to reload, in seconds (`refresh:`). Nothing is fetched by the compiler.
+   */
+  sources: { name: string; url: string; line: number; path?: string; refresh?: number }[];
   /** Selection group shared with other blocks in a document; null when the block stands alone. */
   link: string | null;
   title?: string;
@@ -695,6 +704,8 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
     }
     if (p.norm === 'data' || p.norm === 'dataset' || p.norm === 'source' || p.norm === 'src')
       continue;
+    // Read with the block's `src:`. A view inside a dashboard has no source of its own.
+    if (SOURCE_KEYS.has(p.norm) && !ctx.inDashboard) continue;
     if (p.norm === 'version') {
       checkVersion(p, diagnostics);
       continue;
@@ -1544,6 +1555,11 @@ export function compileBlock(
   // Inline rows after `---`.
   const blockProps = block.type === 'view' ? (block.views[0]?.props ?? []) : block.props;
   const srcProp = blockProps.find((p) => p.norm === 'src' || p.norm === 'url');
+  const settings = readSourceSettings(
+    blockProps,
+    { inline: !!block.data, src: !!srcProp, minRefresh: options.minRefresh },
+    diagnostics,
+  );
   let inlineName: string | undefined;
   let sourceName: string | undefined;
   if (block.data) {
@@ -1551,6 +1567,8 @@ export function compileBlock(
       firstLine: block.data.line,
       partial: !complete,
       maxRows: options.maxRows,
+      path: settings.path,
+      pathLine: settings.pathLine,
     });
     diagnostics.push(...table.diagnostics);
     inlineName = block.type === 'data' && block.name ? block.name : 'data';
@@ -1567,9 +1585,16 @@ export function compileBlock(
   } else if (srcProp) {
     const url = unquote(srcProp.value);
     // A named dataset is registered under its name; a chart's own source under its URL.
-    const name = block.type === 'data' && block.name ? block.name : `url:${url}`;
+    const name =
+      block.type === 'data' && block.name ? block.name : sourceDataset(url, settings.path);
     sourceName = name;
-    sources.push({ name, url, line: srcProp.line });
+    sources.push({
+      name,
+      url,
+      line: srcProp.line,
+      ...(settings.path === undefined ? {} : { path: settings.path }),
+      ...(settings.refresh === undefined ? {} : { refresh: settings.refresh }),
+    });
     if (Object.hasOwn(datasets, name) && block.type === 'data') {
       // The host already loaded this source.
       const meta = fieldMetaFrom(

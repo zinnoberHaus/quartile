@@ -46,7 +46,9 @@ export function Dashboard({ rows }: { rows: { region: string; amount: number }[]
 }
 ```
 
-Charts draw at the provider's `initialWidth` (640 px by default) until they can measure their container, so server markup contains the chart's SVG, scaled to the container, and the client redraws at the measured width after hydration. Verify layout after hydration and when opening hidden tabs/panels. `theme="system"` is resolved by CSS from the reader's preference, so server output and the first paint are already in the right theme. See [server rendering](server-rendering.md).
+Charts draw at the provider's `initialWidth` (640 px by default) until they can measure their container, so server markup contains the chart's SVG, scaled to the container, and the client redraws at the measured width after hydration. Verify layout after hydration and when opening hidden tabs/panels. `theme="system"` is resolved by CSS from the reader's preference, so server output and the first paint are already in the right theme.
+
+Server components and route handlers can call `@quartile/react/lang` (compile or validate a block, build the model prompt). They cannot import `@quartile/react/server`: the static renderer is for Node code outside a React Server Components graph, such as a build script. See [server rendering](server-rendering.md#react-and-nextjs).
 
 ## Fetching and state
 

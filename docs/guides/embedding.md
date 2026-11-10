@@ -29,7 +29,7 @@ Each original stays where it was, hidden, and the chart is inserted after it. Fr
 | `data-languages` | fence names, separated by spaces or commas | `quartile` |
 | `data-auto` | `false` to skip upgrading on load | upgrade |
 
-The same options can be set before the script with `window.QuartileConfig = { sources: 'same-origin', host: 'vitepress' }` (`sources`, `minRefresh`, `theme`, `host`, `accent`, `languages`, `auto`). After it has loaded, the script is the global `Quartile`: `Quartile.configure(options)`, `Quartile.upgrade(root)`, `Quartile.observe(root)`, `Quartile.reload(url?)` and `Quartile.QuartileChartElement`. The ES module `quartile.js` exports the same names.
+The same options can be set before the script with `window.QuartileConfig = { sources: 'same-origin', host: 'vitepress' }`. Its keys are the attribute names above without `data-`, in camelCase: `theme`, `host`, `accent`, `sources`, `minRefresh`, `languages`, `auto`. After it has loaded, the script is the global `Quartile`: `Quartile.configure(options)`, `Quartile.upgrade(root)`, `Quartile.observe(root)`, `Quartile.reload(url?)` and `Quartile.QuartileChartElement`. The ES module `quartile.js` exports the same names.
 
 ## The element
 

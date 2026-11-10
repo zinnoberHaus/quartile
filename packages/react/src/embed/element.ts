@@ -225,8 +225,6 @@ export class QuartileChartElement extends HTMLElement {
     if (this.#defined && this.#defined !== name) scope.unregister(this.#defined, this.#owner);
     if (name && compiled.defines) scope.register(name, compiled.defines.dataset, this.#owner);
     this.#defined = name ?? null;
-    // Sources load once for the whole page, so every element over the dataset can use it.
-    for (const s of compiled.sources) scope.requestSource(s.name, s.url);
     this.#render();
   }
 
@@ -245,7 +243,8 @@ export class QuartileChartElement extends HTMLElement {
           data: scope.datasets,
           pending: scope.pending,
           stores: scope.store,
-          loadSource: scope.loader() ? (url: string) => scope.load(url) : undefined,
+          // Sources load once for the whole page, so every element over a dataset can use it.
+          sourceStore: scope.sources,
           languages: scope.options.languages ?? DEFAULT_LANGUAGES,
           theme: theme && THEMES.has(theme) ? theme : defaults.theme,
           host: host && (HOST_THEMES as readonly string[]).includes(host) ? host : defaults.host,

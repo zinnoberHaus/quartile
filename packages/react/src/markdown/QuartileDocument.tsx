@@ -1,20 +1,24 @@
 import {
   createContext,
+  forwardRef,
   type ReactNode,
+  type Ref,
   useCallback,
   useContext,
   useEffect,
   useId,
+  useImperativeHandle,
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from 'react';
-import { dataset } from '../data/schema';
 import type { DataInput } from '../data/types';
 import { DEFAULT_LANGUAGES, findFencedBlocks, scanDocument } from '../lang/document';
-import { parseTable } from '../lang/table';
+import type { SourceValue } from '../lang/source';
 import { QuartileProvider, type QuartileProviderProps } from '../provider/QuartileProvider';
 import { SelectionStore } from '../selection/store';
+import { type SourceRequest, SourceStore } from './sourceStore';
 
 export type DataDisplay = 'summary' | 'table' | 'hidden';
 
@@ -25,14 +29,28 @@ export interface QuartileDocumentContextValue {
   pending: readonly string[];
   /** Why a source failed, by dataset name. */
   sourceErrors: Readonly<Record<string, string>>;
+  /** Rows as loaded from `src:` URLs, before a `data` block's field settings describe them. */
+  loaded: Readonly<Record<string, DataInput>>;
   streaming: boolean;
   dataDisplay: DataDisplay;
   languages: readonly string[];
-  /** Registers a `data` block's rows under its name; `key` identifies the definition. */
-  register(name: string, data: DataInput, owner: string, key: string): void;
+  /**
+   * Registers a `data` block's rows under its name; `key` identifies the definition and `basis`
+   * the loaded rows it describes, so reloaded rows are registered again.
+   */
+  register(name: string, data: DataInput, owner: string, key: string, basis?: unknown): void;
   unregister(name: string, owner: string): void;
   /** Asks the host's loader for a URL. Does nothing without `loadSource`. */
-  requestSource(name: string, url: string): void;
+  requestSource(name: string, url: string, path?: string): void;
+  /**
+   * Holds a source for a mounted block: loads it and reloads it on its `refresh:`. Returns the
+   * release; reloading stops when no mounted block holds the URL.
+   */
+  retainSource(source: SourceRequest): () => void;
+  /** Fetches the document's sources again now, or only those of one URL. */
+  reloadSources(url?: string): Promise<void>;
+  /** The shortest `refresh:` interval this document allows, in seconds. */
+  minRefresh: number;
   /** True when the host supplied a loader. */
   canLoad: boolean;
   /** The shared selection for blocks that link on `group`. */
@@ -60,10 +78,20 @@ export interface QuartileDocumentProps extends Omit<QuartileProviderProps, 'chil
    */
   markdown?: string;
   /**
-   * Loads a block's `src:` URL. Return rows, a dataset, or CSV/JSON text. Without a loader no
-   * request is made and the block says so: remote data is the host's decision.
+   * Loads a block's `src:` URL. Return rows, a dataset, CSV/JSON text or parsed JSON. Without a
+   * loader no request is made and the block says so: remote data is the host's decision.
    */
-  loadSource?: (url: string, signal: AbortSignal) => Promise<DataInput | string>;
+  loadSource?: (url: string, signal: AbortSignal) => Promise<SourceValue>;
+  /**
+   * The shortest `refresh:` interval a block may ask for, in seconds. Shorter values are raised
+   * to it. Default 10.
+   */
+  minRefresh?: number;
+  /**
+   * Shares loaded sources, their refresh timers and errors with other documents, as the embed
+   * does for the elements of one page. It replaces `loadSource` and `minRefresh`.
+   */
+  sourceStore?: SourceStore;
   /** The content is still being written, e.g. a streaming answer. Incomplete blocks wait. */
   streaming?: boolean;
   /**
@@ -85,18 +113,20 @@ export interface QuartileDocumentProps extends Omit<QuartileProviderProps, 'chil
   children?: ReactNode;
 }
 
+/** What a ref to a QuartileDocument offers. */
+export interface QuartileDocumentHandle {
+  /**
+   * Fetches the document's `src:` data again now, or only the sources of one URL. Rows stay on
+   * screen until the new ones arrive. Resolves when the requests have settled.
+   */
+  reload(url?: string): Promise<void>;
+}
+
 interface Registered {
   owner: string;
   key: string;
   data: DataInput;
-}
-
-function toDataInput(value: DataInput | string): DataInput {
-  if (typeof value !== 'string') return value;
-  const table = parseTable(value);
-  const problem = table.diagnostics.find((d) => d.severity === 'error');
-  if (problem) throw new Error(problem.message);
-  return dataset(table.rows, table.fields);
+  basis?: unknown;
 }
 
 /**
@@ -104,10 +134,13 @@ function toDataInput(value: DataInput | string): DataInput {
  * any block, shared selections between blocks over the same dataset, streaming state, and the
  * host's optional loader for `src:` URLs.
  */
-export function QuartileDocument({
+function DocumentScope({
   data,
   markdown,
   loadSource,
+  minRefresh,
+  sourceStore,
+  handle,
   streaming = false,
   pending: hostPending,
   dataDisplay = 'summary',
@@ -116,16 +149,32 @@ export function QuartileDocument({
   stores: externalStores,
   children,
   ...providerProps
-}: QuartileDocumentProps) {
+}: QuartileDocumentProps & { handle?: Ref<QuartileDocumentHandle> }) {
   const docId = useId();
   const [registered, setRegistered] = useState<Record<string, Registered>>({});
-  const [loaded, setLoaded] = useState<Record<string, DataInput>>({});
-  const [loading, setLoading] = useState<Record<string, true>>({});
-  const [sourceErrors, setSourceErrors] = useState<Record<string, string>>({});
   const stores = useRef(new Map<string, SelectionStore>());
-  const requested = useRef(new Map<string, AbortController>());
   const loaderRef = useRef(loadSource);
   loaderRef.current = loadSource;
+  const floorRef = useRef(minRefresh);
+  floorRef.current = minRefresh;
+  const dataRef = useRef(data);
+  dataRef.current = data;
+  // Loading, retrying and refreshing live in a store, which the embed shares across a page.
+  const ownSources = useRef<SourceStore | null>(null);
+  if (!sourceStore && !ownSources.current) {
+    ownSources.current = new SourceStore({
+      loader: () => loaderRef.current,
+      minRefresh: () => floorRef.current,
+    });
+  }
+  const sources = sourceStore ?? ownSources.current!;
+  const {
+    loaded,
+    pending: loading,
+    errors: sourceErrors,
+  } = useSyncExternalStore(sources.subscribe, sources.getSnapshot, sources.getSnapshot);
+  const canLoad = sourceStore ? sourceStore.canLoad() : !!loadSource;
+  const floor = sources.minRefresh();
 
   // Datasets defined anywhere in the Markdown, known before any block mounts.
   const scanned = useMemo(
@@ -150,23 +199,26 @@ export function QuartileDocument({
     for (const [name, r] of Object.entries(registered)) {
       if (!Object.hasOwn(out, name)) out[name] = r.data;
     }
-    for (const [name, rows] of Object.entries(loaded)) out[name] = rows;
+    // Loaded rows come last, so a `data` block's described version of them stands in front.
+    for (const [name, rows] of Object.entries(loaded)) {
+      if (!Object.hasOwn(out, name)) out[name] = rows;
+    }
     return out;
   }, [scanned, data, registered, loaded]);
 
-  const pending = useMemo(
-    () => [...Object.keys(loading), ...(hostPending ?? [])],
-    [loading, hostPending],
-  );
+  const pending = useMemo(() => [...loading, ...(hostPending ?? [])], [loading, hostPending]);
 
-  const register = useCallback((name: string, value: DataInput, owner: string, key: string) => {
-    setRegistered((current) => {
-      const existing = current[name];
-      if (existing && existing.key === key) return current;
-      if (existing && existing.owner !== owner) return current;
-      return { ...current, [name]: { owner, key, data: value } };
-    });
-  }, []);
+  const register = useCallback(
+    (name: string, value: DataInput, owner: string, key: string, basis?: unknown) => {
+      setRegistered((current) => {
+        const existing = current[name];
+        if (existing && existing.key === key && existing.basis === basis) return current;
+        if (existing && existing.owner !== owner) return current;
+        return { ...current, [name]: { owner, key, data: value, basis } };
+      });
+    },
+    [],
+  );
 
   const unregister = useCallback((name: string, owner: string) => {
     setRegistered((current) => {
@@ -176,44 +228,32 @@ export function QuartileDocument({
     });
   }, []);
 
-  const requestSource = useCallback((name: string, url: string) => {
-    const loader = loaderRef.current;
-    const key = `${name}\u0000${url}`;
-    if (!loader || requested.current.has(key)) return;
-    const controller = new AbortController();
-    requested.current.set(key, controller);
-    setLoading((l) => ({ ...l, [name]: true }));
-    loader(url, controller.signal)
-      .then((value) => {
-        if (controller.signal.aborted) return;
-        setLoaded((l) => ({ ...l, [name]: toDataInput(value) }));
-      })
-      .catch((err: unknown) => {
-        if (controller.signal.aborted) return;
-        setSourceErrors((e) => ({
-          ...e,
-          [name]: err instanceof Error ? err.message : 'The data could not be loaded.',
-        }));
-      })
-      .finally(() => {
-        if (controller.signal.aborted) return;
-        setLoading(({ [name]: _done, ...rest }) => rest);
-      });
-  }, []);
-
-  useEffect(
-    () => () => {
-      for (const c of requested.current.values()) c.abort();
-    },
-    [],
+  const requestSource = useCallback(
+    (name: string, url: string, path?: string) => sources.request({ name, url, path }),
+    [sources],
   );
+
+  const retainSource = useCallback(
+    (source: SourceRequest) =>
+      // Rows the host passed under this name are the data; nothing is fetched for it. With a
+      // shared store, `data` holds described copies of these very sources, so it never stands in.
+      !sourceStore && Object.hasOwn(dataRef.current ?? {}, source.name)
+        ? () => {}
+        : sources.retain(source),
+    [sources, sourceStore],
+  );
+
+  const reloadSources = useCallback((url?: string) => sources.reload(url), [sources]);
+  useImperativeHandle(handle, () => ({ reload: reloadSources }), [reloadSources]);
+
+  useEffect(() => () => ownSources.current?.dispose(), []);
 
   // Sources named in the Markdown start loading as soon as the document mounts.
   useEffect(() => {
     for (const s of scanned?.sources ?? []) {
-      if (!Object.hasOwn(data ?? {}, s.name)) requestSource(s.name, s.url);
+      if (!Object.hasOwn(data ?? {}, s.name)) sources.request(s);
     }
-  }, [scanned, data, requestSource]);
+  }, [scanned, data, sources]);
 
   const store = useCallback(
     (group: string) => {
@@ -233,13 +273,17 @@ export function QuartileDocument({
       datasets,
       pending,
       sourceErrors,
+      loaded,
       streaming,
       dataDisplay,
       languages,
       register,
       unregister,
       requestSource,
-      canLoad: !!loadSource,
+      retainSource,
+      reloadSources,
+      minRefresh: floor,
+      canLoad,
       store,
       isClosed: (source: string) => closedSources?.has(source.trimEnd()),
     }),
@@ -247,13 +291,17 @@ export function QuartileDocument({
       datasets,
       pending,
       sourceErrors,
+      loaded,
       streaming,
       dataDisplay,
       languages,
       register,
       unregister,
       requestSource,
-      loadSource,
+      retainSource,
+      reloadSources,
+      floor,
+      canLoad,
       store,
       closedSources,
     ],
@@ -262,3 +310,13 @@ export function QuartileDocument({
   const content = <DocumentContext.Provider value={value}>{children}</DocumentContext.Provider>;
   return provider ? <QuartileProvider {...providerProps}>{content}</QuartileProvider> : content;
 }
+
+/**
+ * Scopes the Quartile blocks of one Markdown document; see `QuartileDocumentProps`. A ref
+ * offers `reload()` to fetch the document's `src:` data again.
+ */
+export const QuartileDocument = forwardRef<QuartileDocumentHandle, QuartileDocumentProps>(
+  function QuartileDocument(props, ref) {
+    return <DocumentScope {...props} handle={ref} />;
+  },
+);

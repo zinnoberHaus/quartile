@@ -21,7 +21,7 @@ Add what you want charted, for example "chart the three tables in docs/report.md
 3. **Wire Quartile into that host** with the minimum code for it.
 4. **Write blocks** with the kinds and settings the language has.
 5. **Use data the way the host allows**: inline rows, a `data` block, a dataset the app passes, or a `src:` URL only where the page already allows it.
-6. **Validate** with `npx quartile check` and fix what it reports.
+6. **Validate** with `npx --no-install quartile check` and fix what it reports.
 
 It also lists what the agent must not do: invent kinds or settings, swap in another chart library without asking, fetch data outside the host's loader or allowlist, or chart numbers it was not given.
 
@@ -29,14 +29,14 @@ The file has Agent Skills frontmatter (`name` and `description`). To keep it in 
 
 ## The AGENTS.md snippet
 
-The prompt covers the first integration. For the work after it, add this to `AGENTS.md`, `CLAUDE.md` or the instructions file your agent reads. It is under 2 KB.
+The prompt covers the first integration. For the work after it, add this to `AGENTS.md`, `CLAUDE.md` or the instructions file your agent reads. It is under 2 KB, and it carries the install command so the agent needs no second fetch.
 
 ````markdown
 ## Charts: Quartile
 
 This project draws charts with Quartile (`@quartile/react`, a 0.1 preview build).
 
-- The package is not on the npm registry. Never run `npm install @quartile/react`. Install and upgrade steps: https://docs.usequartile.com/docs/installation.md
+- Install: `npm install https://github.com/zinnoberHaus/quartile/releases/download/v0.1.0-preview.1/quartile-react-0.1.0-preview.1.tgz` (pnpm, Yarn and Bun take the same URL). The package is not on the npm registry: never run `npm install @quartile/react`.
 - A chart is a fenced `quartile` block in Markdown: one sentence, optional `key: value` settings, a `---` line, then rows.
 
 ```quartile
@@ -53,13 +53,15 @@ Americas,2100000
 - Prefer these docs over memory. The syntax is new and can change between preview builds.
   - Syntax: https://docs.usequartile.com/docs/language.md
   - Data sources: https://docs.usequartile.com/docs/data-sources.md
+  - Styling and settings: https://docs.usequartile.com/docs/styling.md
+  - Interaction: https://docs.usequartile.com/docs/interaction.md
   - Markdown and React: https://docs.usequartile.com/docs/markdown.md
   - AI answers: https://docs.usequartile.com/docs/ai-answers.md
   - Web pages: https://docs.usequartile.com/docs/embedding.md
   - Index of pages: https://docs.usequartile.com/llms.txt
 - Use only kinds and settings from the syntax reference. Chart only numbers you were given or computed.
 - Do not swap Quartile for another chart library without asking.
-- After editing blocks, run `npx quartile check <files>` and fix what it reports.
+- After editing blocks, run `npx --no-install quartile check <files>` (with pnpm: `pnpm exec quartile check <files>`) and fix what it reports.
 ````
 
 Each docs page has a Markdown rendition at the same URL with `.md` added, which is the form an agent should read.
@@ -69,10 +71,10 @@ Each docs page has a Markdown rendition at the same URL with `.md` added, which 
 The package installs a `quartile` command. `quartile check` compiles the `quartile` blocks in Markdown files with the same compiler the renderers use and reports each problem with its line in the file. It makes no network requests and renders nothing.
 
 ```sh
-npx quartile check README.md docs/*.md
+npx --no-install quartile check README.md docs/*.md
 ```
 
-`npx` runs the copy in your project's `node_modules`. If Quartile is not installed there, `npx` looks for a package named `quartile` on the npm registry, which is not this project. `npx --no-install quartile check …` stops instead of looking.
+Keep `--no-install`. It makes `npx` run only the copy in your project's `node_modules`. Without it, in a project where Quartile is not installed, `npx` would download whatever package is named `quartile` on the npm registry, which is not this project. With pnpm, write `pnpm exec quartile check README.md docs/*.md`.
 
 Given this file, `q3.md`:
 
@@ -106,8 +108,8 @@ q3.md:14: error: There is no dataset “orders”. Define one with a “data nam
 The first block has a misspelt column that was corrected (a warning) and a column that does not exist (an error that lists the real columns). The second block reads a dataset that the document does not define, because the application supplies it when the page runs. Tell the command about such datasets:
 
 ```sh
-npx quartile check q3.md --dataset orders              # the name exists; its columns are not checked
-npx quartile check q3.md --dataset orders=orders.csv   # check field names against these rows
+npx --no-install quartile check q3.md --dataset orders              # the name exists; its columns are not checked
+npx --no-install quartile check q3.md --dataset orders=orders.csv   # check field names against these rows
 ```
 
 | Argument | Meaning |
@@ -126,7 +128,7 @@ npx quartile check q3.md --dataset orders=orders.csv   # check field names again
 
 **Exit status.** `0`: no errors. `1`: errors were found, or warnings with `--strict`. `2`: the command could not run, for example a file that cannot be read or an unknown option.
 
-**What it checks.** Kinds, settings, field names against the block's rows or the named dataset, formats, `path:` against inline JSON, and fences that are never closed. A `data` block defines its dataset for the whole file, wherever it appears.
+**What it checks.** Kinds, settings (a setting the kind does not have, a color a block may not set, a number out of range, an action a view cannot show), field names against the block's rows or the named dataset, formats, `path:` against inline JSON, and fences that are never closed. A `data` block defines its dataset for the whole file, wherever it appears.
 
 **What it does not check.**
 
@@ -139,11 +141,11 @@ npx quartile check q3.md --dataset orders=orders.csv   # check field names again
 ## `quartile prompt`
 
 ```sh
-npx quartile prompt
-npx quartile prompt --dataset orders=orders.csv
+npx --no-install quartile prompt
+npx --no-install quartile prompt --dataset orders=orders.csv
 ```
 
-Prints the text that `quartilePrompt()` returns: the system-prompt section that teaches a model the block syntax. With `--dataset name=file`, the prompt lists the dataset's name and its columns with their types, and tells the model to write `data: name` instead of pasting rows. Use it to inspect the prompt, or to paste it into a tool that has no JavaScript runtime.
+Prints the text that `quartilePrompt()` returns: the system-prompt section that teaches a model the block syntax. With `--dataset name=file`, the prompt lists the dataset's name and its columns with their types, and tells the model to write `data: name` instead of pasting rows. Use it to inspect the prompt, or to paste it into a tool that has no JavaScript runtime. The command prints the default prompt; the `actions` option of `quartilePrompt()` has no flag.
 
 ## `quartilePrompt()` or the skill?
 
@@ -153,7 +155,7 @@ They serve two different readers.
 |---|---|---|
 | Reader | The model that writes answers for your users, at run time | The coding agent that writes your code, at development time |
 | Where it goes | The system prompt of your chat or answer feature | The agent's context, through the prompt above or your instructions file |
-| What it teaches | The block syntax only: shape, kinds, measures, formats, rules | Installing, wiring a renderer, data options, validation, and the syntax in brief |
+| What it teaches | The block syntax only: shape, kinds, measures, formats, a few optional lines (colors, axis range, legend, labels, a reference line, the source), rules | Installing, wiring a renderer, data options, styling and interaction settings, validation, and the syntax in brief |
 | Output | Markdown answers that contain `quartile` blocks | Changes to your repository |
 | Guide | [Charts in AI answers](ai-responses.md) | this page |
 

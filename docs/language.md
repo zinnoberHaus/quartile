@@ -15,7 +15,7 @@ Americas,2100000
 ```
 ````
 
-This page is the reference. To render blocks, see [Markdown and documentation sites](guides/markdown.md), [AI answers](guides/ai-responses.md), [embedding](guides/embedding.md), [server rendering](guides/server-rendering.md) and [dbt](guides/dbt.md). Where a block's rows come from is covered in depth in [data sources](guides/data-sources.md). To check blocks from the command line, see [`quartile check`](guides/coding-agents.md#quartile-check). The design rationale is [ADR 0007](decisions/0007-markdown-language-and-embedding.md); the evidence is the [November research](research/markdown-ai-embedding-2026-11.md). Try blocks in the [live playground](https://docs.usequartile.com/examples/playground).
+This page is the reference. To render blocks, see [Markdown and documentation sites](guides/markdown.md), [AI answers](guides/ai-responses.md), [embedding](guides/embedding.md), [server rendering](guides/server-rendering.md) and [dbt](guides/dbt.md). Three guides go deeper than this page: [data sources](guides/data-sources.md) for where a block's rows come from, [styling and settings](guides/styling.md) for how a chart looks, and [interaction](guides/interaction.md) for linking, the rows behind a chart, provenance and events. To check blocks from the command line, see [`quartile check`](guides/coding-agents.md#quartile-check). The design rationale is [ADR 0007](decisions/0007-markdown-language-and-embedding.md), amended by [ADR 0008](decisions/0008-embed-first-data-settings-interaction.md); the evidence is the [November research](research/markdown-ai-embedding-2026-11.md). Try blocks in the [live playground](https://docs.usequartile.com/examples/playground).
 
 ## 1. Shape of a block
 
@@ -94,6 +94,7 @@ The first word or words of the header choose the kind. Matching ignores case, sp
 | `box` | `boxplot`, `boxes`, `whisker` | measure `by` category | `value`, `category` | BoxPlot |
 | `kpi` | `metric`, `stat`, `number`, `bignumber`, `bigvalue`, `scorecard` | measure `by` trend field `vs` comparison | `value`, `trendBy`, `compareValue` | KPI |
 | `table` | `datatable`, `grid` | columns `by` group | `columns`, `groupBy` | DataTable |
+| `explorer` | `dataexplorer`, `explore` | columns `by` group | `columns`, `groupBy` | DataExplorer: a table with search, filters, sorting, grouping and CSV export |
 | `filters` | `filter`, `filterbar` | fields | `fields` | FilterBar |
 | `data` | `dataset` | a name | a named dataset | a collapsed data summary |
 | `dashboard` | `board`, `report` | a title | a dashboard | a 12-column grid |
@@ -127,7 +128,7 @@ A setting is `key: value`. Keys ignore case, spaces, hyphens and underscores (`x
 | `path` | `rowspath`, `datapath`, `jsonpath` | Where the rows are inside JSON: keys and positions separated by dots, such as `data.items` (section 6). |
 | `refresh` | | How often to reload a `src:` URL: `30s`, `5m`, `1h` or a number of seconds; `off` for none (section 6). |
 | `span` | `cols`, `colspan` | Columns (1–12) in a dashboard. |
-| `link` | | `no` to keep a view out of its dataset's shared selection, or a group name. |
+| `link` | | `no` to keep a view out of its dataset's shared selection, or a group name (section 8). |
 | `version` | | The language version; `1` today. Others render with a warning. |
 | `query` | | dbt Charts compatibility: a query name, or inline `columns` and `values` (section 9). |
 
@@ -148,6 +149,49 @@ Dotted keys describe fields:
 - `target.value`, `target.label`, `target.expected` set a KPI goal.
 
 In a dashboard, field settings before the first view describe the shared dataset; inside a view they apply to that view.
+
+### Presentation settings
+
+These change how a chart is drawn. Each chart takes the ones it can draw; the [styling guide](guides/styling.md) has an example of each and the [table of which chart takes which](guides/styling.md#3-which-chart-takes-which-setting).
+
+| Key | Values | Meaning |
+|---|---|---|
+| `height` | px | Plot height. |
+| `margin`, `margin.left` (`.top`, `.right`, `.bottom`) | 1, 2 or 4 numbers in px; one number for a side | Space around the plot. Sides not named keep the room computed for the axis labels. |
+| `colors` (`colours`, `palette`) | a list of `signal`, `positive`, `negative`, `warning`, `muted`, `1` to `8`, or hex colors | Mark colors in series order. |
+| `color` | one such color | The color of a bar list, a histogram or a sparkline. On other charts `color` names the series field, unless its value can only be a color. |
+| `y.min`, `y.max`, `x.min`, `x.max` | numbers | Axis bounds. Bars and stacked areas ignore a minimum above zero, with a warning. |
+| `y.ticks`, `x.ticks` | 0 to 20 | Approximate number of ticks. |
+| `grid` (`gridlines`) | `x`, `y`, `both`, `none`, `yes`, `no` | Which gridlines to draw. |
+| `x axis`, `y axis`, `axes` | `no` | Hide an axis's labels. |
+| `legend` | `top`, `bottom`, `left`, `right`, `none`, `yes`, `no` | Where the legend goes. |
+| `labels` | `yes`, `no` | Values written on the marks. |
+| `reference`, `reference.label` (`target`, `goal`, `threshold` on charts) | a number, or a JSON list of `{ "value", "label" }`; text | A labelled rule at a value. |
+| `y.scale` | `log`, `linear` | A logarithmic y axis, where every value is above zero. |
+| `stroke width` | 0.25 to 16 px | Line width. |
+| `radius`, `padding` | 0 to 40 px; 0 to 0.9 | Bar corner radius, and the gap between bars. |
+| `annotations` | a JSON list of `{ "x", "label" }` | Vertical markers on a line or an area chart. |
+
+### Interaction settings
+
+The [interaction guide](guides/interaction.md) covers these with examples.
+
+| Key | Values | Meaning |
+|---|---|---|
+| `link` | `no`, or a group name | The selection group of the view (section 8). |
+| `select`, `brush` | `yes`, `no` | Publish a click on a mark, or a dragged range, to the group. On by default for views in a named group. |
+| `actions` | a list of `table`, `rows`, `download`; or `none` | Buttons shown with the view: switch to its table, open the rows behind it, download them as CSV. Before the first view of a dashboard: one toolbar for the dashboard (`rows`, `download`). |
+| `view` | `chart`, `table` | Draw the view as its chart or as its table. |
+
+### Provenance settings
+
+| Key | Aliases | Meaning |
+|---|---|---|
+| `source` | `credit`, `attribution` | Where the data came from. Shown under the view as "Source: …". |
+| `source.url` | | An `http:` or `https:` link for the source. It is shown as a link and not fetched. Another scheme is ignored with a warning. |
+| `asof` | `updated` | When the data was current, shown as "As of …": an ISO date or date-time, or text. |
+
+`source:` formerly named a dataset. A view that has no rows, no `data:` and no `src:`, and whose `source:` is exactly the name of a known dataset, still reads that dataset, with a warning to write `data:`.
 
 ## 5. Formats
 
@@ -258,13 +302,16 @@ Blocks compile to the [JSON spec](guides/generated-dashboards.md) that `SpecView
 - **Categories on a line or area chart** (`Q1`, `Week 1`, `Jan`) keep the order they first appear in, instead of being dropped from a numeric axis; brushing is turned off for such a chart.
 - **Row counts** become a `count` column of ones, or are left to components that count rows themselves.
 - **KPI labels** come from `as`, the title, or the measure's label.
-- **In dashboards**, charts that support it publish selections (bars, lists and donuts on click; lines, areas and histograms by brushing), untitled charts get a derived title, headline numbers sit in their own row, and a row that is not full stretches to fill twelve columns.
+- **Views in a group publish selections**: in a dashboard, and in a block that reads a named dataset or sets `link: name`, charts that support it publish without being asked (bars, lists, donuts and other charts with marks on a click; lines, areas and histograms by brushing). A block with its own rows publishes only when it sets `select:` or `brush:`.
+- **In dashboards**, untitled charts get a derived title, headline numbers sit in their own row, and a row that is not full stretches to fill twelve columns.
 
 ## 8. Documents, dashboards and linking
 
 - **A dashboard** is one block with several views. Settings before the first view describe the dashboard (`title`, `subtitle`, `data`, field settings); the rows after `---` are shared by every view. Views filter each other: a view is never filtered by its own selection.
-- **Across blocks**, views over the same named dataset share one selection: clicking a region in one block filters every other block over that dataset. Blocks with their own inline rows stand alone. `link: no` opts a view out; `link: name` joins a named group.
-- **Layout** uses a 12-column grid. Defaults: KPIs and sparklines 3; lists, donuts and funnels 4; tables, calendars, sankeys and filter bars 12; other charts 6. `span:` overrides. On narrow containers every item takes the full width.
+- **Across blocks**, views over the same named dataset share one selection: clicking a region in one block filters every other block over that dataset. Such views publish by default; `select: no` or `brush: no` makes one a follower only, and `link: no` takes it out of the group.
+- **Groups have names.** A view's group is its `link: name`, else the name of the dataset it reads (a `data` block, a dataset the host provides, or a loaded `src:`), else `block-<n>` for a block with its own inline rows, `n` being the block's number in the document. A block with its own rows stands alone and publishes only when it sets `select:` or `brush:`. Hosts use the group name to read, set and observe a selection ([interaction](guides/interaction.md#6-react-to-selections-in-your-app)).
+- **The rows behind a view.** `actions: rows, download` opens and downloads the rows a view is drawn from, under the group's selection including the view's own. Written before the first view of a dashboard, it is one toolbar and one rows panel for the dashboard.
+- **Layout** uses a 12-column grid. Defaults: KPIs and sparklines 3; lists, donuts and funnels 4; tables, explorers, calendars, sankeys and filter bars 12; other charts 6. `span:` overrides. On narrow containers every item takes the full width.
 
 ## 9. JSON and dbt Charts forms
 
@@ -276,6 +323,8 @@ The same fence accepts the JSON spec, which tool calls and structured outputs pr
 ```
 
 `data` may be inline rows or a dataset name; a dashboard may carry a `datasets` object of named rows; a bare array of rows renders as a table.
+
+A JSON spec in a block follows the same rules as settings: a color outside the allowed list and a source link that is not `http:` or `https:` are dropped with a warning instead of failing the chart, and a bar chart ignores a minimum above zero.
 
 The single-chart YAML of [dbt Charts](https://docs.dbtcharts.com) renders unchanged: `type`, `title`, `x`, `y`, `color`, and `query` as either a query name (read as `data:`) or inline `columns: [...]` and `values:` rows. SQL queries are not executed; pass their rows as a named dataset.
 
@@ -304,7 +353,10 @@ Blocks are data. The language has no expressions, scripts, HTML, styles, SQL, im
 - **`path:` is a lookup.** It has no wildcards, filters or expressions, and it reads own keys only.
 - **`refresh:` has a floor** that the host sets.
 - **Rows are capped.** A block keeps 5,000 inline rows by default.
-- **Colors and fonts come from the page**, so a block cannot imitate a page's interface beyond its charts.
+- **Block colors are a closed list.** A block may color its marks with palette names, `1` to `8` and hex colors; other values, such as `url()`, `var()` and CSS functions, are dropped with a warning and never reach a style. A host can refuse block colors altogether (`blockColors: false`).
+- **Fonts and everything outside the plot come from the page.** A block has no setting for them, so it cannot imitate a page's interface beyond its charts.
+- **A source link is checked.** `source.url:` becomes a link only for an `http:` or `https:` address without credentials. It is never fetched, and provenance text is rendered as text.
+- **Actions read; they do not write.** The toolbar switches a view, shows rows and downloads them as CSV, with formula-like cells neutralized. A host can turn it off (`actions: false`).
 
 The reasons are in the [security model](guides/data-sources.md#12-security-model) of the data sources guide.
 

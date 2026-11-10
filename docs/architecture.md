@@ -9,17 +9,17 @@ packages/react/            @quartile/react
   src/styles/              tokens.css (every --q-* variable) and base.css (scoped base, type scale)
   src/provider/            QuartileProvider: theme, density, locale, time zone, portal layer
   src/data/                data model: schema inference, formats, predicates
-  src/selection/           <Selection>, useSelection, useLinkedRows: the shared selection store
+  src/selection/           <Selection>, useSelection, useLinkedRows: the shared selection store, and the handle hosts use to read and set a group
   src/lib/                 cx, useControllable, useElementSize, floating (Portal, useFloating, useDismiss)
   src/icons/               16px stroke icons
   src/components/          interface components (buttons, inputs, navigation, feedback, overlays)
   src/data-display/        KPI, FilterBar, DataTable, DataExplorer and local table state
-  src/charts/              charts and the chart core (frame, states, scales, guides, a11y)
-  src/spec/                JSON Schema for components and the spec renderer
-  src/lang/                Markdown chart language: parser, compiler, data parsing, JSON paths, source loader, prompt and dbt helpers (no React)
+  src/charts/              charts and the chart core (frame, states, scales, guides, a11y, presentation options, colors, brush and click selection)
+  src/spec/                JSON Schema for components, the spec renderer, view actions (toolbar, rows panel) and provenance
+  src/lang/                Markdown chart language: parser, compiler, data parsing, JSON paths, source loader, presentation, actions and provenance settings, prompt and dbt helpers (no React)
   src/markdown/            QuartileBlock, QuartileDocument, Markdown renderer adapters and the source store (loading, refresh)
   src/server/              static HTML rendering, remark and markdown-it plugins (no 'use client')
-  src/embed/               <quartile-chart>, code-block upgrading, page scope and source policy
+  src/embed/               <quartile-chart>, code-block upgrading, page scope, source policy, page selections and the quartile-select event
   src/cli/                 the `quartile` command: check blocks in Markdown files, print the model prompt (Node)
   src/query/               optional bounded query protocol, React hook and prepared view boundary
   src/duckdb/              optional Arrow/DuckDB adapter, typed plan compiler and ownership
@@ -93,6 +93,26 @@ A block names where its rows come from; it never fetches. The pieces:
 - The server renderers call the host's `loadSource` once per source and fail the render when a source cannot be read.
 
 The reader-facing description is [data sources](guides/data-sources.md); update it with the code.
+
+## Presentation settings
+
+Margins, colors, axis bounds and ticks, gridlines, legend placement, value labels, reference lines, the log scale, line width, bar corners and annotations are plain values (numbers, booleans, a few words, validated color tokens), so one setting can be a React prop, a JSON spec property and a line in a block.
+
+- `src/charts/core/options.ts` holds the shared helpers (`marginSides`, `valueAxis`, `gridLines`, `legendPlacement`, `referenceLines`) and `ChartPresentationProps`. With no setting, each helper returns what the chart drew before the setting existed. A chart adds a setting by adding the prop, the schema property and its use of the helper; `packages/react/test/docs-guides.test.tsx` then requires the table in the [styling guide](guides/styling.md) to say so.
+- `src/charts/core/colors.ts` is the only path from a color setting to a `style`. A color is a palette name, `1` to `8` or hex; React callers may also pass a `var(--q-…)` token. Nothing else reaches the page, so text from a block or a model cannot carry `url()` or another declaration. Do not add a second path.
+- `src/lang/style.ts` reads the forms the generic schema coercion cannot (`margin: 16 24`, `y.min: 2%`, `reference.label: Target`, `color: #2f45e8`). A refused color is a warning, not an error. `blockColors: false` (document, block, compiler, static renderer, embed) drops block colors with a note.
+- Marks measured from zero keep their baseline: a bar chart or a stacked area ignores a minimum above zero, in the compiler with a warning and in the chart itself. Keep that rule when adding a chart whose marks encode length.
+- Custom charts use the same exports. `packages/react/test/custom-chart.test.tsx` builds two from the public entry only; a new chart-core export belongs in that test.
+
+## Interaction
+
+- **Groups.** A view's selection group is its `link:` name, else the name of the dataset it reads, else it stands alone (`block-<n>` inside a document). `compileBlock` returns it as `link`. Views in a dashboard or in a named group publish by default (`select` or `brush`, per `KINDS[kind].link`); a block with its own rows publishes only when it asks. `QuartileDocument` keeps one `SelectionStore` per group, or asks the host's `stores` function.
+- **Reporting.** `SelectionWatch` reports a store's changes; `QuartileDocument`, `QuartileBlock` and `SpecView` pass them to `onSelectionChange({ group, predicates })`, once per change. `selectionHandle` (`src/selection/handle.ts`) is the read/write surface behind `QuartileDocumentHandle.selection(group)` and the embed's `Quartile.selection(group)`. The embed element dispatches `quartile-select`, with `origin` true where the reader acted.
+- **Actions.** `src/spec/actions.ts` decides which component can show `table`, `rows` and `download`, and how a host default and a host `false` combine with a view's own list. `ViewActions.tsx` renders the toolbar and the rows panel. Rows and downloads are the dataset's rows under the group's whole selection, the view's own included. A dashboard over one dataset has one toolbar and one panel. Static rendering passes `actions: false`, because buttons need script.
+- **Provenance.** `source`, `sourceUrl` and `asOf` are spec properties of each component and of a dashboard. `src/spec/provenance.ts` is the one check for what may become a link (absolute http or https, no credentials); text is rendered as text. `source:` in a block states provenance; `src/lang/provenance.ts` keeps the former meaning (a dataset name) only for a view with no other data, with a warning.
+- **Explorer.** The `explorer` kind compiles to `DataExplorer` with a bounded set of spec properties; it follows its group's selection and publishes none.
+
+The reader-facing descriptions are the [styling](guides/styling.md) and [interaction](guides/interaction.md) guides; update them with the code.
 
 ## The `quartile` command
 

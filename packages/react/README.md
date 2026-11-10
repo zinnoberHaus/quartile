@@ -71,15 +71,32 @@ in React, or list origins in `data-sources` on the script tag. `path: data.items
 a JSON API response and `refresh: 30s` reloads them. See
 [data sources](https://github.com/zinnoberHaus/quartile/blob/main/docs/guides/data-sources.md).
 
+## Settings and interaction
+
+A chart takes its colors and fonts from the page. Each further detail is one more line in the
+block: `margin`, `colors` (palette names, `1` to `8` or hex), `y.min` and `y.max`, `y.ticks`,
+`grid`, `legend: bottom`, `labels: yes`, `reference: 1000000` with `reference.label: Target`,
+`y.scale: log`. A page can refuse block colors with `blockColors={false}` or
+`data-block-colors="off"`. See
+[styling and settings](https://github.com/zinnoberHaus/quartile/blob/main/docs/guides/styling.md).
+
+Views over the same named dataset filter each other without a setting. `actions: table, rows,
+download` adds buttons for a view's table, the rows behind it and a CSV download; `source:`,
+`source.url:` and `asof:` put a source line under it; an `explorer` block is a table with search,
+filters and sorting. `onSelectionChange` (React) and the `quartile-select` event (script) report
+what a reader selects. See
+[interaction](https://github.com/zinnoberHaus/quartile/blob/main/docs/guides/interaction.md).
+
 ## Check blocks
 
 ```sh
-npx quartile check README.md docs/*.md
+npx --no-install quartile check README.md docs/*.md
 ```
 
 The `quartile` command compiles the blocks in Markdown files and prints each problem as
-`file:line: severity: message`. It exits with status 1 on errors. `quartile prompt` prints the
-`quartilePrompt()` text. See
+`file:line: severity: message`. It exits with status 1 on errors. `--no-install` makes `npx` run
+only the copy in your project; with pnpm, write `pnpm exec quartile check`. `quartile prompt`
+prints the `quartilePrompt()` text. See
 [AI coding agents](https://github.com/zinnoberHaus/quartile/blob/main/docs/guides/coding-agents.md).
 
 ## React components
@@ -125,6 +142,9 @@ separate axis/tooltip formats and optional FormatJS/math.js adapters.
   activity; KPIs, data tables, filter chips, inputs, navigation and overlays; `QuartileBlock`,
   `QuartileDocument` and the adapters for react-markdown (`QuartilePre`, `QuartileCode`) and
   Streamdown (`quartileRenderer`); `createSourceLoader`; `validateSpec` and `SpecView`.
+- The parts for a chart of your own: `ChartFrame`, the axes, gridlines, legend and tooltip,
+  the scales (`valueAxis`, `bandScale`, `continuousX`), and the selection hooks (`useLinkedRows`,
+  `useToggleSelect`, `useRangeBrush`, `useChartKeyboard`).
 - `@quartile/react/lang`: the parser and compiler, `quartilePrompt`, strict tool schemas,
   `createSourceLoader` and dbt helpers. It has no React in it, so server components, route handlers
   and build tools can call it.

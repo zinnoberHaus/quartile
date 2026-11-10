@@ -76,7 +76,7 @@ On this page the rows come from the `data` block in section 2. In your app they 
 
 ## 4. A URL the page allows
 
-`src:` names a URL. `url:` is the same setting.
+`src:` names a URL. `url:` is the same setting. Do not confuse it with `source:`, which loads nothing: it is a line of text that tells the reader [where the numbers came from](interaction.md#5-where-the-numbers-came-from).
 
 ```text
 bar sum(revenue) by region
@@ -416,4 +416,4 @@ What stays your decision:
 - A `loadSource` function you write runs with your code's privileges. Check the URL against your own list inside it.
 - A chart that loads and validates can still answer the wrong question. Keep row grain, units and denominators explicit.
 
-The language's other safety properties (no scripts, HTML, styles or SQL in blocks) are in the [language reference](../language.md#12-safety).
+The language's other safety properties (no scripts, HTML or SQL in blocks, a closed list of colors, checked source links) are in the [language reference](../language.md#12-safety).

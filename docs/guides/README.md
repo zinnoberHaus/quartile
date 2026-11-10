@@ -26,6 +26,8 @@ Quartile turns a fenced `quartile` block (a sentence, optional settings, a few r
 | --- | --- | --- |
 | Look up kinds, settings, formats and diagnostics | [Language reference](../language.md) | [One block per kind](../../packages/react/src/lang/every-kind.test.ts) |
 | Give a block its rows: inline, a `data` block, an app dataset, a URL or a JSON API | [Data sources](data-sources.md) | [Examples run as tests](../../packages/react/src/markdown/source-examples.test.tsx), [loader](../../packages/react/src/lang/source.ts) |
+| Tune margins, colors, axes, legend, labels and reference lines; build a custom chart | [Styling and settings](styling.md) | [Examples run as tests](../../packages/react/src/markdown/block-style.test.tsx), [custom chart](../../packages/react/test/custom-chart.test.tsx) |
+| Link views, open and download the rows behind a chart, state provenance, react to selections | [Interaction](interaction.md) | [Selection events](../../packages/react/src/markdown/selection-events.test.tsx), [view actions](../../packages/react/src/spec/actions.test.tsx) |
 
 ## React
 

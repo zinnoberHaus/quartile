@@ -8,7 +8,7 @@ One script draws Quartile blocks on an HTML page, with no build step, and takes 
 <script src="/assets/quartile.global.js" data-theme="auto"></script>
 ```
 
-`quartile.global.js` is a standalone build: React, the components and the stylesheet in one file. Download it from the preview build's GitHub release, or copy it from `node_modules/@quartile/react/dist/embed/` after installing the package ([installation](installation.md)), and serve it from your own site. It makes no network requests of its own. An ES module build sits next to it as `quartile.js`. The [plain-HTML demo](https://docs.usequartile.com/examples/embed/demo) is a page with no build step.
+`quartile.global.js` is a standalone build: React, the components and the stylesheet in one file (about 233 kB with gzip -9, measured on this preview). Download it from the preview build's GitHub release, or copy it from `node_modules/@quartile/react/dist/embed/` after installing the package ([installation](installation.md)), and serve it from your own site. It makes no network requests of its own. An ES module build sits next to it as `quartile.js`. The [plain-HTML demo](https://docs.usequartile.com/examples/embed/demo) is a page with no build step.
 
 On load the script:
 
@@ -26,10 +26,12 @@ Each original stays where it was, hidden, and the chart is inserted after it. Fr
 | `data-accent` | any CSS color | none |
 | `data-sources` | `none`, `same-origin` and exact origins such as `https://api.example.com`, separated by spaces or commas | `none` |
 | `data-min-refresh` | the shortest `refresh:` interval a block may ask for, in seconds | `10` |
+| `data-actions` | a list of `table`, `rows`, `download` as the default toolbar of each view, or `none` to show no toolbar whatever a block asks | only blocks that ask show one |
+| `data-block-colors` | `off` to keep each chart on the page's palette: color settings in blocks are dropped with a note | blocks may set colors |
 | `data-languages` | fence names, separated by spaces or commas | `quartile` |
 | `data-auto` | `false` to skip upgrading on load | upgrade |
 
-The same options can be set before the script with `window.QuartileConfig = { sources: 'same-origin', host: 'vitepress' }`. Its keys are the attribute names above without `data-`, in camelCase: `theme`, `host`, `accent`, `sources`, `minRefresh`, `languages`, `auto`. After it has loaded, the script is the global `Quartile`: `Quartile.configure(options)`, `Quartile.upgrade(root)`, `Quartile.observe(root)`, `Quartile.reload(url?)` and `Quartile.QuartileChartElement`. The ES module `quartile.js` exports the same names.
+The same options can be set before the script with `window.QuartileConfig = { sources: 'same-origin', host: 'vitepress' }`. Its keys are the attribute names above without `data-`, in camelCase: `theme`, `host`, `accent`, `sources`, `minRefresh`, `actions`, `blockColors`, `languages`, `auto`. After it has loaded, the script is the global `Quartile`: `Quartile.configure(options)`, `Quartile.upgrade(root)`, `Quartile.observe(root)`, `Quartile.reload(url?)`, `Quartile.selection(group)`, `Quartile.groups()` and `Quartile.QuartileChartElement`. The ES module `quartile.js` exports the same names.
 
 ## The element
 
@@ -89,7 +91,28 @@ Origins are matched whole. There are no wildcards; a value that is not `none`, `
 
 Do not allow origins you do not control on pages that display model output: a prompt-injected block could otherwise encode data into a URL. An allowlist limits the origin, not the path or the query a block writes. The [data sources guide](data-sources.md) covers `path:`, `refresh:`, authentication, the error messages and the [security model](data-sources.md#12-security-model).
 
+## Selections, toolbars and events
+
+Elements over the same named dataset filter each other without further settings, and a block's `actions:` line adds a toolbar for its table, its rows and a CSV download. The [interaction guide](interaction.md) covers both. What the page controls:
+
+- **Toolbars.** `data-actions="rows download"` gives each view those buttons by default. `data-actions="none"` shows no toolbar, whatever a block asks. Blocks pre-rendered by the [static renderers](server-rendering.md) get their toolbar when the script upgrades them.
+- **The `quartile-select` event.** Each element of a selection group dispatches it when the group changes. It bubbles, and it crosses the shadow boundary. `event.detail` is `{ group, predicates, origin }`, and `origin` is true only on the element where the reader acted.
+- **`Quartile.selection(group)`** reads and writes a group by name: `get()`, `set(field, value, options?)`, `clear(field?)` and `subscribe(listener)`. `Quartile.groups()` lists the names in use.
+
+```html
+<script>
+  document.addEventListener('quartile-select', (event) => {
+    if (event.detail.origin) console.log(event.detail.group, event.detail.predicates);
+  });
+  document.querySelector('#reset').addEventListener('click', () => Quartile.selection('orders').clear());
+</script>
+```
+
+A group is named by a block's `link:`, else by the dataset it reads, else `block-<n>`. See [the group a view belongs to](interaction.md#the-group-a-view-belongs-to).
+
 ## Styling
+
+A block can set a chart's margins, colors, axes, legend, labels and reference lines; the [styling guide](styling.md) covers those settings. This section is about what the page sets for every chart. `data-block-colors="off"` keeps each chart on the page's palette whatever a block says.
 
 Every component reads `--q-*` custom properties ([tokens](../../packages/react/src/styles/tokens.css)). Five layers, from least to most work:
 

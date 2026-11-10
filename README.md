@@ -131,19 +131,49 @@ SQL is not executed, and Quartile does not connect to a database: your app runs 
 
 ### 2. One line to start. Every detail when you care.
 
-- **Defaults come from the data.** Column types, labels (`net_revenue` reads "Net revenue") and number and date formats are inferred. Written values such as `$1,200`, `12%`, `1.2M` and `2026-Q1` are typed for you. When you leave out the fields, the compiler picks them from the column types and says so in a note.
-- **Each setting is one more line.** `height: 300px`, `sort: desc`, `limit: 10`, `stacked: yes`, `legend: no`, `curve: step`, `bins: 20`. Dotted keys describe fields: `revenue.label`, `revenue.format`, `revenue.description`. The [language reference](docs/language.md#4-settings) lists them.
-- **Colors and fonts follow your page.** `theme="auto"` reads the page's colors and font in light and dark. Ten `host` presets map the variables of shadcn/ui (two variable formats), VitePress, Docusaurus, Starlight, Material for MkDocs, Primer, Pico, Radix Themes and Open Props. `accent` sets a brand color, and each color, radius and size is a `--q-*` CSS custom property you can override.
+- **Defaults come from the data and the page.** Column types, labels (`net_revenue` reads "Net revenue") and number and date formats are inferred. Written values such as `$1,200`, `12%`, `1.2M` and `2026-Q1` are typed for you. Colors and fonts follow your page in light and dark: `theme="auto"` reads them, and ten `host` presets map the variables of shadcn/ui (two variable formats), VitePress, Docusaurus, Starlight, Material for MkDocs, Primer, Pico, Radix Themes and Open Props.
+
+Each detail is one more line:
+
+````markdown
+```quartile
+bar sum(revenue) by region
+title: Revenue against target
+height: 280px
+margin.left: 72
+colors: signal
+y.max: 2500000
+y.ticks: 5
+grid: none
+labels: yes
+reference: 1000000
+reference.label: Target
+---
+region,revenue
+EMEA,1200000
+APAC,860000
+Americas,2100000
+```
+````
+
+Margins, colors, axis range and ticks, gridlines, hidden axes, legend position, value labels, reference lines, a log scale, line width, bar corners and annotations are settings. Dotted keys describe fields: `revenue.label`, `revenue.format`, `revenue.description`. The [styling guide](docs/guides/styling.md) shows each one and [which chart takes which](docs/guides/styling.md#3-which-chart-takes-which-setting).
+
+- **Settings stay honest and safe.** A bar chart ignores an axis minimum above zero, because a cut bar overstates differences. A block may set colors only as palette names, `1` to `8` or hex, and a page can turn block colors off.
 - **A setting is a line of text.** A person, a model or a coding agent changes a chart by editing that line, not chart code.
-- **The same charts are React components.** When a block is not enough, use `LineChart`, `BarChart`, `DataTable` and the rest directly. The chart frame, axes, grid, legend, tooltip and scales are exported to build your own.
+- **The same charts are React components.** When a block is not enough, use `LineChart`, `BarChart`, `DataTable` and the rest directly, with the same settings as props. The chart frame, axes, grid, legend, tooltip, scales and selection hooks are exported, and the styling guide builds a [custom chart](docs/guides/styling.md#7-build-your-own-chart) from them.
 
 ### 3. More than a picture
 
-- **Linked.** Charts over the same dataset share one selection. Click a bar and the KPIs, the other charts and the table follow, also across blocks that read the same named dataset in a document. A view is never filtered by its own selection.
+- **Linked.** Views over the same dataset share one selection, with no setting: click a bar and the KPIs, the other charts and the table follow, also across blocks in a document. A view is never filtered by its own selection.
 - **Dashboards in prose.** A `dashboard` block is a small data app inside your text: filters, headline numbers, charts and a table on a 12-column grid.
+- **The rows behind a chart.** `actions: table, rows, download` adds buttons to switch to the table, open the rows the chart is drawn from and download them as CSV. The rows follow the selection, so a clicked bar traces to its rows. An `explorer` block is a table with search, filters, sorting and grouping.
+- **Where the numbers came from.** `source:`, `source.url:` and `asof:` put a source line under the chart: "Source: World Bank · As of Nov 1, 2026".
+- **Your app can listen.** `onSelectionChange` in React and the `quartile-select` event on a page report what a reader selects, and a handle sets or clears a selection by name. A chat can turn a clicked bar into the next question.
 - **In the HTML.** Charts render as SVG with a real table on a server or at build time, so they are on the page before JavaScript runs and crawlers can read the numbers. See [server rendering](docs/guides/server-rendering.md).
 - **Keyboard and tables.** Charts have keyboard navigation, a generated summary and a table alternative. They have not been tested with NVDA, JAWS or VoiceOver yet. See the [accessibility scope](docs/guides/accessibility.md).
 - **Readable when it fails.** An invalid block shows its errors and its source instead of a wrong chart. Where Quartile is not installed, the block is still a readable code block.
+
+See [interaction](docs/guides/interaction.md) for linking, toolbars, provenance and events.
 
 ## Tell your coding agent
 
@@ -158,10 +188,10 @@ The skill is [skills/quartile/SKILL.md](skills/quartile/SKILL.md) in this reposi
 Check the blocks in your Markdown files from a terminal or in CI:
 
 ```sh
-npx quartile check README.md docs/*.md
+npx --no-install quartile check README.md docs/*.md
 ```
 
-It compiles each `quartile` block, prints problems as `file:line: severity: message` and exits with status 1 when there are errors. `npx` runs the copy installed in your project; `npx --no-install quartile check` stops instead of looking on the npm registry when that copy is missing.
+It compiles each `quartile` block, prints problems as `file:line: severity: message` and exits with status 1 when there are errors. `--no-install` makes `npx` run only the copy installed in your project. With pnpm, write `pnpm exec quartile check`.
 
 For ongoing work, add this to your project's `AGENTS.md` (or `CLAUDE.md`):
 
@@ -170,7 +200,7 @@ For ongoing work, add this to your project's `AGENTS.md` (or `CLAUDE.md`):
 
 This project draws charts with Quartile (`@quartile/react`, a 0.1 preview build).
 
-- The package is not on the npm registry. Never run `npm install @quartile/react`. Install and upgrade steps: https://docs.usequartile.com/docs/installation.md
+- Install: `npm install https://github.com/zinnoberHaus/quartile/releases/download/v0.1.0-preview.1/quartile-react-0.1.0-preview.1.tgz` (pnpm, Yarn and Bun take the same URL). The package is not on the npm registry: never run `npm install @quartile/react`.
 - A chart is a fenced `quartile` block in Markdown: one sentence, optional `key: value` settings, a `---` line, then rows.
 
 ```quartile
@@ -187,13 +217,15 @@ Americas,2100000
 - Prefer these docs over memory. The syntax is new and can change between preview builds.
   - Syntax: https://docs.usequartile.com/docs/language.md
   - Data sources: https://docs.usequartile.com/docs/data-sources.md
+  - Styling and settings: https://docs.usequartile.com/docs/styling.md
+  - Interaction: https://docs.usequartile.com/docs/interaction.md
   - Markdown and React: https://docs.usequartile.com/docs/markdown.md
   - AI answers: https://docs.usequartile.com/docs/ai-answers.md
   - Web pages: https://docs.usequartile.com/docs/embedding.md
   - Index of pages: https://docs.usequartile.com/llms.txt
 - Use only kinds and settings from the syntax reference. Chart only numbers you were given or computed.
 - Do not swap Quartile for another chart library without asking.
-- After editing blocks, run `npx quartile check <files>` and fix what it reports.
+- After editing blocks, run `npx --no-install quartile check <files>` (with pnpm: `pnpm exec quartile check <files>`) and fix what it reports.
 ````
 
 More in [AI coding agents](docs/guides/coding-agents.md).
@@ -247,7 +279,7 @@ Brush the histogram or click a region, and the KPI, the list and the table follo
 ## Documentation and examples
 
 - **Documentation:** <https://docs.usequartile.com>. The guides in this repository are the source of its embedding and language pages: [guide index](docs/guides/README.md).
-- **Language:** [reference](docs/language.md) · [data sources](docs/guides/data-sources.md)
+- **Language:** [reference](docs/language.md) · [data sources](docs/guides/data-sources.md) · [styling and settings](docs/guides/styling.md) · [interaction](docs/guides/interaction.md)
 - **Embed:** [Markdown and documentation sites](docs/guides/markdown.md) · [AI answers](docs/guides/ai-responses.md) · [web pages](docs/guides/embedding.md) · [server rendering](docs/guides/server-rendering.md) · [dbt](docs/guides/dbt.md)
 - **Examples:** <https://docs.usequartile.com/examples>, built from `apps/gallery` in this repository.
   - Blocks: [playground](https://docs.usequartile.com/examples/playground), [streamed AI answer](https://docs.usequartile.com/examples/ai-answer), [Markdown report](https://docs.usequartile.com/examples/markdown-report), [plain HTML page](https://docs.usequartile.com/examples/embed/demo)

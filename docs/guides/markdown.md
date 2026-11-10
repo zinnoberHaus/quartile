@@ -53,6 +53,8 @@ export function Page({ markdown }: { markdown: string }) {
 - `data={{ orders }}` provides datasets your application already authorized. Blocks read them with `data: orders`. While your app is still fetching a dataset, pass `pending={['orders']}`: blocks over it show a placeholder instead of an error.
 - `loadSource={createSourceLoader({ origins: ['same-origin', 'https://api.example.com'] })}` lets blocks load `src:` URLs from the origins you list. Without `loadSource` nothing is fetched. Create the loader once, outside the component. A block's `path:` and `refresh:` then work as described in [data sources](data-sources.md), and a ref to `QuartileDocument` offers `reload()`.
 - `theme`, `host`, `accent`, `density`, `locale` and `timeZone` are `QuartileProvider` props; see [embedding and styling](embedding.md#styling).
+- `actions={['rows', 'download']}` gives each view a toolbar for the rows behind it by default, and `actions={false}` shows none whatever a block asks. `onSelectionChange` reports what readers select. See [interaction](interaction.md).
+- `blockColors={false}` keeps each chart on your page's palette when a block sets `colors:`. See [styling](styling.md#4-colors-a-block-may-set).
 - `languages={['quartile', 'chart']}` also treats other fence names as Quartile blocks.
 
 Renderers that only let you replace `code` can use `QuartileCode`; `quartileComponents()` returns a ready `components` object.
@@ -133,7 +135,7 @@ GitHub, GitLab and most repository viewers render Quartile blocks as code. The b
 `quartile check` compiles the blocks in Markdown files and prints each problem with its line, without rendering:
 
 ```sh
-npx quartile check docs/*.md --dataset sales=data/sales.csv
+npx --no-install quartile check docs/*.md --dataset sales=data/sales.csv
 ```
 
 It exits with status 1 on errors, so it can gate a docs build or a pull request. The options are in [`quartile check`](coding-agents.md#quartile-check).
@@ -144,3 +146,5 @@ It exits with status 1 on errors, so it can gate a docs build or a pull request.
 - Keep inline rows short. Aggregate before charting; reuse a `data` block instead of repeating rows.
 - Use snake_case column names. Labels are written for you, and `revenue.description:` explains a field in tooltips and table headers.
 - Write units into formats (`format: currency EUR`) and titles, not into numbers.
+- Say where the numbers came from with `source:` and `asof:`. They are readable in the code block too.
+- Leave colors to the page unless a color carries meaning. When it does, prefer the palette names (`positive`, `negative`, `warning`), which follow the page's theme.

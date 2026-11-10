@@ -287,14 +287,16 @@ describe('valueAxis', () => {
     const millions = [1200000, 860000, 2100000];
     expect(ticks(millions, 2)).toEqual([0, 5000000]);
     expect(ticks(millions, 3)).toEqual([0, 2000000, 4000000]);
-    expect(ticks(millions, 5)).toEqual([0, 1000000, 2000000, 3000000]);
+    // Four ticks to 3M and six to 2.5M are equally near five: the tighter axis wins.
+    expect(ticks(millions, 5)).toEqual([0, 500000, 1000000, 1500000, 2000000, 2500000]);
     expect(ticks(millions, 8)).toEqual([0, 500000, 1000000, 1500000, 2000000, 2500000]);
 
     const aroundZero = [-40, 35];
     expect(ticks(aroundZero, 2)).toEqual([-50, 0, 50]);
     expect(ticks(aroundZero, 3)).toEqual([-50, 0, 50]);
-    expect(ticks(aroundZero, 5)).toEqual([-50, 0, 50, 100]);
-    expect(ticks(aroundZero, 8)).toEqual([-40, -20, 0, 20, 40, 60]);
+    expect(ticks(aroundZero, 5)).toEqual([-40, -20, 0, 20, 40, 60]);
+    // Six ticks to 60 and ten to 50 are equally near eight: the tighter axis wins.
+    expect(ticks(aroundZero, 8)).toEqual([-40, -30, -20, -10, 0, 10, 20, 30, 40, 50]);
 
     for (const data of [upTo610, millions, aroundZero, [0.031, 0.042], [7], [3, 99999]]) {
       for (const count of [1, 2, 3, 4, 5, 6, 8, 12, 20]) {
@@ -315,15 +317,87 @@ describe('valueAxis', () => {
     expect(valueAxis(values, [200, 10], { ticks: 0 }).ticks).toEqual([]);
   });
 
-  it('prefers the smaller set on a tie, and a set of two over a lone tick', () => {
-    const scale = (sizes: Record<number, number>) => (nice: number) => ({
-      ticks: () => Array.from({ length: sizes[nice] ?? 0 }, (_, i) => i),
-    });
-    // Asked for 3: two ticks and four ticks are equally close.
-    expect(closestTicks(3, scale({ 1: 2, 2: 2, 3: 4, 4: 4, 5: 7 })).ticks).toHaveLength(2);
-    expect(closestTicks(3, scale({ 1: 2, 2: 3, 3: 5, 4: 5, 5: 8 })).ticks).toHaveLength(3);
-    expect(closestTicks(2, scale({ 1: 1, 2: 3, 3: 3, 4: 5 })).ticks).toHaveLength(3);
-    expect(closestTicks(1, scale({ 1: 1, 2: 3, 3: 3 })).ticks).toHaveLength(1);
+  it('breaks a tie by the tighter domain, then the wider reach of the ticks, then fewer', () => {
+    /** A scale per nice count: its domain and the ticks it draws. */
+    const scales =
+      (sets: Record<number, { domain: [number, number]; ticks: number[] }>) => (nice: number) => ({
+        domain: () => sets[nice]?.domain ?? [0, 1],
+        ticks: () => sets[nice]?.ticks ?? [],
+      });
+    const far = { domain: [0, 99] as [number, number], ticks: [0, 9, 18, 27, 36, 45, 54, 63, 72] };
+
+    // Values from 1 to 5, three ticks asked: 0, 10 and 0, 2, 4, 6 are equally near. The axis
+    // that leaves less empty space wins.
+    const tighter = closestTicks(
+      3,
+      scales({
+        1: { domain: [0, 10], ticks: [0, 10] },
+        2: { domain: [0, 6], ticks: [0, 2, 4, 6] },
+        3: far,
+        4: far,
+        5: far,
+      }),
+    );
+    expect(tighter.ticks).toEqual([0, 2, 4, 6]);
+
+    // Bounds of 2% and 5% fix the domain: the ticks that reach both ends win over 2%, 4%.
+    const bounded: [number, number] = [0.02, 0.05];
+    const reach = closestTicks(
+      3,
+      scales({
+        1: { domain: bounded, ticks: [0.02, 0.04] },
+        2: { domain: bounded, ticks: [0.02, 0.04] },
+        3: { domain: bounded, ticks: [0.02, 0.03, 0.04, 0.05] },
+        4: { domain: bounded, ticks: [0.02, 0.03, 0.04, 0.05] },
+        5: { domain: bounded, ticks: [0.02, 0.025, 0.03, 0.035, 0.04, 0.045, 0.05] },
+      }),
+    );
+    expect(reach.ticks).toEqual([0.02, 0.03, 0.04, 0.05]);
+
+    // Same domain, same reach: the smaller set.
+    const fewer = closestTicks(
+      3,
+      scales({
+        1: { domain: [0, 12], ticks: [0, 12] },
+        2: { domain: [0, 12], ticks: [0, 12] },
+        3: { domain: [0, 12], ticks: [0, 4, 8, 12] },
+        4: { domain: [0, 12], ticks: [0, 4, 8, 12] },
+        5: far,
+      }),
+    );
+    expect(fewer.ticks).toEqual([0, 12]);
+
+    // A nearer size always beats a tighter domain.
+    const nearer = closestTicks(
+      3,
+      scales({
+        1: { domain: [0, 10], ticks: [0, 5, 10] },
+        2: { domain: [0, 6], ticks: [0, 2, 4, 6] },
+        3: far,
+        4: far,
+        5: far,
+      }),
+    );
+    expect(nearer.ticks).toEqual([0, 5, 10]);
+
+    // One tick marks no interval, so it only wins when one tick was asked for.
+    const lone = { domain: [0, 4] as [number, number], ticks: [0] };
+    const three = { domain: [0, 4] as [number, number], ticks: [0, 2, 4] };
+    expect(closestTicks(2, scales({ 1: lone, 2: three, 3: three, 4: far })).ticks).toEqual([
+      0, 2, 4,
+    ]);
+    expect(closestTicks(1, scales({ 1: lone, 2: three, 3: three })).ticks).toEqual([0]);
+  });
+
+  it('applies the tie rule on real axes', () => {
+    // Bounds of 2% and 5%, three ticks asked.
+    expect(valueAxis([0.031, 0.042], [200, 10], { min: 0.02, max: 0.05, ticks: 3 }).ticks).toEqual([
+      0.02, 0.03, 0.04, 0.05,
+    ]);
+    // 0, 500, 1000 and 0, 200 … 800 are equally near four: the tighter axis.
+    expect(valueAxis([120, 610, 340], [200, 10], { ticks: 4 }).ticks).toEqual([
+      0, 200, 400, 600, 800,
+    ]);
   });
 
   it('refuses bounds that would cut marks measured from zero', () => {

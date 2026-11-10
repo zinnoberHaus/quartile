@@ -178,25 +178,53 @@ export function describeReferences(
 /**
  * The tick set closest in size to `count`. d3 rounds a requested count to the nearest tidy step,
  * which can land far from it (three asked, five drawn), so the sets for the counts around the
- * request are compared and the one nearest in size wins, the smaller on a tie. `make(n)` builds
- * the scale niced for `n` ticks; the same `n` then draws them, so the end ticks still bound
- * the data.
+ * request (two below to two above) are compared and the one nearest in size wins. `make(n)`
+ * builds the scale niced for `n` ticks; the same `n` then draws them, so the end ticks still
+ * bound the data.
+ *
+ * Between sets equally near the request, the better axis wins: first the tighter domain, so the
+ * data fills the plot (0, 2, 4, 6 rather than 0, 10 for values up to 5); then, under the same
+ * domain, the ticks that reach further across it (2%, 3%, 4%, 5% rather than 2%, 4% between
+ * bounds of 2% and 5%); then the smaller set.
  */
-export function closestTicks<S extends { ticks(count: number): number[] }>(
+export function closestTicks<S extends { ticks(count: number): number[]; domain(): number[] }>(
   count: number,
   make: (nice: number) => S,
 ): { scale: S; ticks: number[] } {
-  let best: { scale: S; ticks: number[]; off: number } | undefined;
+  interface Candidate {
+    scale: S;
+    ticks: number[];
+    /** Distance from the count asked for. */
+    off: number;
+    /** Extent of the niced domain. */
+    span: number;
+    /** Extent the ticks mark, first to last. */
+    reach: number;
+  }
+  const same = (a: number, b: number) =>
+    Math.abs(a - b) <= 1e-9 * Math.max(Math.abs(a), Math.abs(b));
+  const better = (a: Candidate, b: Candidate) => {
+    if (a.off !== b.off) return a.off < b.off;
+    if (!same(a.span, b.span)) return a.span < b.span;
+    if (!same(a.reach, b.reach)) return a.reach > b.reach;
+    return a.ticks.length < b.ticks.length;
+  };
+  let best: Candidate | undefined;
   for (let n = Math.max(1, count - 2); n <= count + 2; n++) {
     const scale = make(n);
     const ticks = scale.ticks(n);
-    // One tick marks no interval: such a set only wins when one tick was asked for.
-    const off = Math.abs(ticks.length - count) + (ticks.length < Math.min(2, count) ? 100 : 0);
-    if (!best || off < best.off || (off === best.off && ticks.length < best.ticks.length)) {
-      best = { scale, ticks, off };
-    }
+    const domain = scale.domain();
+    const candidate: Candidate = {
+      scale,
+      ticks,
+      // One tick marks no interval: such a set only wins when one tick was asked for.
+      off: Math.abs(ticks.length - count) + (ticks.length < Math.min(2, count) ? 100 : 0),
+      span: Math.abs(domain[domain.length - 1] - domain[0]),
+      reach: ticks.length > 1 ? Math.abs(ticks[ticks.length - 1] - ticks[0]) : 0,
+    };
+    if (!best || better(candidate, best)) best = candidate;
   }
-  return best as { scale: S; ticks: number[] };
+  return best as Candidate;
 }
 
 /** An approximate tick count: a whole number from 0 to 20, or `fallback` with no setting. */

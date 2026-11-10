@@ -719,6 +719,25 @@ describe('ScatterPlot presentation', () => {
     const two = draw(scatter({ xTicks: 2, yTicks: 2 }));
     expect(texts(axes(two)[0], 'text')).toEqual(['0', '10']);
     expect(texts(axes(two)[1], 'text')).toEqual(['0', '50']);
+    // y from 1 to 4.9, three ticks asked: d3 offers 0, 10 and 0, 2, 4, 6, equally near in size.
+    // The axis the points fill wins.
+    const yLabels = (scores: number[]) =>
+      texts(
+        axes(
+          draw(
+            <ScatterPlot
+              data={scores.map((score, i) => ({ weight: 10 + i, score }))}
+              x="weight"
+              y="score"
+              yTicks={3}
+            />,
+          ),
+        )[0],
+        'text',
+      );
+    expect(yLabels([1, 4.9, 3, 2.2, 4])).toEqual(['0', '2', '4', '6']);
+    // With whole values from 1 to 5 the tightest tidy axis is 0 to 5, marked at its ends.
+    expect(yLabels([1, 5, 3, 2, 4])).toEqual(['0', '5']);
     expect(texts(axes(draw(scatter()))[0], 'text')).toEqual(['2', '3', '4', '5']);
     expect(draw(scatter({ grid: false })).querySelector('.q-chart-grid')).toBeNull();
     expect(columns(draw(scatter({ grid: 'x' }))).length).toBeGreaterThan(0);

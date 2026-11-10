@@ -120,6 +120,10 @@ describe('documented examples', () => {
     expect(texts(y, 'text')).toEqual(['2%', '3%', '4%', '5%']);
     expect(texts(x, 'text')).toHaveLength(4);
     expect(root.querySelector('.q-chart-grid')).toBeNull();
+    // Asking for three between the same bounds keeps these four: 2%, 4% is as near in size,
+    // but stops short of the upper bound.
+    const three = block(EXAMPLES.axes.replace('y.ticks: 4', 'y.ticks: 3'));
+    expect(texts(three.querySelector('.q-chart-axis')!, 'text')).toEqual(['2%', '3%', '4%', '5%']);
   });
 
   it('legend and labels: legend under the plot, names and last values at the line ends', () => {

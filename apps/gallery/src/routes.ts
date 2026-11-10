@@ -311,7 +311,10 @@ export const staticPages: readonly StaticPage[] = [
     name: 'Charts on a plain HTML page',
     description:
       'A plain HTML page with one script tag: Quartile turns quartile code blocks into interactive charts that take the page’s own colors and fonts.',
-    sources: ['apps/gallery/public/examples/embed/demo.html'],
+    sources: [
+      'apps/gallery/public/examples/embed/demo.html',
+      'apps/gallery/public/examples/embed/tickets.json',
+    ],
   },
 ];
 

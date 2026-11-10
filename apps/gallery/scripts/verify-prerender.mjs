@@ -393,7 +393,7 @@ try {
 
   // The plain-HTML embed demo loads its script and data from next to itself.
   await tab.goto(`${base}/examples/embed/demo`);
-  await tab.waitForFunction(() => document.querySelectorAll('quartile-chart').length === 5);
+  await tab.waitForFunction(() => document.querySelectorAll('quartile-chart').length === 6);
   await tab.waitForLoadState('networkidle');
 
   // An unknown path gets the app shell, which says so, stays out of indexes and links back.

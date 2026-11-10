@@ -40,4 +40,15 @@ export default defineConfig([
     },
     clean: false,
   },
+  {
+    // The `quartile` command (package.json "bin"): Node only, no declarations.
+    entry: { cli: 'src/cli/index.ts' },
+    format: ['esm'],
+    platform: 'node',
+    target: 'node20',
+    dts: false,
+    sourcemap: false,
+    clean: false,
+    banner: { js: '#!/usr/bin/env node' },
+  },
 ]);

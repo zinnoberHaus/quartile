@@ -26,6 +26,9 @@
     "./dist/embed/quartile.js",
     "./dist/embed/quartile.global.js"
   ],
+  "bin": {
+    "quartile": "./dist/cli.js"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

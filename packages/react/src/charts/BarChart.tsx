@@ -68,7 +68,10 @@ export interface BarChartProps<R extends Row = Row>
   format?: Formatter;
   /** Formats the category labels. Defaults to the field's schema format. */
   xFormat?: Formatter;
-  /** Series colors, by index or by group value. Defaults to the categorical palette in order. */
+  /**
+   * Series colors, by index or by group value: palette names, 1–8 or any CSS color. Defaults to
+   * the categorical palette in order.
+   */
   colors?: ChartColor[] | Record<string, ChartColor>;
   /**
    * Shows a legend under the plot, or on the side named, that doubles as a group filter.

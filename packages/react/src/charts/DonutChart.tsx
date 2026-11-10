@@ -38,7 +38,10 @@ export interface DonutChartProps<R extends Row = Row> extends ChartBaseProps {
    * Defaults to true.
    */
   legend?: LegendSetting;
-  /** Slice colors, by index or by category. Defaults to the categorical palette in order. */
+  /**
+   * Slice colors, by index or by category: palette names, 1–8 or any CSS color. Defaults to the
+   * categorical palette in order.
+   */
   colors?: ChartColor[] | Record<string, ChartColor>;
   /** Adds each slice's value to its legend row, next to the share. */
   labels?: boolean;

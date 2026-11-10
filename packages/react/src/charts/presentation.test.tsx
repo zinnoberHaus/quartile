@@ -60,7 +60,10 @@ const summary = (root: ParentNode) => root.querySelector('p.q-visually-hidden')?
 const draw = (el: ReactElement) => render(el).container;
 const html = (el: ReactElement) => renderToStaticMarkup(el);
 
-const REFUSED = ['red', 'rgb(47, 69, 232)', 'url(https://example.com/p.svg#a)', 'var(--x)', '#12'];
+// React props are the developer's code: any CSS color works there. (Blocks and specs are held
+// to tokens and hex; that is tested where their text is read: lang/style.test.ts,
+// spec/presentation-schema.test.ts and spec/color-gates.test.tsx.)
+const CSS_COLORS = ['rebeccapurple', 'rgb(20 80 200)', 'var(--brand)'];
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -100,17 +103,21 @@ describe('LineChart presentation', () => {
     expect(byKey).toContain('stroke:var(--q-cat-5)');
   });
 
-  it('never lets a refused color into the markup', () => {
+  it('takes any CSS color from a developer, without a warning', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const markup = html(
-      <LineChart data={plans} x="month" y="users" color="plan" colors={REFUSED} />,
+      <LineChart data={plans} x="month" y="users" color="plan" colors={CSS_COLORS} />,
     );
-    expect(markup).toContain('stroke:var(--q-cat-1)');
-    expect(markup).toContain('stroke:var(--q-cat-2)');
-    for (const value of REFUSED) expect(markup).not.toContain(value);
-    expect(markup).not.toContain('example.com');
-    expect(warn).toHaveBeenCalled();
-    expect(String(warn.mock.calls[0][0])).toMatch(/Ignored the color .*hex color such as #2f45e8/);
+    expect(markup).toContain('stroke:rebeccapurple');
+    expect(markup).toContain('stroke:rgb(20 80 200)');
+    expect(markup).not.toContain('--q-cat-1');
+    expect(warn).not.toHaveBeenCalled();
+
+    // A prop that is not a color at all leaves that series on the palette, and says so.
+    const gap = html(<LineChart data={plans} x="month" y="users" color="plan" colors={[12, '']} />);
+    expect(gap).toContain('stroke:var(--q-cat-1)');
+    expect(gap).toContain('stroke:var(--q-cat-2)');
+    expect(String(warn.mock.calls[0][0])).toMatch(/Ignored the color 12\. .*or a CSS color/);
   });
 
   it('bounds the y axis and clips the line to the plot', () => {
@@ -364,14 +371,14 @@ describe('BarChart presentation', () => {
     expect(num(custom[custom.length - 1], 'y1')).toBe(30.5);
   });
 
-  it('colors bars from the palette or hex, and refuses anything else', () => {
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  it('colors bars from the palette, hex or any CSS color', () => {
     const markup = html(grouped({ colors: ['muted', '#2f45e8'] }));
     expect(markup).toContain('fill:var(--q-series-muted)');
     expect(markup).toContain('fill:#2f45e8');
-    const refused = html(grouped({ colors: REFUSED }));
-    expect(refused).toContain('fill:var(--q-cat-1)');
-    for (const value of REFUSED) expect(refused).not.toContain(value);
+    const css = html(grouped({ colors: CSS_COLORS }));
+    expect(css).toContain('fill:rebeccapurple');
+    expect(css).toContain('fill:rgb(20 80 200)');
+    expect(html(grouped({ colors: { 2026: 'var(--brand)' } }))).toContain('fill:var(--brand)');
   });
 
   it('refuses axis bounds that would cut a bar, and accepts bounds that add room', () => {
@@ -488,10 +495,9 @@ describe('ScatterPlot presentation', () => {
     expect(grouped).toContain('#111111');
     expect(grouped).toContain('var(--q-warning)');
     expect(html(scatter({ colors: ['negative'] }))).toContain('var(--q-negative)');
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const refused = html(scatter({ colors: REFUSED }));
-    for (const value of REFUSED) expect(refused).not.toContain(value);
-    expect(refused).toContain('var(--q-cat-1)');
+    const css = html(scatter({ color: 'seg', colors: CSS_COLORS }));
+    expect(css).toContain('rebeccapurple');
+    expect(css).toContain('rgb(20 80 200)');
   });
 
   it('bounds both axes, leaves out points beyond them and says so', () => {
@@ -551,15 +557,14 @@ describe('Histogram presentation', () => {
     ]);
   });
 
-  it('takes one validated bar color', () => {
+  it('takes one bar color', () => {
     expect(html(histogram({ color: 'positive' }))).toContain('fill:var(--q-positive)');
     expect(html(histogram({ color: '#2f45e8' }))).toContain('fill:#2f45e8');
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
-    for (const value of REFUSED) {
-      const markup = html(histogram({ color: value }));
-      expect(markup).toContain('fill:var(--q-dist-fill)');
-      expect(markup).not.toContain(value);
+    for (const value of CSS_COLORS) {
+      expect(html(histogram({ color: value }))).toContain(`fill:${value}`);
     }
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(html(histogram({ color: '' }))).toContain('fill:var(--q-dist-fill)');
   });
 
   it('labels bars, hides the axis and marks a reference value with a vertical rule', () => {
@@ -615,14 +620,13 @@ describe('DonutChart presentation', () => {
     <DonutChart data={flat} category="region" value="users" {...props} />
   );
 
-  it('colors slices and refuses anything but tokens', () => {
+  it('colors slices from the palette, hex or any CSS color', () => {
     const markup = html(donut({ colors: ['signal', '#f26b3a'] }));
     expect(markup).toContain('stroke:var(--q-signal)');
     expect(markup).toContain('stroke:#f26b3a');
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const refused = html(donut({ colors: REFUSED }));
-    expect(refused).toContain('stroke:var(--q-cat-1)');
-    for (const value of REFUSED) expect(refused).not.toContain(value);
+    const css = html(donut({ colors: { EMEA: 'rebeccapurple', APAC: 'var(--brand)' } }));
+    expect(css).toContain('stroke:rebeccapurple');
+    expect(css).toContain('stroke:var(--brand)');
   });
 
   it('places the legend and adds values to it', () => {
@@ -648,15 +652,12 @@ describe('DonutChart presentation', () => {
 });
 
 describe('single-color charts', () => {
-  it('colors a sparkline line from a token and falls back when refused', () => {
+  it('colors a sparkline line from a token or any CSS color', () => {
     expect(html(<Sparkline data={[1, 3, 2]} color="signal" />)).toContain('stroke:var(--q-signal)');
     expect(html(<Sparkline data={[1, 3, 2]} color="#2f45e8" />)).toContain('stroke:#2f45e8');
     expect(html(<Sparkline data={[1, 3, 2]} />)).toContain('stroke:var(--q-text)');
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
-    for (const value of REFUSED) {
-      const markup = html(<Sparkline data={[1, 3, 2]} color={value} />);
-      expect(markup).toContain('stroke:var(--q-text)');
-      expect(markup).not.toContain(value);
+    for (const value of CSS_COLORS) {
+      expect(html(<Sparkline data={[1, 3, 2]} color={value} />)).toContain(`stroke:${value}`);
     }
   });
 
@@ -670,11 +671,6 @@ describe('single-color charts', () => {
       '--q-bar-list-fill:color-mix(in srgb, var(--q-positive) 16%, transparent)',
     );
     expect(html(list())).not.toContain('--q-bar-list-color');
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
-    for (const value of REFUSED) {
-      const refused = html(list({ color: value }));
-      expect(refused).not.toContain('--q-bar-list-color');
-      expect(refused).not.toContain(value);
-    }
+    expect(html(list({ color: 'rebeccapurple' }))).toContain('--q-bar-list-color:rebeccapurple');
   });
 });

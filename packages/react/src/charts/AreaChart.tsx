@@ -94,7 +94,10 @@ export interface AreaChartProps<R extends Row = Row>
    * Defaults to true for 2+ series.
    */
   legend?: LegendSetting;
-  /** Series colors, by index or by series key. Defaults to the categorical palette in order. */
+  /**
+   * Series colors, by index or by series key: palette names, 1–8 or any CSS color. Defaults to
+   * the categorical palette in order.
+   */
   colors?: ChartColor[] | Record<string, ChartColor>;
   /** Writes each series' name and last value at the end of its line. */
   labels?: boolean;

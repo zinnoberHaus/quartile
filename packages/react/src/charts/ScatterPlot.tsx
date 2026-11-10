@@ -99,7 +99,10 @@ export interface ScatterPlotProps<R extends Row = Row>
   typedSelection?: boolean;
   /** Shows a legend above the plot, or on the side named. Defaults to true when `color` is set. */
   legend?: LegendSetting;
-  /** Point colors per group of `color`, in order; without `color`, the first one colors every point. */
+  /**
+   * Point colors per group of `color`, in order: palette names, 1–8 or any CSS color. Without
+   * `color`, the first one colors every point.
+   */
   colors?: ChartColor[] | Record<string, ChartColor>;
   /**
    * `log` spaces equal ratios of `y` evenly. It needs every y value above zero; otherwise the

@@ -55,7 +55,7 @@ export interface HistogramProps<R extends Row = Row>
   brush?: boolean;
   /** Marks the median of `x` with a labelled rule. Quantitative `x` only. */
   median?: boolean;
-  /** Bar fill: a palette name, 1–8, or a hex color. Defaults to the soft signal tint. */
+  /** Bar fill: a palette name, 1–8, or any CSS color. Defaults to the soft signal tint. */
   color?: ChartColor;
   /** Writes each bin's count (or sum) above its bar; a label wider than its bar is left out. */
   labels?: boolean;

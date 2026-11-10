@@ -7,6 +7,7 @@ import {
   pickColor,
   seriesColors,
   singleColor,
+  specColors,
 } from './colors';
 import {
   boundX,
@@ -26,7 +27,8 @@ import { seriesColor, valueScale } from './scales';
 
 afterEach(() => vi.restoreAllMocks());
 
-const REFUSED = [
+/** Text a block or a spec must never carry as a color. Much of it is valid CSS. */
+const NOT_DATA = [
   'red',
   'rgb(47, 69, 232)',
   'rgba(0,0,0,.5)',
@@ -61,11 +63,24 @@ describe('chart colors', () => {
     expect(chartColor('#2F45E880')).toBe('#2F45E880');
   });
 
-  it('lets nothing else reach a style', () => {
-    for (const value of REFUSED.filter((v) => v !== 'Signal ')) {
-      expect([value, chartColor(value)]).toEqual([value, null]);
+  it('uses any other CSS color a developer passes, as written', () => {
+    for (const css of [
+      'rebeccapurple',
+      'rgb(20 80 200)',
+      'hsl(230 80% 55% / 0.5)',
+      'var(--brand)',
+      'var(--q-line-strong)',
+      'color-mix(in srgb, red 40%, white)',
+      'currentColor',
+    ]) {
+      expect(chartColor(css)).toBe(css);
     }
-    for (const value of [0, 9, 1.5, Number.NaN, null, undefined, {}, [], true]) {
+    expect(chartColor('  tomato ')).toBe('tomato');
+    expect(chartColor('Signal')).toBe('var(--q-signal)');
+  });
+
+  it('has no CSS value for a prop that is not a color', () => {
+    for (const value of ['', '   ', 0, 9, 1.5, Number.NaN, null, undefined, {}, [], true]) {
       expect(chartColor(value)).toBeNull();
     }
   });
@@ -75,7 +90,7 @@ describe('chart colors', () => {
     for (const ok of ['signal', 'muted', '1', '8', '#abc', '#2f45e8', '#2F45E8AA']) {
       expect([ok, isChartColor(ok), pattern.test(ok)]).toEqual([ok, true, true]);
     }
-    for (const bad of [...REFUSED, 'var(--q-signal)', 'SIGNAL', '#abcd']) {
+    for (const bad of [...NOT_DATA, 'rebeccapurple', 'var(--q-signal)', 'SIGNAL', '#abcd']) {
       expect([bad, isChartColor(bad), pattern.test(bad)]).toEqual([bad, false, false]);
     }
     expect(isChartColor(3)).toBe(true);
@@ -83,31 +98,42 @@ describe('chart colors', () => {
     expect(isChartColor(2.5)).toBe(false);
   });
 
-  it('keeps a Quartile token reference for React callers, and no other var()', () => {
-    expect(chartColor('var(--q-line-strong)')).toBe('var(--q-line-strong)');
-    expect(chartColor('var(--brand)')).toBeNull();
-    expect(chartColor('var(--q-signal, url(x))')).toBeNull();
-    expect(isChartColor('var(--q-line-strong)')).toBe(false);
+  it('filters the color settings of a spec down to what data may carry', () => {
+    expect(specColors(['signal', 'red', 3, 'url(https://example.com/x)', '#2f45e8'])).toEqual([
+      'signal',
+      3,
+      '#2f45e8',
+    ]);
+    expect(specColors('#2f45e8')).toBe('#2f45e8');
+    expect(specColors('rebeccapurple')).toBeUndefined();
+    expect(specColors({ Paid: 'red' })).toBeUndefined();
+    expect(specColors(undefined)).toBeUndefined();
   });
 
-  it('drops refused entries with a warning that says what is allowed', () => {
+  it('resolves series colors, leaving a gap only for props that are not colors', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    expect(seriesColors(['signal', 'tomato', 3])).toEqual([
+    expect(seriesColors(['signal', 'tomato', 3, 'rgb(1 2 3)'])).toEqual([
       'var(--q-signal)',
-      undefined,
+      'tomato',
       'var(--q-cat-3)',
+      'rgb(1 2 3)',
     ]);
-    expect(seriesColors({ Paid: '#ff0000', Organic: 'url(x)' })).toEqual({ Paid: '#ff0000' });
+    expect(seriesColors({ Paid: '#ff0000', Organic: 'var(--brand)' })).toEqual({
+      Paid: '#ff0000',
+      Organic: 'var(--brand)',
+    });
     expect(seriesColors(undefined)).toBeUndefined();
-    expect(singleColor('nope-1', 'var(--q-text)')).toBe('var(--q-text)');
-    expect(optionalColor('nope-2')).toBeUndefined();
+    expect(singleColor('teal', 'var(--q-text)')).toBe('teal');
     expect(optionalColor('positive')).toBe('var(--q-positive)');
+    // A developer's CSS color is never reported.
+    expect(warn).not.toHaveBeenCalled();
+
+    expect(seriesColors(['signal', 12, ''])).toEqual(['var(--q-signal)', undefined, undefined]);
+    expect(singleColor({}, 'var(--q-text)')).toBe('var(--q-text)');
+    expect(optionalColor(0)).toBeUndefined();
     const messages = warn.mock.calls.map((c) => String(c[0]));
-    expect(messages.some((m) => m.includes('“tomato”') && m.includes('hex color'))).toBe(true);
-    expect(messages.some((m) => m.includes('“url(x)”'))).toBe(true);
-    expect(messages.every((m) => m.includes('signal, positive, negative, warning, muted'))).toBe(
-      true,
-    );
+    expect(messages.some((m) => m.includes('Ignored the color 12'))).toBe(true);
+    expect(messages.every((m) => m.includes('or a CSS color'))).toBe(true);
   });
 
   it('picks by index or by own key, falling back to the palette', () => {

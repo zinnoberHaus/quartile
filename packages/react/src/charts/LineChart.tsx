@@ -104,7 +104,10 @@ export interface LineChartProps<R extends Row = Row>
    * than one series.
    */
   legend?: LegendSetting;
-  /** Series colors in order, or by series key. Series without one keep the categorical palette. */
+  /**
+   * Series colors in order, or by series key: palette names, 1–8 or any CSS color. Series
+   * without one keep the categorical palette.
+   */
   colors?: ChartColor[] | Record<string, ChartColor>;
   /** Writes each series' name and last value at the end of its line. */
   labels?: boolean;

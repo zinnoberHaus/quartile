@@ -39,7 +39,7 @@ export interface BarListProps<R extends Row = Row> extends ChartBaseProps {
    * `fill`: a compact row with the bar drawn as a soft fill behind the label.
    */
   variant?: 'bar' | 'fill';
-  /** Bar color: a palette name, 1–8, or a hex color. Defaults to the signal color. */
+  /** Bar color: a palette name, 1–8, or any CSS color. Defaults to the signal color. */
   color?: ChartColor;
   /** Clicking a row (or Enter on it) toggles its category in the nearest Selection. */
   select?: boolean;

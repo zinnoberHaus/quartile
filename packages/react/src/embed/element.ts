@@ -71,7 +71,12 @@ const THEMES = new Set<ThemeSetting>(['light', 'dark', 'system', 'auto']);
 let counter = 0;
 
 /** Page-wide defaults for elements without their own attributes. */
-const defaults: { theme: ThemeSetting; host?: HostTheme; accent?: string } = { theme: 'auto' };
+const defaults: {
+  theme: ThemeSetting;
+  host?: HostTheme;
+  accent?: string;
+  blockColors?: boolean;
+} = { theme: 'auto' };
 
 export function setElementDefaults(options: Partial<typeof defaults>) {
   Object.assign(defaults, options);
@@ -254,6 +259,7 @@ export class QuartileChartElement extends HTMLElement {
           locale: this.getAttribute('locale') ?? undefined,
           timeZone: this.getAttribute('time-zone') ?? undefined,
           initialWidth: Number.isFinite(width) && width > 0 ? width : undefined,
+          blockColors: defaults.blockColors,
           // Pages restyle the chart with `quartile-chart::part(root) { --q-signal: … }`.
           part: 'root',
           dataDisplay:
@@ -369,15 +375,24 @@ export function observeBlocks(root: ParentNode = document, options: EmbedOptions
   };
 }
 
-/** Page-wide settings: source policy, languages, and defaults for theme, host and accent. */
+/**
+ * Page-wide settings: source policy, languages, defaults for theme, host and accent, and
+ * whether blocks may set chart colors (`blockColors`, default true).
+ */
 export function configureEmbed(
-  options: EmbedOptions & { theme?: ThemeSetting; host?: HostTheme; accent?: string },
+  options: EmbedOptions & {
+    theme?: ThemeSetting;
+    host?: HostTheme;
+    accent?: string;
+    blockColors?: boolean;
+  },
 ) {
-  const { theme, host, accent, ...rest } = options;
+  const { theme, host, accent, blockColors, ...rest } = options;
   Object.assign(pageScope().options, rest);
   setElementDefaults({
     ...(theme ? { theme } : {}),
     ...(host ? { host } : {}),
     ...(accent ? { accent } : {}),
+    ...(blockColors !== undefined ? { blockColors } : {}),
   });
 }

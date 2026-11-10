@@ -136,3 +136,30 @@ button.q-donut-row[aria-pressed="true"] {
   font: 500 12px var(--q-font-mono);
   font-variant-numeric: tabular-nums;
 }
+
+.q-donut-amount {
+  font: 400 12px var(--q-font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--q-text-2);
+}
+
+/* The legend on a named side: before the ring, or above or below it at full width. */
+.q-donut[data-legend="left"] {
+  flex-direction: row-reverse;
+}
+
+.q-donut[data-legend="top"],
+.q-donut[data-legend="bottom"] {
+  flex-wrap: nowrap;
+  flex-direction: column;
+}
+
+.q-donut[data-legend="top"] {
+  flex-direction: column-reverse;
+}
+
+.q-donut[data-legend="top"] .q-donut-legend,
+.q-donut[data-legend="bottom"] .q-donut-legend {
+  flex: none;
+  width: 100%;
+}

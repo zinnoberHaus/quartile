@@ -7,6 +7,10 @@ export default defineConfig({
         find: /^@quartile\/react$/,
         replacement: new URL('./src/index.ts', import.meta.url).pathname,
       },
+      {
+        find: /^quartile:styles$/,
+        replacement: new URL('./test/stubs/quartile-styles.ts', import.meta.url).pathname,
+      },
     ],
   },
   test: {

@@ -24,6 +24,7 @@ import {
   parseFieldExpr,
   type ViewNode,
 } from './parse';
+import { finishStyle, isReferenceKey, readStyleSetting, styleJsonSpec, styleState } from './style';
 import { type FieldMeta, parseTable, wholeCurrency } from './table';
 
 export interface CompileOptions extends ParseOptions {
@@ -33,6 +34,11 @@ export interface CompileOptions extends ParseOptions {
   pendingDatasets?: readonly string[];
   /** Keep at most this many inline rows. Defaults to 5,000. */
   maxRows?: number;
+  /**
+   * Let blocks set chart colors (`colors:`, `color: #2f45e8`). Defaults to true; false drops
+   * them with a note, for hosts whose charts must keep the page's own palette.
+   */
+  blockColors?: boolean;
 }
 
 export interface CompiledBlock {
@@ -259,6 +265,8 @@ function fieldMetaFrom(
     if (['x', 'y', 'color', 'value', 'size', 'category', 'group', 'target'].includes(fieldName)) {
       continue;
     }
+    // `reference.label` names a reference line, unless a column carries that name.
+    if (isReferenceKey(fieldName, columns)) continue;
     const column =
       columns.find((c) => c === fieldName) ??
       columns.find((c) => c.toLowerCase() === fieldName.toLowerCase());
@@ -410,6 +418,7 @@ interface ViewContext {
   inDashboard: boolean;
   complete: boolean;
   diagnostics: Diagnostic[];
+  blockColors: boolean;
 }
 
 interface CompiledView {
@@ -660,7 +669,19 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
   let link: string | null | undefined;
   let hasCountMeasure = false;
   let viewFormat: { format: Formatter; currency?: string; line: number } | undefined;
-  for (const p of view.props) {
+  const style = styleState({
+    component,
+    kind: view.kind,
+    props: schemaProps,
+    spec,
+    lines,
+    diagnostics,
+    columns: resolver.columns,
+    blockColors: ctx.blockColors,
+  });
+  for (const entry of view.props) {
+    const p = readStyleSetting(entry, style);
+    if (!p) continue;
     const dot = p.key.lastIndexOf('.');
     if (dot > 0) {
       const head = p.key.slice(0, dot).trim();
@@ -807,6 +828,7 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
     }
   }
   for (const [k, v] of Object.entries(view.implied)) if (spec[k] === undefined) spec[k] = v;
+  finishStyle(style);
 
   // 3. The sentence: measures, dimensions and the `vs` field.
   const s = view.sentence;
@@ -1483,6 +1505,11 @@ function compileJson(block: BlockNode, options: CompileOptions): CompiledBlock {
     spec = obj as unknown as ComponentSpec;
   }
   const all = { ...options.datasets, ...data };
+  for (const item of Array.isArray((spec as DashboardSpec).layout)
+    ? (spec as DashboardSpec).layout
+    : [spec as ComponentSpec]) {
+    styleJsonSpec(item, diagnostics, options.blockColors !== false);
+  }
   const result = validateSpec(spec);
   for (const e of result.errors) diagnostics.push(error(`${e.path || '/'}: ${e.message}`));
   const isDash = Array.isArray((spec as DashboardSpec).layout);
@@ -1625,6 +1652,7 @@ export function compileBlock(
     inDashboard: block.type === 'dashboard',
     complete,
     diagnostics,
+    blockColors: options.blockColors !== false,
   };
 
   if (block.type === 'view') {

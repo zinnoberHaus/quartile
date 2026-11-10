@@ -1,4 +1,4 @@
-import { type KeyboardEvent, useMemo, useRef, useState } from 'react';
+import { type CSSProperties, type KeyboardEvent, useMemo, useRef, useState } from 'react';
 import { deltaTone, formatDelta, makeFieldFormatter } from '../data/format';
 import { finiteNumber } from '../data/number';
 import type { Predicate } from '../data/predicates';
@@ -8,6 +8,7 @@ import type { DataInput, Formatter, Row } from '../data/types';
 import { useQuartile } from '../provider/QuartileProvider';
 import { useLinkedRows, useSourceId } from '../selection/Selection';
 import { type ChartBaseProps, ChartFrame, type ChartTable, statusOf } from './core/ChartFrame';
+import { type ChartColor, optionalColor } from './core/colors';
 import { type Aggregate, aggregateBy, type Bucket, type SortOrder } from './core/trends-aggregate';
 import { listFormat } from './core/trends-format';
 import { useToggleSelect } from './core/trends-select';
@@ -38,6 +39,8 @@ export interface BarListProps<R extends Row = Row> extends ChartBaseProps {
    * `fill`: a compact row with the bar drawn as a soft fill behind the label.
    */
   variant?: 'bar' | 'fill';
+  /** Bar color: a palette name, 1–8, or a hex color. Defaults to the signal color. */
+  color?: ChartColor;
   /** Clicking a row (or Enter on it) toggles its category in the nearest Selection. */
   select?: boolean;
   /** Publisher id for the selection. Defaults to a generated id. */
@@ -64,6 +67,7 @@ export function BarList<R extends Row = Row>(props: BarListProps<R>) {
     delta,
     invertDelta = false,
     variant = 'bar',
+    color,
     select = false,
     id,
     selection,
@@ -180,6 +184,14 @@ export function BarList<R extends Row = Row>(props: BarListProps<R>) {
     buttons[next]?.focus();
   };
 
+  const barColor = optionalColor(color);
+  // Variables, not a background: rows outside the selection keep their own dimmed rule.
+  const listStyle = barColor
+    ? ({
+        '--q-bar-list-color': barColor,
+        '--q-bar-list-fill': `color-mix(in srgb, ${barColor} 16%, transparent)`,
+      } as CSSProperties)
+    : undefined;
   const estimated = (Math.min(buckets.length || 5, limit ?? 6) || 5) * ROW_H[variant];
   // Lists size to their content; states and the visible table need the fixed frame height.
   const autoHeight = status === 'ready' && frame.view !== 'table';
@@ -200,6 +212,7 @@ export function BarList<R extends Row = Row>(props: BarListProps<R>) {
             ref={listRef}
             className="q-bar-list"
             data-variant={variant}
+            style={listStyle}
             role="list"
             onKeyDown={onKeyDown}
           >

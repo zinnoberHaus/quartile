@@ -27,6 +27,8 @@ export interface QuartileDocumentContextValue {
   sourceErrors: Readonly<Record<string, string>>;
   streaming: boolean;
   dataDisplay: DataDisplay;
+  /** Whether blocks may set chart colors. */
+  blockColors: boolean;
   languages: readonly string[];
   /** Registers a `data` block's rows under its name; `key` identifies the definition. */
   register(name: string, data: DataInput, owner: string, key: string): void;
@@ -73,6 +75,11 @@ export interface QuartileDocumentProps extends Omit<QuartileProviderProps, 'chil
   pending?: readonly string[];
   /** How `data` blocks render: a collapsed summary (default), an open table, or nothing. */
   dataDisplay?: DataDisplay;
+  /**
+   * Let blocks set chart colors (`colors:`, `color: #2f45e8`). Defaults to true. Pass false to
+   * keep every chart on the page's own palette; the setting is then dropped with a note.
+   */
+  blockColors?: boolean;
   /** Fence languages read as Quartile blocks. Defaults to `quartile`. */
   languages?: readonly string[];
   /** Wrap children in a QuartileProvider (default). Pass false inside an existing provider. */
@@ -111,6 +118,7 @@ export function QuartileDocument({
   streaming = false,
   pending: hostPending,
   dataDisplay = 'summary',
+  blockColors = true,
   languages = DEFAULT_LANGUAGES,
   provider = true,
   stores: externalStores,
@@ -235,6 +243,7 @@ export function QuartileDocument({
       sourceErrors,
       streaming,
       dataDisplay,
+      blockColors,
       languages,
       register,
       unregister,
@@ -249,6 +258,7 @@ export function QuartileDocument({
       sourceErrors,
       streaming,
       dataDisplay,
+      blockColors,
       languages,
       register,
       unregister,

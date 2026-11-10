@@ -9,6 +9,7 @@ import { useLinkedRows, useSourceId } from '../selection/Selection';
 import { summarizeSeries } from './core/a11y';
 import type { ChartStateProps } from './core/ChartFrame';
 import { statusOf } from './core/ChartFrame';
+import { type ChartColor, singleColor } from './core/colors';
 import { type Curve, curveFactory } from './core/scales';
 import { pivotSeries } from './core/trends-series';
 
@@ -23,8 +24,11 @@ export interface SparklineProps<R extends Row = Row> extends ChartStateProps {
   compare?: keyof R & string;
   /** Fills under the line with a faint wash of the line color. */
   area?: boolean;
-  /** Line color. Defaults to the text color; pass a token such as `var(--q-signal)`. */
-  color?: string;
+  /**
+   * Line color: a palette name such as `signal`, 1–8, a hex color, or a Quartile token such as
+   * `var(--q-signal)`. Defaults to the text color.
+   */
+  color?: ChartColor;
   /** Height in px. Defaults to 28. */
   height?: number;
   /** Width in px, or any CSS length. Defaults to filling the container. */
@@ -52,7 +56,7 @@ export function Sparkline<R extends Row = Row>(props: SparklineProps<R>) {
     y,
     compare,
     area = false,
-    color = 'var(--q-text)',
+    color: colorSetting,
     height = 28,
     width = '100%',
     curve = 'monotone',
@@ -68,6 +72,7 @@ export function Sparkline<R extends Row = Row>(props: SparklineProps<R>) {
   } = props;
   const { locale, timeZone } = useQuartile();
   const source = useSourceId();
+  const color = singleColor(colorSetting, 'var(--q-text)');
   const numeric = Array.isArray(data) && data.length > 0 && typeof data[0] === 'number';
   const resolved = useMemo(
     () =>

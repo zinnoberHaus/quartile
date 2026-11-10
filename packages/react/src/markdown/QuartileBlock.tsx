@@ -19,6 +19,8 @@ export interface QuartileBlockProps {
   data?: Record<string, DataInput>;
   /** How a `data` block renders. Defaults to the document's choice, or a collapsed summary. */
   dataDisplay?: DataDisplay;
+  /** Let the block set chart colors. Defaults to the document's choice, or true. */
+  blockColors?: boolean;
   /** Receives warnings and errors after each compile. */
   onDiagnostics?: (diagnostics: Diagnostic[], compiled: CompiledBlock) => void;
   /** Replaces the default view of a block that cannot be drawn. */
@@ -39,6 +41,7 @@ export function QuartileBlock({
   streaming: streamingProp,
   data = EMPTY,
   dataDisplay: dataDisplayProp,
+  blockColors: blockColorsProp,
   onDiagnostics,
   renderError,
   className,
@@ -48,6 +51,7 @@ export function QuartileBlock({
   const owner = useId();
   const streaming = streamingProp ?? doc?.streaming ?? false;
   const dataDisplay = dataDisplayProp ?? doc?.dataDisplay ?? 'summary';
+  const blockColors = blockColorsProp ?? doc?.blockColors ?? true;
   const datasets = useMemo(
     () => (doc ? { ...doc.datasets, ...data } : data),
     [doc?.datasets, data, doc],
@@ -61,8 +65,8 @@ export function QuartileBlock({
     [isData, own, parsed.name, datasets],
   );
   const compiled = useMemo(
-    () => compileBlock(parsed, { datasets: scope, pendingDatasets: doc?.pending }),
-    [parsed, scope, doc?.pending],
+    () => compileBlock(parsed, { datasets: scope, pendingDatasets: doc?.pending, blockColors }),
+    [parsed, scope, doc?.pending, blockColors],
   );
 
   // A `data` block makes its rows available to the rest of the document. The effect is keyed by

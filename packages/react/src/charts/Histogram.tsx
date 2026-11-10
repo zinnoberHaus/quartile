@@ -9,6 +9,7 @@ import { useQuartile } from '../provider/QuartileProvider';
 import { useLinkedRows, useSourceId } from '../selection/Selection';
 import { useChartKeyboard } from './core/a11y';
 import { type ChartBaseProps, ChartFrame, type ChartTable, statusOf } from './core/ChartFrame';
+import { type ChartColor, singleColor } from './core/colors';
 import {
   type Bin,
   binsInRange,
@@ -20,10 +21,20 @@ import {
   timeBins,
   topRoundedBar,
 } from './core/dist-stats';
-import { ChartTooltip, type TooltipRow } from './core/guides';
+import { ChartTooltip, ReferenceRules, type TooltipRow } from './core/guides';
+import {
+  type ChartPresentationProps,
+  describeReferences,
+  marginSides,
+  readOut,
+  referenceLines,
+} from './core/options';
 import { monoTextWidth, tickFormatter } from './core/scales';
+import { useSettled } from './core/settled';
 
-export interface HistogramProps<R extends Row = Row> extends ChartBaseProps {
+export interface HistogramProps<R extends Row = Row>
+  extends ChartBaseProps,
+    Pick<ChartPresentationProps, 'margin' | 'xAxis'> {
   /** Rows to bin, or a dataset with a schema attached. */
   data: DataInput<R>;
   /** Quantitative field to bin, or a date field for counts per day, week or month. */
@@ -44,8 +55,15 @@ export interface HistogramProps<R extends Row = Row> extends ChartBaseProps {
   brush?: boolean;
   /** Marks the median of `x` with a labelled rule. Quantitative `x` only. */
   median?: boolean;
-  /** Bar fill. Defaults to the soft signal tint. */
-  color?: string;
+  /** Bar fill: a palette name, 1–8, or a hex color. Defaults to the soft signal tint. */
+  color?: ChartColor;
+  /** Writes each bin's count (or sum) above its bar; a label wider than its bar is left out. */
+  labels?: boolean;
+  /**
+   * A vertical rule at a value of a quantitative `x`: a number, `{ value, label }`, or several.
+   * The text is drawn beside the rule and included in the chart's accessible summary.
+   */
+  reference?: ChartPresentationProps['reference'];
   /** Publisher id for the selection. Defaults to a generated id. */
   id?: string;
   /** Selection to read from and publish to. Defaults to the nearest; false opts out. */
@@ -69,6 +87,10 @@ export function Histogram<R extends Row = Row>(props: HistogramProps<R>) {
     brush = false,
     median: showMedian = false,
     color,
+    labels = false,
+    reference,
+    margin,
+    xAxis = true,
     id,
     selection,
     onSelect,
@@ -82,6 +104,12 @@ export function Histogram<R extends Row = Row>(props: HistogramProps<R>) {
 
   const xField = fieldOf(schema, x, allRows);
   const temporal = xField.type === 'temporal';
+  const referenceList = useSettled(reference);
+  // A number marks a position on a quantitative axis; it does not name a date.
+  const refs = useMemo(
+    () => (temporal ? [] : referenceLines(referenceList)),
+    [temporal, referenceList],
+  );
   const valueField = value ? fieldOf(schema, value, allRows) : null;
 
   const model = useMemo(() => {
@@ -129,6 +157,15 @@ export function Histogram<R extends Row = Row>(props: HistogramProps<R>) {
   const fmtTick = useMemo(
     () => tickFormatter(xField, locale, timeZone, format),
     [xField, locale, timeZone, format],
+  );
+  const fmtVShort = useMemo(
+    () =>
+      makeFieldFormatter(
+        valueField ?? undefined,
+        { locale, timeZone, surface: 'axis', short: true },
+        valueOverride,
+      ),
+    [valueField, locale, timeZone, valueOverride],
   );
   const fmtPct = useMemo(
     () =>
@@ -222,8 +259,11 @@ export function Histogram<R extends Row = Row>(props: HistogramProps<R>) {
       : `Distribution of ${xField.label}, ${fmtV(total)} in ${bins.length} bins from ${span}.`;
     const peak = ` Highest: ${binTitle(top)} (${fmtV(counts[top])}).`;
     const medText = showMedian && med != null ? ` Median ${fmtX(med)}.` : '';
-    return head + peak + medText;
+    const refText = refs.length ? ` ${describeReferences(refs, readOut(fmtX, fmtTick))}` : '';
+    return head + peak + medText + refText;
   }, [
+    refs,
+    fmtTick,
     bins,
     linked,
     valueField,
@@ -265,16 +305,23 @@ export function Histogram<R extends Row = Row>(props: HistogramProps<R>) {
     >
       {({ width }) => {
         const n = bins.length;
-        const top = showMedian && med != null ? 20 : 6;
-        const baseline = height - AXIS_H;
-        const gap = width / n >= 7 ? 2 : width / n >= 3 ? 1 : 0;
-        const bw = (width + gap) / n;
+        const pad = marginSides(margin);
+        // The plot spans ox … ox + plotW; with no margin that is the whole width.
+        const ox = pad.left ?? 0;
+        const plotW = Math.max(1, width - ox - (pad.right ?? 0));
+        // Room above the bars for the median or value labels, and for the text of a rule.
+        const top =
+          pad.top ?? 6 + ((showMedian && med != null) || labels ? 14 : 0) + (refs.length ? 14 : 0);
+        const baseline = height - (pad.bottom ?? (xAxis ? AXIS_H : 4));
+        const gap = plotW / n >= 7 ? 2 : plotW / n >= 3 ? 1 : 0;
+        const bw = (plotW + gap) / n;
         const barW = Math.max(0.5, bw - gap);
         const maxV = Math.max(...totals, 1);
         const yOf = (v: number) => baseline - (v / maxV) * (baseline - top);
         const radius = barW >= 6 ? 2 : 1;
-        const fill = color ?? 'var(--q-dist-fill)';
-        const xOfValue = (v: number) => ((v - bins[0].x0) / (bins[n - 1].x1 - bins[0].x0)) * width;
+        const fill = singleColor(color, 'var(--q-dist-fill)');
+        const xOfValue = (v: number) =>
+          ox + ((v - bins[0].x0) / (bins[n - 1].x1 - bins[0].x0)) * plotW;
 
         // Axis labels
         const axis: { x: number; label: string; anchor: 'start' | 'middle' | 'end' }[] = [];
@@ -286,28 +333,28 @@ export function Histogram<R extends Row = Row>(props: HistogramProps<R>) {
             const monthStart = interval === 'month' || d.getDate() === 1;
             if (!isFirst && !(monthStart && (interval !== 'week' || d.getDate() <= 7))) return;
             const label = fmtTick(localDayKey(d));
-            const lx = i * bw;
+            const lx = ox + i * bw;
             const w = monoTextWidth(label);
             if (lx < lastRight + 14) return;
-            if (lx + w > width) {
-              if (width - w < lastRight + 14) return;
-              axis.push({ x: width, label, anchor: 'end' });
+            if (lx + w > ox + plotW) {
+              if (ox + plotW - w < lastRight + 14) return;
+              axis.push({ x: ox + plotW, label, anchor: 'end' });
             } else axis.push({ x: lx, label, anchor: 'start' });
             lastRight = lx + w;
           });
         } else {
           const lo = fmtTick(bins[0].x0);
           const hi = fmtTick(bins[n - 1].x1);
-          axis.push({ x: 0, label: lo, anchor: 'start' });
+          axis.push({ x: ox, label: lo, anchor: 'start' });
           const title = xField.label.toLowerCase();
-          if (width - monoTextWidth(lo) - monoTextWidth(hi) > monoTextWidth(title) + 32) {
-            axis.push({ x: width / 2, label: title, anchor: 'middle' });
+          if (plotW - monoTextWidth(lo) - monoTextWidth(hi) > monoTextWidth(title) + 32) {
+            axis.push({ x: ox + plotW / 2, label: title, anchor: 'middle' });
           }
-          axis.push({ x: width, label: hi, anchor: 'end' });
+          axis.push({ x: ox + plotW, label: hi, anchor: 'end' });
         }
 
         const indexAt = (clientX: number, rect: DOMRect) =>
-          clamp(Math.floor((clientX - rect.left) / bw), 0, n - 1);
+          clamp(Math.floor((clientX - rect.left - ox) / bw), 0, n - 1);
         const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
           const rect = e.currentTarget.getBoundingClientRect();
           const i = indexAt(e.clientX, rect);
@@ -379,7 +426,7 @@ export function Histogram<R extends Row = Row>(props: HistogramProps<R>) {
           }
         }
         const medX = med != null ? xOfValue(med) : null;
-        const medFlip = medX != null && medX > width * 0.68;
+        const medFlip = medX != null && medX - ox > plotW * 0.68;
 
         return (
           <div style={{ position: 'relative', height }}>
@@ -392,7 +439,7 @@ export function Histogram<R extends Row = Row>(props: HistogramProps<R>) {
               {focus != null && (
                 <rect
                   className="q-histogram-hover"
-                  x={focus * bw - gap / 2}
+                  x={ox + focus * bw - gap / 2}
                   width={bw}
                   y={top}
                   height={baseline - top}
@@ -400,7 +447,7 @@ export function Histogram<R extends Row = Row>(props: HistogramProps<R>) {
               )}
               {bins.map((_, i) => {
                 const fg = inRange(i) ? linked[i] : 0;
-                const bx = i * bw;
+                const bx = ox + i * bw;
                 const showTrack = totals[i] > fg;
                 return (
                   <g key={i}>
@@ -427,28 +474,42 @@ export function Histogram<R extends Row = Row>(props: HistogramProps<R>) {
               })}
               <line
                 className="q-chart-baseline"
-                x1={0}
-                x2={width}
+                x1={ox}
+                x2={ox + plotW}
                 y1={baseline + 0.5}
                 y2={baseline + 0.5}
               />
+              {labels && (
+                <g className="q-chart-value-labels">
+                  {bins.map((_, i) => {
+                    const fg = inRange(i) ? linked[i] : 0;
+                    const text = fg > 0 ? fmtVShort(fg) : '';
+                    if (!text || monoTextWidth(text) > bw + 2) return null;
+                    return (
+                      <text key={i} x={ox + i * bw + barW / 2} y={yOf(fg) - 4} textAnchor="middle">
+                        {text}
+                      </text>
+                    );
+                  })}
+                </g>
+              )}
               {range && (
                 <g className="q-histogram-brush">
                   <rect
-                    x={range[0] * bw - gap / 2}
+                    x={ox + range[0] * bw - gap / 2}
                     width={(range[1] - range[0] + 1) * bw}
                     y={top - 6}
                     height={baseline - top + 6}
                   />
                   <line
-                    x1={range[0] * bw - gap / 2}
-                    x2={range[0] * bw - gap / 2}
+                    x1={ox + range[0] * bw - gap / 2}
+                    x2={ox + range[0] * bw - gap / 2}
                     y1={top - 6}
                     y2={baseline}
                   />
                   <line
-                    x1={(range[1] + 1) * bw - gap / 2}
-                    x2={(range[1] + 1) * bw - gap / 2}
+                    x1={ox + (range[1] + 1) * bw - gap / 2}
+                    x2={ox + (range[1] + 1) * bw - gap / 2}
                     y1={top - 6}
                     y2={baseline}
                   />
@@ -466,19 +527,34 @@ export function Histogram<R extends Row = Row>(props: HistogramProps<R>) {
                   </text>
                 </g>
               )}
-              <g className="q-chart-axis">
-                {axis.map((t) => (
-                  <text
-                    key={`${t.x}-${t.label}`}
-                    x={t.x}
-                    y={baseline + 8}
-                    dy="0.9em"
-                    textAnchor={t.anchor}
-                  >
-                    {t.label}
-                  </text>
-                ))}
-              </g>
+              {refs.length > 0 && (
+                <ReferenceRules
+                  vertical
+                  marks={refs.map((r) => ({
+                    at: xOfValue(r.value),
+                    text: r.label ?? fmtTick(r.value),
+                  }))}
+                  from={2}
+                  to={baseline}
+                  min={ox}
+                  max={ox + plotW}
+                />
+              )}
+              {xAxis && (
+                <g className="q-chart-axis">
+                  {axis.map((t) => (
+                    <text
+                      key={`${t.x}-${t.label}`}
+                      x={t.x}
+                      y={baseline + 8}
+                      dy="0.9em"
+                      textAnchor={t.anchor}
+                    >
+                      {t.label}
+                    </text>
+                  ))}
+                </g>
+              )}
             </svg>
             <div
               className="q-chart-plot"
@@ -503,7 +579,7 @@ export function Histogram<R extends Row = Row>(props: HistogramProps<R>) {
             {focus != null && tipRows.length > 0 && (
               <ChartTooltip
                 note={frame.tooltipNote}
-                x={focus * bw + barW / 2}
+                x={ox + focus * bw + barW / 2}
                 width={width}
                 top={Math.max(0, Math.min(yOf(totals[focus]) - 8, baseline - 90))}
                 title={binTipTitle(focus)}

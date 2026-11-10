@@ -2,6 +2,7 @@
  * The JSON Schema (draft 2020-12) for every component a model may generate. A spec names a
  * component, a dataset and fields; SpecView validates it against this schema and renders it.
  */
+import { CHART_COLOR_HELP, CHART_COLOR_PATTERN } from '../charts/core/colors';
 import type { SerializableFormatter } from '../data/types';
 
 type JsonSchema = Record<string, unknown>;
@@ -162,6 +163,82 @@ const CHART = {
 const SORT = oneOfEnum(['desc', 'asc', 'none'], 'Ranking order.');
 const CURVE = oneOfEnum(['linear', 'monotone', 'step'], 'Interpolation between points.');
 
+// Presentation settings. Colors are tokens, never CSS: a palette name, 1–8 or a hex color.
+const COLOR: JsonSchema = {
+  type: ['string', 'integer'],
+  pattern: CHART_COLOR_PATTERN,
+  minimum: 1,
+  maximum: 8,
+  'x-quartile-hint': CHART_COLOR_HELP,
+};
+const color = (description: string): JsonSchema => ({ ...COLOR, description });
+const colors = (description: string): JsonSchema => ({
+  type: 'array',
+  items: COLOR,
+  minItems: 1,
+  description: `${description} Each is a palette name (signal, positive, negative, warning, muted), 1–8 for the categorical palette, or a hex color such as "#2f45e8". Marks beyond the list keep the default palette.`,
+});
+const number = (description: string): JsonSchema => ({ type: 'number', description });
+const PX = { type: 'number', minimum: 0, maximum: 400 };
+const MARGIN: JsonSchema = {
+  description:
+    'Space around the plot in px: one number for every side, [top, right, bottom, left], or an object naming sides. Sides left out keep the room computed for the axis labels.',
+  oneOf: [
+    PX,
+    { type: 'array', items: PX, minItems: 4, maxItems: 4 },
+    {
+      type: 'object',
+      properties: { top: PX, right: PX, bottom: PX, left: PX },
+      additionalProperties: false,
+    },
+  ],
+};
+const REFERENCE_LINE = {
+  type: 'object',
+  properties: {
+    value: { type: 'number', description: 'Position on the value axis.' },
+    label: str('Text beside the rule; also read out with the chart summary.'),
+  },
+  required: ['value'],
+  additionalProperties: false,
+};
+const reference = (where: string): JsonSchema => ({
+  description: `${where}: a number, { "value", "label" }, or a list of them. The axis grows to include it.`,
+  oneOf: [
+    { type: 'number' },
+    REFERENCE_LINE,
+    { type: 'array', items: REFERENCE_LINE, minItems: 1 },
+  ],
+});
+const legend = (usual: string): JsonSchema =>
+  oneOfEnum(
+    [true, false, 'top', 'bottom', 'left', 'right', 'none'],
+    `Legend: true for its usual place (${usual}), a side to move it, false or "none" to hide it.`,
+  );
+const ticks = (axis: string): JsonSchema =>
+  int(`Approximate number of ${axis} ticks; the scale rounds to tidy values. 0 draws none.`, 0, 20);
+const GRID = oneOfEnum(
+  [true, false, 'x', 'y', 'both', 'none'],
+  'Gridlines: false or "none" for none, "y" for horizontal lines at the y ticks, "x" for vertical lines at the x ticks, "both". true draws the lines of the value axis.',
+);
+const X_AXIS = bool('false hides the x axis labels and gives their room to the plot.');
+const Y_AXIS = bool('false hides the y axis labels and gives their room to the plot.');
+/** Margin, axis bounds, ticks and gridlines of a chart with a numeric y axis. */
+const PLOT = {
+  margin: MARGIN,
+  yMin: number('Lower bound of the y axis. Marks outside the bounds are clipped.'),
+  yMax: number('Upper bound of the y axis.'),
+  yTicks: ticks('y'),
+  xTicks: ticks('x'),
+  grid: GRID,
+  xAxis: X_AXIS,
+  yAxis: Y_AXIS,
+};
+const X_BOUNDS = {
+  xMin: number('Lower bound of a numeric x axis; ignored for dates and categories.'),
+  xMax: number('Upper bound of a numeric x axis; ignored for dates and categories.'),
+};
+
 function component(
   name: string,
   description: string,
@@ -208,7 +285,12 @@ const COMPONENT_DEFS: Record<string, JsonSchema> = {
       brush: bool('Drag to select a range of x and publish it to the selection.'),
       format: format('Value format.'),
       xFormat: format('Axis format for x.'),
-      legend: bool('Show a legend above the plot.'),
+      legend: legend('above the plot'),
+      colors: colors('Line colors in series order.'),
+      labels: bool('Write each series name and last value at the end of its line.'),
+      reference: reference('A horizontal rule at a y value'),
+      ...PLOT,
+      ...X_BOUNDS,
     },
     ['x', 'y'],
   ),
@@ -224,7 +306,12 @@ const COMPONENT_DEFS: Record<string, JsonSchema> = {
       brush: bool('Drag to select a range of x and publish it to the selection.'),
       format: format('Value format.'),
       xFormat: format('Axis format for x.'),
-      legend: bool('Show a legend.'),
+      legend: legend('under the plot'),
+      colors: colors('Area colors in series order.'),
+      labels: bool('Write each series name and last value at the end of its line.'),
+      reference: reference('A horizontal rule at a y value'),
+      ...PLOT,
+      ...X_BOUNDS,
     },
     ['x', 'y'],
   ),
@@ -242,7 +329,21 @@ const COMPONENT_DEFS: Record<string, JsonSchema> = {
       select: bool('Click a bar to toggle its x value in the selection.'),
       format: format('Value format.'),
       xFormat: format('Category label format.'),
-      legend: bool('Show a legend.'),
+      legend: legend('under the plot'),
+      colors: colors('Bar colors in series order.'),
+      labels: bool(
+        'Write each value at the end of its bar, or the total on a stack. Horizontal bars with one series show them unless this is false.',
+      ),
+      reference: reference('A rule across the bars at a value'),
+      ...PLOT,
+      yMin: number(
+        'Lower bound of the value axis. Bars are measured from zero, so a bound that would cut the baseline or a bar is ignored.',
+      ),
+      yMax: number('Upper bound of the value axis; ignored when it would cut a bar.'),
+      grid: oneOfEnum(
+        [true, false, 'x', 'y', 'both', 'none'],
+        'Horizontal gridlines behind vertical bars; false or "none" removes them.',
+      ),
     },
     ['x', 'y'],
   ),
@@ -259,6 +360,7 @@ const COMPONENT_DEFS: Record<string, JsonSchema> = {
       invertDelta: bool('A fall in the delta is good.'),
       variant: oneOfEnum(['bar', 'fill'], 'Bar under the label, or a soft fill behind it.'),
       select: bool('Click a row to toggle its category in the selection.'),
+      color: color('Bar color: a palette name, 1–8, or a hex color such as "#2f45e8".'),
     },
     ['category'],
   ),
@@ -272,7 +374,9 @@ const COMPONENT_DEFS: Record<string, JsonSchema> = {
       format: format('Value format.'),
       centerValue: str('Text in the middle; defaults to the total.'),
       centerLabel: str('Caption under the center value.'),
-      legend: bool('Show a legend.'),
+      legend: legend('beside the ring'),
+      colors: colors('Slice colors in slice order.'),
+      labels: bool('Add each slice’s value to its legend row.'),
       size: { type: 'number', minimum: 40, description: 'Diameter in px.' },
       thickness: { type: 'number', minimum: 2, description: 'Ring thickness in px.' },
       select: bool('Click a slice to toggle its category in the selection.'),
@@ -301,6 +405,7 @@ const COMPONENT_DEFS: Record<string, JsonSchema> = {
       area: bool('Fill under the line.'),
       curve: CURVE,
       format: format('Value format for the accessible summary.'),
+      color: color('Line color: a palette name, 1–8, or a hex color such as "#2f45e8".'),
     },
     ['y'],
   ),
@@ -317,6 +422,11 @@ const COMPONENT_DEFS: Record<string, JsonSchema> = {
       countLabel: str('Label for counts in the tooltip.'),
       brush: bool('Drag across bins to publish a range of x.'),
       median: bool('Mark the median.'),
+      color: color('Bar color: a palette name, 1–8, or a hex color such as "#2f45e8".'),
+      labels: bool('Write each bin’s count or sum above its bar.'),
+      reference: reference('A vertical rule at a value of a numeric x'),
+      margin: MARGIN,
+      xAxis: X_AXIS,
     },
     ['x'],
   ),
@@ -342,7 +452,13 @@ const COMPONENT_DEFS: Record<string, JsonSchema> = {
           'Click a point to toggle a value in the selection: true uses `color` (or `label`), a field name uses that field.',
         oneOf: [{ type: 'boolean' }, ref('Field')],
       },
-      legend: bool('Show a legend.'),
+      legend: legend('above the plot'),
+      colors: colors('Point colors per group of `color`, in order.'),
+      reference: reference('A horizontal rule at a y value'),
+      ...PLOT,
+      xMin: number('Lower bound of the x axis. Points outside the bounds are not drawn.'),
+      xMax: number('Upper bound of the x axis.'),
+      yMin: number('Lower bound of the y axis. Points outside the bounds are not drawn.'),
       xTitle: str('Horizontal axis title.'),
       yTitle: str('Vertical axis title.'),
     },
@@ -406,6 +522,15 @@ const COMPONENT_DEFS: Record<string, JsonSchema> = {
       zero: bool('Start the value axis at zero.'),
       format: format('Value format.'),
       select: bool('Click a box to select its category.'),
+      ...PLOT,
+      xMin: number('Lower bound of the value axis of horizontal boxes.'),
+      xMax: number('Upper bound of the value axis of horizontal boxes.'),
+      yMin: number('Lower bound of the value axis of vertical boxes.'),
+      yMax: number('Upper bound of the value axis of vertical boxes.'),
+      grid: oneOfEnum(
+        [true, false, 'x', 'y', 'both', 'none'],
+        'Gridlines at the value ticks: on for vertical boxes, off for horizontal ones unless true.',
+      ),
     },
     ['category', 'value'],
   ),

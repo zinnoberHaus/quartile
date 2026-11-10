@@ -10,14 +10,36 @@ import { useQuartile } from '../provider/QuartileProvider';
 import { useLinkedRows, useSourceId } from '../selection/Selection';
 import { summarizeSeries, useChartKeyboard } from './core/a11y';
 import { type ChartBaseProps, ChartFrame, type ChartTable, statusOf } from './core/ChartFrame';
+import { type ChartColor, pickColor, seriesColors } from './core/colors';
 import {
   AxisBottom,
   AxisLeft,
   ChartTooltip,
+  EndLabels,
+  GridColumns,
   GridRows,
   Legend,
+  LegendLayout,
+  ReferenceRules,
   type TooltipRow,
 } from './core/guides';
+import {
+  boundX,
+  type ChartPresentationProps,
+  describeLimits,
+  describeReferences,
+  gridLines,
+  type LegendSetting,
+  labelCount,
+  legendPlacement,
+  marginSides,
+  readOut,
+  referenceLines,
+  sideLegendWidth,
+  spreadLabels,
+  tickCount,
+  valueAxis,
+} from './core/options';
 import {
   type Curve,
   continuousX,
@@ -26,11 +48,26 @@ import {
   seriesColor,
   spacedIndices,
   tickFormatter,
-  valueScale,
 } from './core/scales';
+import { useSettled } from './core/settled';
 import { seriesFormatters } from './core/trends-format';
 
-export interface LineChartProps<R extends Row = Row> extends ChartBaseProps {
+export interface LineChartProps<R extends Row = Row>
+  extends ChartBaseProps,
+    Pick<
+      ChartPresentationProps,
+      | 'margin'
+      | 'yMin'
+      | 'yMax'
+      | 'xMin'
+      | 'xMax'
+      | 'yTicks'
+      | 'xTicks'
+      | 'grid'
+      | 'xAxis'
+      | 'yAxis'
+      | 'reference'
+    > {
   /** Rows to plot, or a dataset with a schema attached. */
   data: DataInput<R>;
   /** Continuous field for the horizontal axis. Dates are detected from the schema. */
@@ -57,8 +94,15 @@ export interface LineChartProps<R extends Row = Row> extends ChartBaseProps {
   xFormat?: Formatter;
   /** Vertical markers with a short label, e.g. a pricing change. */
   annotations?: { x: unknown; label: string }[];
-  /** Shows a legend above the plot. Defaults to true when there is more than one series. */
-  legend?: boolean;
+  /**
+   * Shows a legend above the plot, or on the side named. Defaults to true when there is more
+   * than one series.
+   */
+  legend?: LegendSetting;
+  /** Series colors in order, or by series key. Series without one keep the categorical palette. */
+  colors?: ChartColor[] | Record<string, ChartColor>;
+  /** Writes each series' name and last value at the end of its line. */
+  labels?: boolean;
   /** Publisher id for the selection. Defaults to a generated id. */
   id?: string;
   /** Selection to read from and publish to. Defaults to the nearest; false opts out. */
@@ -96,6 +140,19 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
     xFormat,
     annotations,
     legend,
+    colors,
+    labels = false,
+    margin,
+    yMin,
+    yMax,
+    xMin,
+    xMax,
+    yTicks: yTickCount,
+    xTicks: xTickCount,
+    grid,
+    xAxis = true,
+    yAxis = true,
+    reference,
     id,
     selection,
     onSelect,
@@ -108,6 +165,10 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
   const { rows: allRows, schema } = useMemo(() => resolveData(data), [data]);
   const { rows, selection: sel } = useLinkedRows(allRows, { selection, source });
   const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const colorList = useSettled(colors);
+  const palette = useMemo(() => seriesColors(colorList), [colorList]);
+  const referenceList = useSettled(reference);
+  const refs = useMemo(() => referenceLines(referenceList), [referenceList]);
 
   const model = useMemo(() => {
     const xField = fieldOf(schema, x, rows);
@@ -155,7 +216,7 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
         series.push({
           key: g,
           label: groupLabels.get(g)!,
-          color: seriesColor(i++),
+          color: pickColor(palette, g, i++, seriesColor),
           field: yFields[0],
           values,
         });
@@ -168,7 +229,13 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
           const value = finiteNumber(r[f.name]);
           if (value != null) values[at] = (values[at] ?? 0) + value;
         }
-        series.push({ key: f.name, label: f.label, color: seriesColor(i), field: f, values });
+        series.push({
+          key: f.name,
+          label: f.label,
+          color: pickColor(palette, f.name, i, seriesColor),
+          field: f,
+          values,
+        });
       });
     }
     let compareSeries: Series | null = null;
@@ -196,7 +263,7 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
       );
     }
     return { xField, yFields, xsRaw, series, compareSeries };
-  }, [rows, schema, x, y, color, compare, compareLabel, allRows, locale, timeZone]);
+  }, [rows, schema, x, y, color, compare, compareLabel, allRows, locale, timeZone, palette]);
 
   const { xField, xsRaw, series, compareSeries } = model;
   const valueField = series[0]?.field ?? model.yFields[0];
@@ -220,8 +287,8 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
   const shown = series.filter((s) => !hidden.has(s.key));
   // A linked filter may remove every visible group. Keep surviving groups discoverable.
   const visible = shown.length ? shown : series;
-  const showLegend = legend ?? series.length > 1;
-  const plotHeight = showLegend ? height - LEGEND_H : height;
+  const side = legendPlacement(legend, series.length > 1, 'top');
+  const plotHeight = side === 'top' || side === 'bottom' ? height - LEGEND_H : height;
 
   const brushPredicate = sel?.get(x);
   const ownBrush =
@@ -243,21 +310,25 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
   const dragStart = useRef<number | null>(null);
   const focusIndex = hover ?? active;
 
-  const summary = useMemo(
-    () =>
-      series
-        .map((s) =>
-          summarizeSeries(
-            s.label,
-            s.values.flatMap((v, i) => (v == null ? [] : [{ x: xsRaw[i], y: v }])),
-            fmtX,
-            formats.get(s.key)!.value,
-            locale,
-          ),
-        )
-        .join(' '),
-    [series, xsRaw, fmtX, formats, locale],
-  );
+  const summary = useMemo(() => {
+    const first = formats.get(series[0]?.key);
+    const fmtValue = first ? readOut(first.value, first.axis) : String;
+    return [
+      ...series.map((s) =>
+        summarizeSeries(
+          s.label,
+          s.values.flatMap((v, i) => (v == null ? [] : [{ x: xsRaw[i], y: v }])),
+          fmtX,
+          formats.get(s.key)!.value,
+          locale,
+        ),
+      ),
+      describeReferences(refs, fmtValue),
+      describeLimits(yMin, yMax, fmtValue),
+    ]
+      .filter(Boolean)
+      .join(' ');
+  }, [series, xsRaw, fmtX, formats, locale, refs, yMin, yMax]);
 
   const table = useMemo<ChartTable>(() => {
     const cols = [...series, ...(compareSeries ? [compareSeries] : [])];
@@ -279,27 +350,75 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
       table={table}
       {...frame}
     >
-      {({ width }) => {
+      {({ width: frameWidth }) => {
+        const beside = side === 'left' || side === 'right';
+        // Each entry shows the series name and its last value.
+        const legendWidth = beside
+          ? sideLegendWidth(
+              [...series, ...(compareSeries ? [compareSeries] : [])].map((s) => {
+                const last = [...s.values].reverse().find((v) => v != null);
+                return `${s.label} ${last != null ? formats.get(s.key)!.axis(last) : ''}`;
+              }),
+              frameWidth,
+            )
+          : 0;
+        const width = beside ? Math.max(1, frameWidth - legendWidth - 12) : frameWidth;
+        const pad = marginSides(margin);
+        const top = pad.top ?? MARGIN.top;
+        const bottom = plotHeight - (pad.bottom ?? (xAxis ? MARGIN.bottom : 8));
         const all = [...visible, ...(compareSeries ? [compareSeries] : [])].flatMap((s) =>
           s.values.filter((v): v is number => v != null),
         );
-        const yScale = valueScale(all.length ? all : [0], [plotHeight - MARGIN.bottom, MARGIN.top]);
-        const yTickVals = yScale.ticks(4);
+        const axis = valueAxis([...all, ...refs.map((r) => r.value)], [bottom, top], {
+          ticks: yTickCount === undefined ? undefined : tickCount(yTickCount, 4),
+          min: yMin,
+          max: yMax,
+        });
+        const yScale = axis.scale;
+        const yTickVals = axis.ticks;
         const fmtTick = tickFormatter(valueField, locale, timeZone, format);
         const yTicks = yTickVals.map((v) => ({ y: yScale(v), label: fmtTick(v) }));
-        const left = Math.ceil(Math.max(...yTicks.map((t) => monoTextWidth(t.label)), 16)) + 12;
+        const left =
+          pad.left ??
+          (yAxis
+            ? Math.ceil(Math.max(...yTicks.map((t) => monoTextWidth(t.label)), 16)) + 12
+            : MARGIN.right);
+        const ends = labels
+          ? visible.flatMap((s) => {
+              let at = s.values.length - 1;
+              while (at >= 0 && s.values[at] == null) at--;
+              if (at < 0) return [];
+              const value = formats.get(s.key)!.axis(s.values[at]);
+              const text = series.length > 1 ? `${s.label} ${value}` : value;
+              return [{ key: s.key, at, value: s.values[at] as number, text, color: s.color }];
+            })
+          : [];
+        const right =
+          pad.right ??
+          (ends.length
+            ? Math.ceil(Math.max(...ends.map((e) => monoTextWidth(e.text)))) + 14
+            : MARGIN.right);
         const x0 = left;
-        const x1 = width - MARGIN.right;
+        const x1 = width - right;
         const xs = continuousX(xField, xsRaw, [x0, x1]);
+        const clipped =
+          (xs.kind === 'linear' && boundX(xs.scale, xsRaw.map(Number), xMin, xMax)) || axis.clipped;
         const px = xsRaw.map((v) => xs.value(v));
         const fmtXTick = tickFormatter(xField, locale, timeZone, xFormat);
         const xTicks = spacedIndices(
           xsRaw.length,
-          Math.max(2, Math.min(6, Math.floor((x1 - x0) / 90))),
+          labelCount(xTickCount, Math.max(2, Math.min(6, Math.floor((x1 - x0) / 90)))),
         ).map((i) => ({
           x: px[i],
           label: fmtXTick(xsRaw[i]),
         }));
+        const lines = gridLines(grid, { x: false, y: true });
+        const endYs = spreadLabels(
+          ends.map((e) => yScale(e.value)),
+          13,
+          top + 4,
+          bottom - 4,
+        );
         const lineGen = d3line<[number, number | null]>()
           .defined((d) => d[1] != null)
           .x((d) => d[0])
@@ -394,11 +513,62 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
           };
         }
 
-        return (
+        const marks = (
           <>
-            {showLegend && (
+            {area &&
+              visible.map((s, i) => (
+                <path
+                  key={`a-${s.key}`}
+                  d={pathOf(s, areaGen)}
+                  style={{ fill: `url(#${gradientId}-${i})` }}
+                />
+              ))}
+            {compareSeries && (
+              <path
+                d={pathOf(compareSeries, lineGen)}
+                fill="none"
+                style={{ stroke: compareSeries.color }}
+                strokeWidth={1.5}
+                strokeDasharray="4 4"
+              />
+            )}
+            {visible.map((s) => (
+              <path
+                key={`l-${s.key}`}
+                d={pathOf(s, lineGen)}
+                fill="none"
+                style={{ stroke: s.color }}
+                strokeWidth={2}
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+            ))}
+            {points === true &&
+              visible.map((s) =>
+                s.values.map((v, i) =>
+                  v == null ? null : (
+                    <circle
+                      key={`${s.key}-${i}`}
+                      className="q-chart-dot"
+                      cx={px[i]}
+                      cy={yScale(v)}
+                      r={3.5}
+                      style={{ stroke: s.color }}
+                    />
+                  ),
+                ),
+              )}
+          </>
+        );
+
+        return (
+          <LegendLayout
+            side={side}
+            legend={
               <Legend
                 className="q-chart-legend-top"
+                position={typeof legend === 'string' && side ? side : undefined}
+                style={beside ? { width: legendWidth } : undefined}
                 items={[
                   ...series.map((s) => {
                     const last = [...s.values].reverse().find((v) => v != null);
@@ -437,8 +607,15 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
                     : undefined
                 }
               />
-            )}
-            <div style={{ position: 'relative', height: plotHeight }}>
+            }
+          >
+            <div
+              style={
+                beside
+                  ? { position: 'relative', height: plotHeight, width, flex: 'none' }
+                  : { position: 'relative', height: plotHeight }
+              }
+            >
               <svg
                 width={width}
                 height={plotHeight}
@@ -462,17 +639,23 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
                       <stop offset="1" style={{ stopColor: s.color, stopOpacity: 0 }} />
                     </linearGradient>
                   ))}
+                  {clipped && (
+                    <clipPath id={`${gradientId}-clip`}>
+                      <rect x={x0} y={top} width={Math.max(0, x1 - x0)} height={bottom - top} />
+                    </clipPath>
+                  )}
                 </defs>
-                <GridRows ys={yTicks.map((t) => t.y)} x0={x0} x1={x1} />
-                <AxisLeft ticks={yTicks} x={x0 - 10} />
-                <AxisBottom ticks={xTicks} y={plotHeight - MARGIN.bottom + 8} x0={x0} x1={x1} />
+                {lines.y && <GridRows ys={yTicks.map((t) => t.y)} x0={x0} x1={x1} />}
+                {lines.x && <GridColumns xs={xTicks.map((t) => t.x)} y0={top} y1={bottom} />}
+                {yAxis && <AxisLeft ticks={yTicks} x={x0 - 10} />}
+                {xAxis && <AxisBottom ticks={xTicks} y={bottom + 8} x0={x0} x1={x1} />}
                 {brushRect && (
                   <rect
                     className="q-chart-brush"
                     x={Math.min(brushRect.a, brushRect.b)}
                     width={Math.max(1, Math.abs(brushRect.b - brushRect.a))}
-                    y={MARGIN.top}
-                    height={plotHeight - MARGIN.top - MARGIN.bottom}
+                    y={top}
+                    height={bottom - top}
                   />
                 )}
                 {annotations?.map((a) => {
@@ -480,10 +663,10 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
                   if (!(ax >= x0 && ax <= x1)) return null;
                   return (
                     <g key={a.label} className="q-chart-annotation">
-                      <line x1={ax} x2={ax} y1={MARGIN.top} y2={plotHeight - MARGIN.bottom} />
+                      <line x1={ax} x2={ax} y1={top} y2={bottom} />
                       <text
                         x={ax > x0 + (x1 - x0) * 0.6 ? ax - 6 : ax + 6}
-                        y={MARGIN.top + 10}
+                        y={top + 10}
                         textAnchor={ax > x0 + (x1 - x0) * 0.6 ? 'end' : 'start'}
                       >
                         {a.label}
@@ -491,57 +674,38 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
                     </g>
                   );
                 })}
-                {area &&
-                  visible.map((s, i) => (
-                    <path
-                      key={`a-${s.key}`}
-                      d={pathOf(s, areaGen)}
-                      style={{ fill: `url(#${gradientId}-${i})` }}
-                    />
-                  ))}
-                {compareSeries && (
-                  <path
-                    d={pathOf(compareSeries, lineGen)}
-                    fill="none"
-                    style={{ stroke: compareSeries.color }}
-                    strokeWidth={1.5}
-                    strokeDasharray="4 4"
+                {clipped ? <g clipPath={`url(#${gradientId}-clip)`}>{marks}</g> : marks}
+                {refs.length > 0 && (
+                  <ReferenceRules
+                    marks={refs.map((r) => ({
+                      at: yScale(r.value),
+                      text: r.label ?? fmtTick(r.value),
+                    }))}
+                    from={x0}
+                    to={x1}
+                    min={top}
+                    max={bottom}
                   />
                 )}
-                {visible.map((s) => (
-                  <path
-                    key={`l-${s.key}`}
-                    d={pathOf(s, lineGen)}
-                    fill="none"
-                    style={{ stroke: s.color }}
-                    strokeWidth={2}
-                    strokeLinejoin="round"
-                    strokeLinecap="round"
+                {ends.length > 0 && (
+                  <EndLabels
+                    labels={ends.map((e, i) => ({
+                      key: e.key,
+                      x: px[e.at] + 8,
+                      y: endYs[i],
+                      text: e.text,
+                      color: e.color,
+                    }))}
                   />
-                ))}
-                {points === true &&
-                  visible.map((s) =>
-                    s.values.map((v, i) =>
-                      v == null ? null : (
-                        <circle
-                          key={`${s.key}-${i}`}
-                          className="q-chart-dot"
-                          cx={px[i]}
-                          cy={yScale(v)}
-                          r={3.5}
-                          style={{ stroke: s.color }}
-                        />
-                      ),
-                    ),
-                  )}
+                )}
                 {tip != null && (
                   <>
                     <line
                       className="q-chart-crosshair"
                       x1={px[tip]}
                       x2={px[tip]}
-                      y1={MARGIN.top}
-                      y2={plotHeight - MARGIN.bottom}
+                      y1={top}
+                      y2={bottom}
                     />
                     {visible.map((s) =>
                       s.values[tip] == null ? null : (
@@ -595,7 +759,7 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
                   : ''}
               </div>
             </div>
-          </>
+          </LegendLayout>
         );
       }}
     </ChartFrame>

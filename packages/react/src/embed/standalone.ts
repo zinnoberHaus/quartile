@@ -3,6 +3,8 @@
  *
  *   <script src="quartile.global.js" data-sources="same-origin" data-theme="auto"></script>
  *
+ * `data-block-colors="off"` keeps every chart on the page's palette: blocks cannot set colors.
+ *
  * On load it defines `<quartile-chart>`, upgrades ```quartile code blocks and statically
  * rendered blocks, and keeps watching for new ones (single-page docs, streaming chat).
  * Configure with data attributes on the script tag, or `window.QuartileConfig` set before it.
@@ -26,6 +28,7 @@ interface GlobalConfig {
   host?: HostTheme;
   accent?: string;
   languages?: string[];
+  blockColors?: boolean;
 }
 
 declare global {
@@ -49,6 +52,7 @@ function fromScript(script: HTMLScriptElement | null): GlobalConfig {
   if (d.host) out.host = d.host as HostTheme;
   if (d.accent) out.accent = d.accent;
   if (d.languages) out.languages = d.languages.split(/[\s,]+/).filter(Boolean);
+  if (d.blockColors) out.blockColors = !['off', 'false', 'no', '0'].includes(d.blockColors);
   return out;
 }
 

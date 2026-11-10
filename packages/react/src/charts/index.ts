@@ -3,8 +3,19 @@
 export { summarizeSeries, useChartKeyboard } from './core/a11y';
 export type { ChartBaseProps, ChartStateProps, ChartStatus, ChartTable } from './core/ChartFrame';
 export { ChartDataTable, ChartFrame, ChartState, statusOf } from './core/ChartFrame';
+export type { ChartColor } from './core/colors';
+export { CHART_COLOR_NAMES, chartColor, isChartColor } from './core/colors';
 export type { LegendItem, TooltipRow } from './core/guides';
 export { AxisBottom, AxisLeft, ChartTooltip, GridRows, Legend } from './core/guides';
+export type {
+  ChartMargin,
+  ChartPresentationProps,
+  GridSetting,
+  LegendSetting,
+  LegendSide,
+  ReferenceLine,
+  ReferenceSetting,
+} from './core/options';
 export type { Curve } from './core/scales';
 export {
   bandScale,

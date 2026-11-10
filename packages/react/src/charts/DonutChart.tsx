@@ -7,7 +7,10 @@ import { useQuartile } from '../provider/QuartileProvider';
 import { useLinkedRows, useSourceId } from '../selection/Selection';
 import { useChartKeyboard } from './core/a11y';
 import { type ChartBaseProps, ChartFrame, type ChartTable, statusOf } from './core/ChartFrame';
+import { type ChartColor, pickColor, seriesColors } from './core/colors';
+import { type LegendSetting, legendPlacement } from './core/options';
 import { seriesColor } from './core/scales';
+import { useSettled } from './core/settled';
 import { type Aggregate, aggregateBy, pluralLabel, type SortOrder } from './core/trends-aggregate';
 import { isKeyboardFocus } from './core/trends-focus';
 import { listFormat } from './core/trends-format';
@@ -30,10 +33,15 @@ export interface DonutChartProps<R extends Row = Row> extends ChartBaseProps {
   centerValue?: ReactNode;
   /** Caption under the center figure. Defaults to the slice count, e.g. "4 channels". */
   centerLabel?: ReactNode;
-  /** Shows the legend with each slice's share. Defaults to true. */
-  legend?: boolean;
+  /**
+   * Shows the legend with each slice's share, beside the ring or on the side named.
+   * Defaults to true.
+   */
+  legend?: LegendSetting;
   /** Slice colors, by index or by category. Defaults to the categorical palette in order. */
-  colors?: string[] | Record<string, string>;
+  colors?: ChartColor[] | Record<string, ChartColor>;
+  /** Adds each slice's value to its legend row, next to the share. */
+  labels?: boolean;
   /** Diameter in px. Defaults to 148. */
   size?: number;
   /** Ring thickness in px. Defaults to 18. */
@@ -71,6 +79,7 @@ export function DonutChart<R extends Row = Row>(props: DonutChartProps<R>) {
     centerLabel,
     legend = true,
     colors,
+    labels = false,
     size = 148,
     thickness = 18,
     select = false,
@@ -86,6 +95,9 @@ export function DonutChart<R extends Row = Row>(props: DonutChartProps<R>) {
   const { rows: allRows, schema } = useMemo(() => resolveData(data), [data]);
   const { rows, selection: sel } = useLinkedRows(allRows, { selection, source });
   const picker = useToggleSelect(sel, category, source, onSelect);
+  const colorList = useSettled(colors);
+  const palette = useMemo(() => seriesColors(colorList), [colorList]);
+  const side = legendPlacement(legend, true, 'right');
 
   const catField = fieldOf(schema, category, rows);
   const valueField = value ? fieldOf(schema, value, rows) : undefined;
@@ -99,12 +111,10 @@ export function DonutChart<R extends Row = Row>(props: DonutChartProps<R>) {
       const sweep = total > 0 ? (b.value / total) * 360 : 0;
       const a0 = angle;
       angle += sweep;
-      const color = Array.isArray(colors)
-        ? (colors[i] ?? seriesColor(i))
-        : (colors?.[String(b.raw)] ?? seriesColor(i));
+      const color = pickColor(palette, String(b.raw), i, seriesColor);
       return { ...b, share: total > 0 ? b.value / total : 0, a0, a1: angle, color };
     });
-  }, [rows, category, value, aggregate, sort, colors]);
+  }, [rows, category, value, aggregate, sort, palette]);
   const total = slices.reduce((s, b) => s + b.value, 0);
 
   const measureField = aggregate === 'count' ? undefined : valueField;
@@ -203,7 +213,11 @@ export function DonutChart<R extends Row = Row>(props: DonutChartProps<R>) {
       {...frame}
     >
       {() => (
-        <div className="q-donut" data-hovering={focus != null || undefined}>
+        <div
+          className="q-donut"
+          data-hovering={focus != null || undefined}
+          data-legend={typeof legend === 'string' && side ? side : undefined}
+        >
           <div className="q-donut-ring" style={{ width: size, height: size }}>
             <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
               <circle
@@ -267,7 +281,7 @@ export function DonutChart<R extends Row = Row>(props: DonutChartProps<R>) {
               }}
             />
           </div>
-          {legend && (
+          {side && (
             <div className="q-donut-legend" role="list">
               {slices.map((s, i) => {
                 const on = picker.has(s.raw);
@@ -279,6 +293,7 @@ export function DonutChart<R extends Row = Row>(props: DonutChartProps<R>) {
                       style={{ background: dim ? 'var(--q-line-strong)' : s.color }}
                     />
                     <span className="q-donut-name">{fmtC(s.raw)}</span>
+                    {labels && <span className="q-donut-amount">{fmtLabel(s.value)}</span>}
                     <span className="q-donut-share">{fmtShare(s.share)}</span>
                   </>
                 );

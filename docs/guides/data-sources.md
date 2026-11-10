@@ -76,7 +76,7 @@ On this page the rows come from the `data` block in section 2. In your app they 
 
 ## 4. A URL the page allows
 
-`src:` names a URL. `url:` is the same setting.
+`src:` names a URL. `url:` is the same setting. Do not confuse it with `source:`, which loads nothing: it is a line of text that tells the reader [where the numbers came from](interaction.md#5-where-the-numbers-came-from).
 
 ```text
 bar sum(revenue) by region
@@ -207,7 +207,7 @@ refresh: 30s
 - **Floor.** The host sets the shortest interval a block may ask for: 10 seconds by default. A shorter value is raised to the floor, with a note: `Refresh raised from 2s to 10s, the shortest interval this page allows.` Set the floor with `QuartileDocument minRefresh` or `data-min-refresh` on the script. It cannot go below 1 second.
 - **Visible pages only.** Timers stop while the page is hidden. When it is shown again, an overdue source reloads at once.
 - **No overlap.** One request per URL runs at a time. When several mounted blocks name a URL, the shortest of their intervals is used.
-- **Failures keep the last rows.** When a reload fails, the chart keeps the rows it has and tries again at the next interval. A source that has never loaded shows the error.
+- **Failures keep the last rows.** When a reload fails, the chart keeps the rows it has and tries again at the next interval. A source that has never loaded shows the error. A reload that answers with no rows is not a failure: the views show their empty state.
 - **It stops with the block.** Reloading stops when no mounted block uses the source.
 - `refresh:` on a block with inline rows or with `data: name` is ignored with a warning. Write it in the block that has `src:`.
 - Static output has no timers. The server renderers load a source once.
@@ -244,7 +244,7 @@ export function Report({ markdown }: { markdown: string }) {
 }
 ```
 
-Create the loader once, outside the component. `createSourceLoader` is exported from `@quartile/react` and from `@quartile/react/lang`.
+Create the loader once, outside the component. `createSourceLoader` is exported from `@quartile/react` and from `@quartile/react/lang`. Two more props of the document apply to loaded data: `minRefresh`, the shortest `refresh:` interval in seconds, and `maxRows`, the rows kept from a response (5,000 by default).
 
 | Option | Meaning | Default |
 |---|---|---|
@@ -339,7 +339,7 @@ The same settings from JavaScript, before the script loads or afterwards:
 </script>
 ```
 
-`Quartile.configure` takes `sources` (a string, a list, or a function `(url: URL) => boolean`), `minRefresh` (seconds), `maxBytes`, `timeoutMs`, and `loadSource`, which replaces fetching with your own function as in section 7. Applications that import `@quartile/react/embed` call `configureEmbed` with the same options and `pageScope().reload()`.
+`Quartile.configure` takes `sources` (a string, a list, or a function `(url: URL) => boolean`), `minRefresh` (seconds), `maxBytes`, `timeoutMs`, `maxRows`, and `loadSource`, which replaces fetching with your own function as in section 7. Applications that import `@quartile/react/embed` call `configureEmbed` with the same options and `pageScope().reload()`.
 
 Sources are loaded once per page and shared by the elements on it. With the script, a loaded source keeps up to 50,000 rows.
 
@@ -367,12 +367,14 @@ const loadSource = createSourceLoader({
 | Response time | 15 seconds | `timeoutMs` |
 | Shortest `refresh:` | 10 seconds | `minRefresh`, `data-min-refresh` |
 | Inline rows per block | 5,000 | `maxRows` when you call `compileBlock` yourself; fixed in the components |
-| Rows kept from a loaded response | 5,000 in a React document and in the server renderers; 50,000 with the script | return rows from your own loader |
+| Rows kept from a loaded response | 5,000 in a React document and in the server renderers; 50,000 with the script | `maxRows` on `QuartileDocument`, in the server renderers' options, or in `Quartile.configure` |
 | Schemes | `http:` and `https:` | not configurable |
 
-Rows past the limit of a loaded response are dropped, and the block does not say so today. Aggregate large data before charting it. Rows or a dataset that your own loader returns are passed through as they are.
+**More rows than the limit.** The first rows are kept, and each view drawn from them says so under the chart: "Showing the first 5,000 of 5,200 rows." The host also receives a warning through `onDiagnostics`. A chart of the first rows is not a chart of the data, so aggregate large data before charting it, or raise `maxRows`. Rows or a dataset that your own loader returns are passed through as they are.
 
-A response with no rows has no columns either, because column names are learned from the rows. A block that names fields then shows `There is no column “region”. The dataset has no columns yet.` instead of an empty chart.
+**No rows.** An answer with no rows is not an error. It may be an empty list, an envelope around no rows, or a CSV header with nothing under it. Each view draws its empty state: a chart shows "No data to show" under its title, a KPI its label, a table its columns with "No rows to show". When a later `refresh:` brings rows, the views fill in.
+
+**One problem, one message.** When the data cannot be read, for example because a `path:` does not resolve, the block shows that one error. It does not also report each field as missing.
 
 A block whose source fails shows "This chart has no data", the message and its source text. The messages:
 
@@ -416,4 +418,4 @@ What stays your decision:
 - A `loadSource` function you write runs with your code's privileges. Check the URL against your own list inside it.
 - A chart that loads and validates can still answer the wrong question. Keep row grain, units and denominators explicit.
 
-The language's other safety properties (no scripts, HTML, styles or SQL in blocks) are in the [language reference](../language.md#12-safety).
+The language's other safety properties (no scripts, HTML or SQL in blocks, a closed list of colors, checked source links) are in the [language reference](../language.md#12-safety).

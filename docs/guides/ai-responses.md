@@ -4,7 +4,9 @@ Let a model answer with charts by writing ```` ```quartile ```` blocks in its no
 
 ## 1. Teach the syntax
 
-`quartilePrompt()` returns a system-prompt section (about 3,300 characters) generated from the language's own tables: the block shape, the kinds, measures and formats, two complete examples, and rules (chart only data you have, at most 60 rows, no code or URLs). Every example in it is compiled in the test suite. `npx quartile prompt` prints the same text in a terminal.
+`quartilePrompt()` returns a system-prompt section (about 3,800 characters) generated from the language's own tables: the block shape, the kinds, measures and formats, two complete examples, a short list of optional lines, and rules (chart only data you have, at most 60 rows, no code or URLs). Every example and every optional line in it is compiled in the test suite. `npx --no-install quartile prompt` prints the same text in a terminal.
+
+The optional lines are ones a model may add when asked, or when they help the reader: `colors`, `y.min` and `y.max`, `legend`, `labels`, `reference` with `reference.label`, and `source` with `asof` to say where the numbers came from when it knows. The prompt tells the model to set colors only when asked. `quartilePrompt({ actions: true })` also teaches `actions: rows, download`, the buttons that open and download the rows behind a chart; it is off by default because whether answers carry those buttons is your choice.
 
 ```ts
 import { quartilePrompt } from '@quartile/react/lang';
@@ -113,12 +115,50 @@ const block = chartToolInputToBlock(call.input);
 
 Render the result with `<QuartileBlock source={block} />`. The JSON spec (`@quartile/react/schema.json`) remains the validator for complete dashboards; it uses `oneOf` and bounds, so do not pass it as a strict schema.
 
+## 6. Ask a follow-up from a selection
+
+A reader who clicks a bar has told you what they want to know more about. `onSelectionChange` reports each change of a selection group, so the page can offer the next question:
+
+```tsx
+import { useState } from 'react';
+import Markdown from 'react-markdown';
+import {
+  predicateValueLabel,
+  QuartileDocument,
+  QuartilePre,
+  type SelectionChange,
+} from '@quartile/react';
+
+export function Answer({ markdown, onAsk }: { markdown: string; onAsk: (question: string) => void }) {
+  const [picked, setPicked] = useState<SelectionChange | null>(null);
+  const about = picked?.predicates
+    .map((p) => `${p.field} ${predicateValueLabel(p)}`)
+    .join(' and ');
+  return (
+    <QuartileDocument markdown={markdown} onSelectionChange={setPicked}>
+      <Markdown components={{ pre: QuartilePre }}>{markdown}</Markdown>
+      {about ? (
+        <button type="button" onClick={() => onAsk(`Tell me more about ${about}.`)}>
+          Ask about {about}
+        </button>
+      ) : null}
+    </QuartileDocument>
+  );
+}
+```
+
+After a click on APAC in a ranking by region, the button reads "Ask about region APAC". Clearing the selection withdraws it. Send the question as the next user message, and pass `picked.predicates` to your server if it should filter the data for the answer.
+
+A chart reports a selection only if it publishes one. A `dashboard` block does, and so do blocks over a dataset you pass in `data`. A lone chart with its own rows needs `select: yes`. Non-React pages get the same information from the `quartile-select` event. See [interaction](interaction.md#6-react-to-selections-in-your-app).
+
 ## Safety
 
 - Blocks are data: no scripts, HTML, styles, SQL or event handlers are executed or injected.
 - Nothing is fetched unless you pass `loadSource` (or, with the script, list origins in `data-sources`). A prompt-injected answer cannot make the page send data to a URL in a `src:` line. With a loader from `createSourceLoader`, only the origins you listed are read, without cookies for other origins, and a block cannot add request headers.
 - Inline rows are capped (5,000 by default); the prompt asks for at most 60.
-- Colors and fonts come from your page. A model cannot style a block to look like your interface.
+- Fonts and everything outside the plot come from your page. A block may color its marks with palette names, `1` to `8` and hex colors only; other values never reach a style. Pass `blockColors={false}` to keep each chart on your palette.
+- A `source:` line is the model's statement, shown as text. Quartile does not verify it, and `source.url:` becomes a link only for an `http:` or `https:` address, which is not fetched. Tell the model to state a source only when it knows one.
+- The rows panel and the CSV download show data that is already on the page. Pass `actions={false}` to show no toolbar whatever a block asks.
 - A schema-valid chart can still answer the wrong question. Keep row grain, units and denominators explicit in prompts and datasets, as in the [data-app recipes](use-cases.md).
 
 ## Adding this with a coding agent

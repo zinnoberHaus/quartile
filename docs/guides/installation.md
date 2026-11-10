@@ -12,7 +12,7 @@ npm install https://github.com/zinnoberHaus/quartile/releases/download/v0.1.0-pr
 - The import name stays `@quartile/react`. Your `package.json` records the URL as the version.
 - pnpm, Yarn and Bun accept the same URL: `pnpm add <url>`, `yarn add <url>`, `bun add <url>`.
 - React and React DOM are peer dependencies; keep both on the same compatible version (React 18.2+ or 19).
-- The package manifest inside the build says `0.1.0`, so `npm ls` and `npx quartile --version` print that number. Identify a preview build by the release tag in its URL. To move to a newer build, install its URL.
+- A preview build reports its own version: `npm ls @quartile/react` and `npx --no-install quartile --version` print `0.1.0-preview.1` for this one. To move to a newer build, install its URL.
 - The [release page](https://github.com/zinnoberHaus/quartile/releases/tag/v0.1.0-preview.1) lists `SHA256SUMS.txt` with the checksum of each file.
 
 The package ships ESM, type declarations, one stylesheet, a JSON Schema and the `quartile` command. Import the stylesheet once, near your app root:
@@ -31,8 +31,10 @@ Then pick the path that matches your project:
 To confirm the install, check a Markdown file that contains a `quartile` block:
 
 ```sh
-npx quartile check README.md
+npx --no-install quartile check README.md
 ```
+
+`--no-install` makes `npx` run only the copy in your project. With pnpm, write `pnpm exec quartile check README.md`.
 
 ## The script, for pages without a build step
 
@@ -93,7 +95,7 @@ In your application, install the resulting file using its absolute path:
 npm install /absolute/path/to/quartile/artifacts/quartile-react-0.1.0.tgz
 ```
 
-The standalone script is then at `packages/react/dist/embed/quartile.global.js`. Pin the Git commit you built from.
+A package built this way reports the version `0.1.0`; only the preview-build workflow stamps a preview number. The standalone script is then at `packages/react/dist/embed/quartile.global.js`. Pin the Git commit you built from.
 
 ## Run the examples
 
@@ -121,7 +123,7 @@ To explore your own rows without writing an application, open `/examples/explore
 - Unstyled components: import `@quartile/react/styles.css` and ensure your global reset does not override its classes.
 - No chart: give the parent a measurable width; avoid mounting it in an element with `display: none`.
 - A `quartile` block stays a code block: the Markdown renderer is not wired. See [Markdown and documentation sites](markdown.md).
-- A block shows an error instead of a chart: read the message, or run `npx quartile check` on the file. Errors carry a line number and, for a missing column, the real columns.
+- A block shows an error instead of a chart: read the message, or run `npx --no-install quartile check` on the file. Errors carry a line number and, for a missing column, the real columns.
 - Filters do nothing: put publishers and subscribers under the same `Selection`, and keep the selected field on the rows they receive.
 - Missing dataset in a spec: register the exact name in `SpecView`'s `data` map.
 - Next.js hook error: import the built package in a client boundary; see [integration](integration.md).

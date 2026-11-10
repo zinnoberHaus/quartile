@@ -3,7 +3,7 @@ name: quartile
 description: Add Quartile charts to a project. Quartile is an open-source chart block. A fenced quartile code block (a sentence, optional settings, a few rows) becomes an interactive chart, KPI, table or dashboard in Markdown, in streamed AI answers and on web pages. Use when asked to add charts, KPIs or dashboards to Markdown content, a docs site, a chat or AI answer UI, or an HTML page, when the user says "use Quartile", or when editing files that contain quartile code blocks. Covers installing the preview build, wiring react-markdown, Streamdown, MDX, remark, markdown-it or a script tag, writing valid blocks, data sources, and validating with the quartile check command.
 license: Apache-2.0
 metadata:
-  version: "2"
+  version: "3"
   status: preview
 ---
 
@@ -176,11 +176,15 @@ Americas,2100000
 2. Optional `key: value` settings, one per line.
 3. A line `---`, then rows as CSV with a header row (or a Markdown table, TSV or JSON).
 
-**Kinds.** `line`, `area`, `bar` (`hbar` for horizontal), `barlist`, `donut` (`pie`), `scatter` (`scatter y vs x`), `histogram`, `box`, `heatmap`, `calendar`, `funnel`, `sankey`, `sparkline`, `kpi`, `table`, `filters`, plus `data <name>` (a named dataset) and `dashboard <title>` (several views that share rows and filter each other).
+**Kinds.** `line`, `area`, `bar` (`hbar` for horizontal), `barlist`, `donut` (`pie`), `scatter` (`scatter y vs x`), `histogram`, `box`, `heatmap`, `calendar`, `funnel`, `sankey`, `sparkline`, `kpi`, `table`, `explorer` (a table with search, sorting and export), `filters`, plus `data <name>` (a named dataset) and `dashboard <title>` (several views that share rows and filter each other).
 
 **Measures.** `sum(x)`, `mean(x)` or `avg(x)`, `count`, or a plain column. `as "Label"` renames one. Several measures draw several series: `line revenue, cost by month`. After `by`, the first field is the x axis or category and the second splits series.
 
 **Settings.** `title`, `subtitle`, `format` (`currency USD`, `percent`, `compact`, `integer`, `1 decimal`, `month`, or a d3 specifier such as `$,.0f`), `sort`, `limit`, `stacked`, `horizontal`, `smooth`, `height`, `x.label`, `y.label`, `<column>.label`, `<column>.format`, `<column>.description`, `data`, `span` (width in a dashboard, 1 to 12).
+
+**Looks.** The page chooses colors and fonts, so add these only when asked or when they help: `colors: signal, #f26b3a` (only `signal`, `positive`, `negative`, `warning`, `muted`, `1` to `8`, or hex; other colors are refused), `y.min` and `y.max` (bars always start at zero), `y.ticks`, `grid: none`, `x axis: no`, `legend: top|bottom|left|right|none`, `labels: yes`, `reference: 1000000` with `reference.label: Target`, `margin: 16 24 32 48`, `y.scale: log`. Not each chart takes each setting: see the styling guide.
+
+**Interaction.** Views over the same named dataset, or with the same `link: name`, filter each other without further settings; a block with its own rows publishes a selection only with `select: yes` (`brush: yes` on a line). `actions: table, rows, download` adds buttons for the view's table, the rows behind it and a CSV download; before the first view of a dashboard, `actions: rows, download` is one toolbar for the dashboard. `source:`, `source.url:` and `asof:` say where the numbers came from; `source:` is not a dataset name, so name a dataset with `data:`.
 
 **A dashboard** is one block with several views over the rows after `---`:
 
@@ -235,7 +239,7 @@ If the project has no loader or allowlist, use ways 1 to 3. Ask the user before 
 When the project's own model should answer with charts:
 
 - Add `quartilePrompt()` from `@quartile/react/lang` to the system prompt. With `quartilePrompt({ datasets })` the model writes `data: name` for data the app supplies.
-- Render answers with A or B and pass `streaming` while a message is in progress.
+- Render answers with A or B and pass `streaming` while a message is in progress. `onSelectionChange` on `QuartileDocument` reports what the reader selects, for example to suggest a follow-up question.
 - To validate a finished answer, run `compileBlock(block.source)` over `findFencedBlocks(answer)` (both from `@quartile/react/lang`) and feed errors back for at most one repair turn.
 - For tool calls, `quartileBlockTool()` and `quartileChartTool()` return strict-mode schemas; `chartToolInputToBlock()` converts the typed input to block text.
 
@@ -244,9 +248,10 @@ When the project's own model should answer with charts:
 After writing or editing blocks in Markdown files, run:
 
 ```sh
-npx quartile check <files.md>
+npx --no-install quartile check <files.md>
 ```
 
+- Keep `--no-install`: without it, in a project where Quartile is not installed, `npx` would download whatever package is named `quartile` on the registry. With pnpm, run `pnpm exec quartile check <files.md>`.
 - Each problem prints as `file:line: severity: message`. Exit status 1 means errors.
 - Fix each error and run it again until it reports 0 errors. Read the warnings: a corrected spelling or an ignored setting usually means the block is not what you meant.
 - An error such as `There is no column “profit”. Columns: region, revenue.` lists the real columns. Use one of them; do not rename the data to match.
@@ -257,11 +262,11 @@ Then run the project's own typecheck, tests and build, and load a page that show
 
 ## NEVER
 
-- Never invent a kind or a setting. Use the ones in this file and in the language reference. An unknown setting is ignored with a warning, so the chart silently differs from what you wrote.
+- Never invent a kind or a setting. Use the ones in this file and in the language reference. An unknown setting, or a setting the kind does not have, is ignored with a warning, so the chart silently differs from what you wrote.
 - Never replace Quartile with another chart library, or with a hand-written SVG or image, because a block failed. Read the diagnostic, fix the block, and tell the user if something is not supported.
 - Never fetch data for a chart outside the host's loader or allowlist, and never add an origin, a `loadSource` or `data-sources` without the user's agreement. On pages that show model output, do not allow origins the project does not control.
-- Never write numbers that were not given to you or computed from data you were given. Do not fill a chart with sample values unless the user asked for sample data, and then say so in the title.
-- Never put scripts, HTML, CSS, SQL or secrets in a block. Blocks are data, and the page chooses colors and fonts.
+- Never write numbers that were not given to you or computed from data you were given, and never state a `source:` you do not know. Do not fill a chart with sample values unless the user asked for sample data, and then say so in the title.
+- Never put scripts, HTML, CSS, SQL or secrets in a block. Blocks are data. Do not turn off a host's `blockColors` or `actions` setting to make a block's line take effect.
 - Never run `npm install @quartile/react`, and never tell the user the package is on npm or that this is a stable release.
 
 ## Docs
@@ -270,10 +275,13 @@ Each page has a Markdown rendition at the same URL with `.md` added.
 
 - Syntax reference: https://docs.usequartile.com/docs/language.md
 - Data sources (`src:`, `path:`, `refresh:`, loaders, security): https://docs.usequartile.com/docs/data-sources.md
+- Styling and settings (which chart takes which setting): https://docs.usequartile.com/docs/styling.md
+- Interaction (linking, actions, provenance, selection events): https://docs.usequartile.com/docs/interaction.md
 - Markdown, MDX, remark, markdown-it: https://docs.usequartile.com/docs/markdown.md
 - AI answers: https://docs.usequartile.com/docs/ai-answers.md
 - Script tag, `<quartile-chart>`, theming and host presets: https://docs.usequartile.com/docs/embedding.md
 - Server rendering: https://docs.usequartile.com/docs/server-rendering.md
 - Installation: https://docs.usequartile.com/docs/installation.md
+- Coding agents (this skill, the AGENTS.md snippet, the check command): https://docs.usequartile.com/docs/ai-coding-agents.md
 - Index of pages: https://docs.usequartile.com/llms.txt
 - Source and issues: https://github.com/zinnoberHaus/quartile

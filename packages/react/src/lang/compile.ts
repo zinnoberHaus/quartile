@@ -1064,6 +1064,11 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
             : '',
       };
       spec.x = orderName;
+      if (Array.isArray(spec.annotations)) {
+        spec.annotations = (spec.annotations as { x?: unknown }[]).map((a) =>
+          a && order.has(String(a.x)) ? { ...a, x: order.get(String(a.x)) } : a,
+        );
+      }
       delete channelMeta.x;
       if (spec.brush) {
         diagnostics.push(

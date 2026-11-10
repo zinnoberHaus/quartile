@@ -238,6 +238,32 @@ const X_BOUNDS = {
   xMin: number('Lower bound of a numeric x axis; ignored for dates and categories.'),
   xMax: number('Upper bound of a numeric x axis; ignored for dates and categories.'),
 };
+const Y_SCALE = oneOfEnum(
+  ['linear', 'log'],
+  'Scale of the y axis. "log" spaces equal ratios evenly and needs every value above zero; otherwise the chart stays linear and says so.',
+);
+const STROKE_WIDTH = {
+  type: 'number',
+  minimum: 0.25,
+  maximum: 16,
+  description: 'Line width in px. Defaults to the --q-chart-stroke-width token (2).',
+};
+const ANNOTATIONS = {
+  type: 'array',
+  description: 'Vertical markers at x positions, each with a short label, e.g. a launch date.',
+  items: {
+    type: 'object',
+    properties: {
+      x: {
+        type: ['string', 'number'],
+        description: 'Where on the x axis: a date such as "2026-03-01", or a number.',
+      },
+      label: str('Short text beside the marker.'),
+    },
+    required: ['x', 'label'],
+    additionalProperties: false,
+  },
+};
 
 function component(
   name: string,
@@ -291,6 +317,9 @@ const COMPONENT_DEFS: Record<string, JsonSchema> = {
       reference: reference('A horizontal rule at a y value'),
       ...PLOT,
       ...X_BOUNDS,
+      yScale: Y_SCALE,
+      strokeWidth: STROKE_WIDTH,
+      annotations: ANNOTATIONS,
     },
     ['x', 'y'],
   ),
@@ -312,6 +341,12 @@ const COMPONENT_DEFS: Record<string, JsonSchema> = {
       reference: reference('A horizontal rule at a y value'),
       ...PLOT,
       ...X_BOUNDS,
+      yScale: oneOfEnum(
+        ['linear', 'log'],
+        'Scale of the y axis. "log" needs overlapping (not stacked) areas and every value above zero; otherwise the chart stays linear and says so.',
+      ),
+      strokeWidth: STROKE_WIDTH,
+      annotations: ANNOTATIONS,
     },
     ['x', 'y'],
   ),
@@ -344,6 +379,20 @@ const COMPONENT_DEFS: Record<string, JsonSchema> = {
         [true, false, 'x', 'y', 'both', 'none'],
         'Horizontal gridlines behind vertical bars; false or "none" removes them.',
       ),
+      radius: {
+        type: 'number',
+        minimum: 0,
+        maximum: 40,
+        description:
+          'Corner radius of the bar ends in px. Defaults to the --q-chart-bar-radius token (2).',
+      },
+      padding: {
+        type: 'number',
+        minimum: 0,
+        maximum: 0.9,
+        description:
+          'Gap between bars as a share of each band: 0 touching, 0.9 thin. Default 0.28.',
+      },
     },
     ['x', 'y'],
   ),
@@ -406,6 +455,7 @@ const COMPONENT_DEFS: Record<string, JsonSchema> = {
       curve: CURVE,
       format: format('Value format for the accessible summary.'),
       color: color('Line color: a palette name, 1–8, or a hex color such as "#2f45e8".'),
+      strokeWidth: { ...STROKE_WIDTH, description: 'Line width in px. Defaults to 1.25.' },
     },
     ['y'],
   ),
@@ -459,6 +509,7 @@ const COMPONENT_DEFS: Record<string, JsonSchema> = {
       xMin: number('Lower bound of the x axis. Points outside the bounds are not drawn.'),
       xMax: number('Upper bound of the x axis.'),
       yMin: number('Lower bound of the y axis. Points outside the bounds are not drawn.'),
+      yScale: Y_SCALE,
       xTitle: str('Horizontal axis title.'),
       yTitle: str('Vertical axis title.'),
     },

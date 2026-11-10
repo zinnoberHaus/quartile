@@ -1,7 +1,7 @@
-import { scaleLinear } from 'd3-scale';
+import { scaleLinear, scaleLog } from 'd3-scale';
 import { type ReactNode, useMemo } from 'react';
 import type { FieldDef, Formatter } from '../../data/types';
-import type { Sides } from '../core/options';
+import { logTicks, type Sides } from '../core/options';
 import { monoTextWidth, tickFormatter } from '../core/scales';
 import { createScatterIndex } from './scatter-picking';
 import type { ScatterMark } from './scatter-types';
@@ -28,6 +28,8 @@ export interface ScatterLayout {
   xMax?: number;
   yMin?: number;
   yMax?: number;
+  /** Draw y on a log scale. The caller has checked that every y value is above zero. */
+  yLog?: boolean;
 }
 
 interface GeometryProps {
@@ -95,12 +97,16 @@ export function ScatterGeometry({
     const bottom = Math.max(top + 1, plotHeight - below);
     const maxR = points.reduce((value, point) => Math.max(value, point.r), 4.5);
     const yCount = layout.yTicks ?? 4;
-    const ys = scaleLinear()
-      .domain(domains.y)
-      .nice(yCount || 1);
-    ys.domain(bound(ys.domain(), layout.yMin, layout.yMax));
+    const log = !!layout.yLog && domains.y[0] > 0;
+    const ys = log
+      ? scaleLog().domain(domains.y).nice()
+      : scaleLinear()
+          .domain(domains.y)
+          .nice(yCount || 1);
+    const lower = log && !(layout.yMin !== undefined && layout.yMin > 0) ? undefined : layout.yMin;
+    ys.domain(bound(ys.domain(), lower, layout.yMax));
     const fmtYTick = tickFormatter(yField, locale, timeZone, format);
-    const yTickVals = yCount === 0 ? [] : ys.ticks(yCount);
+    const yTickVals = yCount === 0 ? [] : log ? logTicks(ys, yCount) : ys.ticks(yCount);
     const left =
       pad.left ??
       (layout.yAxis === false

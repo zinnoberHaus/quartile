@@ -293,6 +293,13 @@ export const PROPERTY_ALIASES: Record<string, string> = {
   ticks: 'yTicks',
   tickcount: 'yTicks',
   referenceline: 'reference',
+  scale: 'yScale',
+  linewidth: 'strokeWidth',
+  stroke: 'strokeWidth',
+  cornerradius: 'radius',
+  barradius: 'radius',
+  barpadding: 'padding',
+  annotation: 'annotations',
 };
 
 /** Normalized property key: "X-Axis Label" → "xaxislabel". Dots are kept for paths. */

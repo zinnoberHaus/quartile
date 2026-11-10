@@ -13,6 +13,7 @@ import { type ChartColor, seriesColors } from './core/colors';
 import {
   AxisBottom,
   AxisLeft,
+  ChartNote,
   ChartTooltip,
   EndLabels,
   GridColumns,
@@ -23,6 +24,7 @@ import {
   type TooltipRow,
 } from './core/guides';
 import {
+  boundedNumber,
   boundX,
   type ChartPresentationProps,
   describeLimits,
@@ -31,12 +33,14 @@ import {
   type LegendSetting,
   labelCount,
   legendPlacement,
+  logScaleProblem,
   marginSides,
   readOut,
   referenceLines,
   sideLegendWidth,
   spreadLabels,
   tickCount,
+  type ValueScaleType,
   valueAxis,
 } from './core/options';
 import {
@@ -93,6 +97,13 @@ export interface AreaChartProps<R extends Row = Row>
   colors?: ChartColor[] | Record<string, ChartColor>;
   /** Writes each series' name and last value at the end of its line. */
   labels?: boolean;
+  /**
+   * `log` spaces equal ratios evenly, for overlapping areas whose values are all above zero.
+   * Stacked areas are measured from zero and stay linear; either way the chart says so.
+   */
+  yScale?: ValueScaleType;
+  /** Width in px of the line on top of each overlapping area. Defaults to the `--q-chart-stroke-width` token (2). */
+  strokeWidth?: number;
   /** Lets readers drag to select a range of x and publishes it to the nearest Selection. */
   brush?: boolean;
   /** Vertical markers with a short label. */
@@ -124,6 +135,8 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
     brush = false,
     annotations,
     labels = false,
+    yScale: scaleType = 'linear',
+    strokeWidth,
     margin,
     yMin,
     yMax,
@@ -191,6 +204,17 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
   // A linked filter may remove every visible group. Keep surviving groups discoverable.
   const visible = shown.length ? shown : series;
   const stacks = stack ? stackSeries(visible) : null;
+  const lineWidth = boundedNumber(strokeWidth, 0.25, 16);
+  // Why a requested log scale is not in use: a stack has a zero baseline, a log axis has none.
+  const logProblem =
+    scaleType !== 'log'
+      ? undefined
+      : stack
+        ? 'Stacked areas are measured from zero, so this chart uses a linear scale.'
+        : logScaleProblem([
+            ...visible.flatMap((s) => s.values.filter((v): v is number => v != null)),
+            ...refs.map((r) => r.value),
+          ]);
   const side = legendPlacement(legend, series.length > 1, 'bottom');
   const plotHeight = side === 'top' || side === 'bottom' ? height - LEGEND_H : height;
 
@@ -240,8 +264,9 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
     parts.push(describeReferences(refs, fmtAxis));
     // Stacked bands are measured from zero, so their axis bounds are never cut.
     if (!stack) parts.push(describeLimits(yMin, yMax, fmtAxis));
+    if (scaleType === 'log') parts.push(logProblem ?? 'The y axis is logarithmic.');
     return parts.filter(Boolean).join(' ');
-  }, [series, xsRaw, fmtX, fmtY, formats, stack, locale, refs, yMin, yMax]);
+  }, [series, xsRaw, fmtX, fmtY, formats, stack, locale, refs, yMin, yMax, scaleType, logProblem]);
 
   const table = useMemo<ChartTable>(() => {
     const totals = stack && series.length > 1 ? seriesTotals(series) : null;
@@ -285,6 +310,7 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
           max: yMax,
           anchored: !!stacks,
           chart: 'A stacked AreaChart',
+          log: scaleType === 'log' && !stacks,
         });
         const yScale = axis.scale;
         const fmtTick = tickFormatter(valueField, locale, timeZone, format);
@@ -446,9 +472,14 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
                         style={{ fill: `url(#${gradientId}-${i})` }}
                       />
                       <path
+                        className="q-chart-line"
                         d={lineGen(pts) ?? ''}
                         fill="none"
-                        style={{ stroke: s.color }}
+                        style={
+                          lineWidth === undefined
+                            ? { stroke: s.color }
+                            : { stroke: s.color, strokeWidth: lineWidth }
+                        }
                         strokeWidth={2}
                         strokeLinejoin="round"
                         strokeLinecap="round"
@@ -637,6 +668,7 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
                   footer={tipFooter}
                 />
               )}
+              {logProblem && <ChartNote>{logProblem}</ChartNote>}
               <div className="q-visually-hidden" aria-live="polite">
                 {active != null && tipRows.length > 0
                   ? `${fmtXLong(xsRaw[active])}: ${tipRows.map((r) => `${r.label} ${r.value}${r.description ? `. ${r.description}` : ''}`).join(', ')}${tipFooter ? `, total ${tipFooter.value}` : ''}`

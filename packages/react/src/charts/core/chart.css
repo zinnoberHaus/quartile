@@ -86,9 +86,14 @@
 
 .q-chart-axis text {
   font-family: var(--q-font-mono);
-  font-size: 11px;
+  font-size: var(--q-chart-axis-font-size, 11px);
   fill: var(--q-text-3);
   font-variant-numeric: tabular-nums;
+}
+
+/* Series lines. The token wins over the width written on the element for pages without CSS. */
+.q-chart-line {
+  stroke-width: var(--q-chart-stroke-width, 2px);
 }
 
 .q-chart-baseline {
@@ -477,7 +482,7 @@ button.q-legend-item:focus-visible {
 }
 
 .q-chart-reference text {
-  font: 500 11px var(--q-font-mono);
+  font: 500 var(--q-chart-axis-font-size, 11px) var(--q-font-mono);
   fill: var(--q-text-2);
   paint-order: stroke;
   stroke: var(--q-surface);
@@ -488,7 +493,7 @@ button.q-legend-item:focus-visible {
 /* Direct labels: values on bars, names and last values at line ends. */
 .q-chart-end-labels text,
 .q-chart-value-labels text {
-  font: 500 11px var(--q-font-mono);
+  font: 500 var(--q-chart-axis-font-size, 11px) var(--q-font-mono);
   font-variant-numeric: tabular-nums;
 }
 

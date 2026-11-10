@@ -185,8 +185,27 @@ export interface ValueAxis {
 
 const finite = (v: number | undefined): v is number => typeof v === 'number' && Number.isFinite(v);
 
+/** `log` spaces equal ratios evenly; it needs every value above zero. */
+export type ValueScaleType = 'linear' | 'log';
+
+export const LOG_NEEDS_POSITIVE =
+  'A log scale needs values above zero, so this chart uses a linear scale.';
+
+/** Why a log scale cannot show these values, or undefined when it can. */
+export function logScaleProblem(values: readonly number[]): string | undefined {
+  const data = values.filter(Number.isFinite);
+  return data.length > 0 && data.every((v) => v > 0) ? undefined : LOG_NEEDS_POSITIVE;
+}
+
+/** A number setting kept inside its bounds; undefined for anything that is not a number. */
+export function boundedNumber(value: unknown, lower: number, upper: number): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(lower, Math.min(upper, value))
+    : undefined;
+}
+
 /** At most `count` or so log ticks: powers of ten, then 2s and 5s when a decade or less is shown. */
-function logTicks(scale: ScaleContinuousNumeric<number, number>, count: number): number[] {
+export function logTicks(scale: ScaleContinuousNumeric<number, number>, count: number): number[] {
   const all = scale.ticks(count);
   if (all.length <= Math.max(count + 2, 6)) return all;
   const mantissa = (v: number) => Math.round((v / 10 ** Math.floor(Math.log10(v))) * 1e6) / 1e6;
@@ -246,7 +265,7 @@ export function valueAxis(
         bounds: lower !== undefined || upper !== undefined ? [d0, d1] : undefined,
       };
     }
-    note = 'A log scale needs values above zero, so this chart uses a linear scale.';
+    note = LOG_NEEDS_POSITIVE;
   }
 
   const scale = valueScale(

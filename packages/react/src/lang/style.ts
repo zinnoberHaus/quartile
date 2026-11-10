@@ -412,6 +412,20 @@ export function readStyleSetting(p: PropEntry, st: StyleState): PropEntry | null
     }
   }
 
+  // y.scale: log · log: yes
+  if ((norm === 'y.scale' || norm === 'yscale' || norm === 'scale') && has(st, 'yScale')) {
+    const word = unquote(p.value).toLowerCase();
+    const value = word === 'logarithmic' || word === 'log10' ? 'log' : p.value;
+    return { ...p, key: 'yScale', norm: 'yscale', value };
+  }
+  if (['log', 'logscale', 'logarithmic', 'ylog', 'y.log'].includes(norm) && has(st, 'yScale')) {
+    const b = readBool(p.value);
+    if (b === undefined) {
+      st.diagnostics.push(warning(`Expected yes or no, got “${p.value}”.`, p.line));
+    } else set(st, 'yScale', b ? 'log' : 'linear', p.line);
+    return null;
+  }
+
   // legend: bottom · legend.position: right · legend: below
   if (
     (norm === 'legend' || norm === 'legend.position' || norm === 'legendposition') &&

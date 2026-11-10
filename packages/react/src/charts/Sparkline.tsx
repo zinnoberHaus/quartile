@@ -10,6 +10,7 @@ import { summarizeSeries } from './core/a11y';
 import type { ChartStateProps } from './core/ChartFrame';
 import { statusOf } from './core/ChartFrame';
 import { type ChartColor, singleColor } from './core/colors';
+import { boundedNumber } from './core/options';
 import { type Curve, curveFactory } from './core/scales';
 import { pivotSeries } from './core/trends-series';
 
@@ -35,6 +36,8 @@ export interface SparklineProps<R extends Row = Row> extends ChartStateProps {
   width?: number | string;
   /** Interpolation between points. Defaults to monotone. */
   curve?: Curve;
+  /** Line width in px. Defaults to 1.25. */
+  strokeWidth?: number;
   /** Formats values in the accessible summary. Defaults to the field's schema format. */
   format?: Formatter;
   /** Selection to read from. Defaults to the nearest; false opts out. */
@@ -60,6 +63,7 @@ export function Sparkline<R extends Row = Row>(props: SparklineProps<R>) {
     height = 28,
     width = '100%',
     curve = 'monotone',
+    strokeWidth,
     format,
     selection,
     className,
@@ -73,6 +77,7 @@ export function Sparkline<R extends Row = Row>(props: SparklineProps<R>) {
   const { locale, timeZone } = useQuartile();
   const source = useSourceId();
   const color = singleColor(colorSetting, 'var(--q-text)');
+  const lineWidth = boundedNumber(strokeWidth, 0.25, 16);
   const numeric = Array.isArray(data) && data.length > 0 && typeof data[0] === 'number';
   const resolved = useMemo(
     () =>
@@ -201,7 +206,13 @@ export function Sparkline<R extends Row = Row>(props: SparklineProps<R>) {
           <path className="q-sparkline-area" d={fill(model.values) ?? ''} style={{ fill: color }} />
         )}
         {model.prev && <path className="q-sparkline-compare" d={line(model.prev) ?? ''} />}
-        <path className="q-sparkline-line" d={line(model.values) ?? ''} style={{ stroke: color }} />
+        <path
+          className="q-sparkline-line"
+          d={line(model.values) ?? ''}
+          style={
+            lineWidth === undefined ? { stroke: color } : { stroke: color, strokeWidth: lineWidth }
+          }
+        />
       </svg>
     </span>
   );

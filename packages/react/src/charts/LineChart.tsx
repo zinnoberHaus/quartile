@@ -14,6 +14,7 @@ import { type ChartColor, pickColor, seriesColors } from './core/colors';
 import {
   AxisBottom,
   AxisLeft,
+  ChartNote,
   ChartTooltip,
   EndLabels,
   GridColumns,
@@ -24,6 +25,7 @@ import {
   type TooltipRow,
 } from './core/guides';
 import {
+  boundedNumber,
   boundX,
   type ChartPresentationProps,
   describeLimits,
@@ -32,12 +34,14 @@ import {
   type LegendSetting,
   labelCount,
   legendPlacement,
+  logScaleProblem,
   marginSides,
   readOut,
   referenceLines,
   sideLegendWidth,
   spreadLabels,
   tickCount,
+  type ValueScaleType,
   valueAxis,
 } from './core/options';
 import {
@@ -103,6 +107,13 @@ export interface LineChartProps<R extends Row = Row>
   colors?: ChartColor[] | Record<string, ChartColor>;
   /** Writes each series' name and last value at the end of its line. */
   labels?: boolean;
+  /**
+   * `log` spaces equal ratios evenly. It needs every value above zero; otherwise the chart stays
+   * linear and says so in a note and in its summary.
+   */
+  yScale?: ValueScaleType;
+  /** Line width in px. Defaults to the `--q-chart-stroke-width` token (2). */
+  strokeWidth?: number;
   /** Publisher id for the selection. Defaults to a generated id. */
   id?: string;
   /** Selection to read from and publish to. Defaults to the nearest; false opts out. */
@@ -142,6 +153,8 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
     legend,
     colors,
     labels = false,
+    yScale: scaleType = 'linear',
+    strokeWidth,
     margin,
     yMin,
     yMax,
@@ -287,6 +300,17 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
   const shown = series.filter((s) => !hidden.has(s.key));
   // A linked filter may remove every visible group. Keep surviving groups discoverable.
   const visible = shown.length ? shown : series;
+  const lineWidth = boundedNumber(strokeWidth, 0.25, 16);
+  // Why a requested log scale is not in use; the same check valueAxis makes when drawing.
+  const logProblem =
+    scaleType === 'log'
+      ? logScaleProblem([
+          ...[...visible, ...(compareSeries ? [compareSeries] : [])].flatMap((s) =>
+            s.values.filter((v): v is number => v != null),
+          ),
+          ...refs.map((r) => r.value),
+        ])
+      : undefined;
   const side = legendPlacement(legend, series.length > 1, 'top');
   const plotHeight = side === 'top' || side === 'bottom' ? height - LEGEND_H : height;
 
@@ -325,10 +349,11 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
       ),
       describeReferences(refs, fmtValue),
       describeLimits(yMin, yMax, fmtValue),
+      scaleType === 'log' ? (logProblem ?? 'The y axis is logarithmic.') : '',
     ]
       .filter(Boolean)
       .join(' ');
-  }, [series, xsRaw, fmtX, formats, locale, refs, yMin, yMax]);
+  }, [series, xsRaw, fmtX, formats, locale, refs, yMin, yMax, scaleType, logProblem]);
 
   const table = useMemo<ChartTable>(() => {
     const cols = [...series, ...(compareSeries ? [compareSeries] : [])];
@@ -373,6 +398,7 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
           ticks: yTickCount === undefined ? undefined : tickCount(yTickCount, 4),
           min: yMin,
           max: yMax,
+          log: scaleType === 'log',
         });
         const yScale = axis.scale;
         const yTickVals = axis.ticks;
@@ -535,9 +561,14 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
             {visible.map((s) => (
               <path
                 key={`l-${s.key}`}
+                className="q-chart-line"
                 d={pathOf(s, lineGen)}
                 fill="none"
-                style={{ stroke: s.color }}
+                style={
+                  lineWidth === undefined
+                    ? { stroke: s.color }
+                    : { stroke: s.color, strokeWidth: lineWidth }
+                }
                 strokeWidth={2}
                 strokeLinejoin="round"
                 strokeLinecap="round"
@@ -753,6 +784,7 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
                   footer={tipFooter}
                 />
               )}
+              {axis.note && <ChartNote>{axis.note}</ChartNote>}
               <div className="q-visually-hidden" aria-live="polite">
                 {active != null && tipRows.length > 0
                   ? `${fmtXLong(xsRaw[active])}: ${tipRows.map((r) => `${r.label} ${r.value}${r.description ? `. ${r.description}` : ''}`).join(', ')}`

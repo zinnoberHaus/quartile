@@ -1,5 +1,5 @@
 import { scaleBand } from 'd3-scale';
-import { type MouseEvent, useMemo, useState } from 'react';
+import { type MouseEvent, useMemo, useRef, useState } from 'react';
 import { makeFieldFormatter } from '../data/format';
 import type { Predicate } from '../data/predicates';
 import { fieldOf, resolveData } from '../data/schema';
@@ -9,6 +9,7 @@ import { useLinkedRows, useSourceId } from '../selection/Selection';
 import { useChartKeyboard } from './core/a11y';
 import { type ChartBaseProps, ChartFrame, type ChartTable, statusOf } from './core/ChartFrame';
 import { type ChartColor, seriesColors } from './core/colors';
+import { useCssNumber } from './core/css-number';
 import {
   AxisBottom,
   AxisLeft,
@@ -20,6 +21,7 @@ import {
   type TooltipRow,
 } from './core/guides';
 import {
+  boundedNumber,
   type ChartPresentationProps,
   describeReferences,
   gridLines,
@@ -86,6 +88,10 @@ export interface BarChartProps<R extends Row = Row>
    * or a stack show them unless this is `false`.
    */
   labels?: boolean;
+  /** Corner radius of the bar ends in px. Defaults to the `--q-chart-bar-radius` token (2). */
+  radius?: number;
+  /** Gap between bars as a share of each band, 0 (touching) to 0.9. Defaults to 0.28. */
+  padding?: number;
   /** Publisher id for the selection. Defaults to a generated id. */
   id?: string;
   /** Selection to read from and publish to. Defaults to the nearest; false opts out. */
@@ -135,6 +141,8 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
     colors,
     legend,
     labels: valueLabels,
+    radius,
+    padding,
     margin,
     yMin,
     yMax,
@@ -152,11 +160,16 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
   } = props;
   const split = group ?? color;
   const horizontal = orientation === 'horizontal';
-  const { locale, timeZone } = useQuartile();
+  const { locale, timeZone, theme } = useQuartile();
   const source = useSourceId(id);
   const { rows: allRows, schema } = useMemo(() => resolveData(data), [data]);
   const { rows, selection: sel } = useLinkedRows(allRows, { selection, source });
   const [hidden, setHidden] = useState<Set<string>>(new Set());
+  // The path of a bar carries its corner radius, so the token is read rather than applied by CSS.
+  const plotRef = useRef<HTMLDivElement>(null);
+  const tokenRadius = useCssNumber(plotRef, '--q-chart-bar-radius', 2, theme);
+  const cornerRadius = boundedNumber(radius, 0, 40) ?? tokenRadius;
+  const bandPadding = boundedNumber(padding, 0, 0.9);
   const colorList = useSettled(colors);
   const palette = useMemo(() => seriesColors(colorList), [colorList]);
   const referenceList = useSettled(reference);
@@ -337,7 +350,7 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
         const band = bandScale(
           xsRaw.map((_, i) => String(i)),
           catRange,
-          grouped ? 0.3 : 0.28,
+          bandPadding ?? (grouped ? 0.3 : 0.28),
         );
         const inner = scaleBand<string>()
           .domain(groupKeys)
@@ -365,7 +378,7 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
                 const value = next.values[i] ?? 0;
                 return value !== 0 && value < 0 === negative;
               });
-            const r = outer ? 2 : 0;
+            const r = outer ? cornerRadius : 0;
             const d = horizontal
               ? barPath(Math.min(a, b), c0, Math.abs(b - a), bw, r, true, negative)
               : barPath(c0, Math.min(a, b), bw, Math.abs(b - a), r, false, negative);
@@ -514,6 +527,7 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
             }
           >
             <div
+              ref={plotRef}
               style={
                 beside
                   ? { position: 'relative', height: plotHeight, width, flex: 'none' }

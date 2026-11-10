@@ -24,6 +24,7 @@ import { orderedKeys, pearson } from './core/dist-stats';
 import {
   AxisBottom,
   AxisLeft,
+  ChartNote,
   ChartTooltip,
   GridColumns,
   GridRows,
@@ -39,11 +40,13 @@ import {
   gridLines,
   type LegendSetting,
   legendPlacement,
+  logScaleProblem,
   marginSides,
   readOut,
   referenceLines,
   sideLegendWidth,
   tickCount,
+  type ValueScaleType,
 } from './core/options';
 import { seriesColor, tickFormatter } from './core/scales';
 import { useSettled } from './core/settled';
@@ -98,6 +101,11 @@ export interface ScatterPlotProps<R extends Row = Row>
   legend?: LegendSetting;
   /** Point colors per group of `color`, in order; without `color`, the first one colors every point. */
   colors?: ChartColor[] | Record<string, ChartColor>;
+  /**
+   * `log` spaces equal ratios of `y` evenly. It needs every y value above zero; otherwise the
+   * plot stays linear and says so in a note and in its summary.
+   */
+  yScale?: ValueScaleType;
   /** Axis titles under the plot. Default "<x> →" and "↑ <y>"; false hides them. */
   xTitle?: string | false;
   yTitle?: string | false;
@@ -145,6 +153,7 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
     typedSelection = false,
     legend,
     colors,
+    yScale: scaleType = 'linear',
     margin,
     yMin,
     yMax,
@@ -273,6 +282,18 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
     }
     return { x: span(x), y: ySpan };
   }, [allRows, x, y, refs]);
+  // Axes span every row, so the check does too: one value at or below zero rules a log axis out.
+  const logProblem = useMemo(
+    () =>
+      scaleType === 'log'
+        ? logScaleProblem([
+            ...allRows.flatMap((r) => finiteNumber(r[y]) ?? []),
+            ...refs.map((r) => r.value),
+          ])
+        : undefined,
+    [scaleType, allRows, y, refs],
+  );
+  const yLog = scaleType === 'log' && !logProblem;
 
   const pad = marginSides(margin);
   const layout = useMemo<ScatterLayout>(
@@ -286,6 +307,7 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
       xMax,
       yMin,
       yMax,
+      yLog,
     }),
     [
       pad.top,
@@ -300,6 +322,7 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
       xMax,
       yMin,
       yMax,
+      yLog,
     ],
   );
 
@@ -437,6 +460,7 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
       outside > 0
         ? `${outside} ${outside === 1 ? 'point falls' : 'points fall'} outside the axis limits and ${outside === 1 ? 'is' : 'are'} not shown.`
         : '',
+      scaleType === 'log' ? (logProblem ?? 'The y axis is logarithmic.') : '',
     ]
       .filter(Boolean)
       .join(' ');
@@ -465,6 +489,8 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
     yMin,
     yMax,
     outside,
+    scaleType,
+    logProblem,
   ]);
 
   const table = useMemo<ChartTable>(() => {
@@ -688,6 +714,7 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
                         rows={tipRows}
                       />
                     )}
+                    {logProblem && <ChartNote>{logProblem}</ChartNote>}
                     <div className="q-visually-hidden" aria-live="polite">
                       {active != null && points[active]
                         ? `${titleOf(points[active])}: ${tipRowsOf(points[active])

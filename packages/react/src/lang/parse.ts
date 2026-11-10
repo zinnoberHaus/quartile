@@ -381,6 +381,13 @@ export function parseBlock(source: string, options: ParseOptions = {}): BlockNod
         i = end - 1;
         continue;
       }
+      // On a view that already has its kind, `view: table` and `view: chart` choose how it is
+      // shown; `view: bar` without a header kind still declares one, like `type: bar`.
+      const shown = norm === 'view' && /^(table|chart)$/i.test(value) ? currentView() : undefined;
+      if (shown) {
+        shown.props.push({ key, norm, value, line: lineNo });
+        continue;
+      }
       // `type: bar`, `chart: line` declare a view the YAML way.
       if (['type', 'chart', 'charttype', 'kind', 'mark', 'view'].includes(norm)) {
         const found = lookupKind(value);

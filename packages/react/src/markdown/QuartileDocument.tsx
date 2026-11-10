@@ -15,6 +15,7 @@ import { DEFAULT_LANGUAGES, findFencedBlocks, scanDocument } from '../lang/docum
 import { parseTable } from '../lang/table';
 import { QuartileProvider, type QuartileProviderProps } from '../provider/QuartileProvider';
 import { type SelectionChange, type SelectionEvent, SelectionStore } from '../selection/store';
+import type { ViewAction } from '../spec/actions';
 
 export type DataDisplay = 'summary' | 'table' | 'hidden';
 
@@ -44,6 +45,8 @@ export interface QuartileDocumentContextValue {
   blockNumber(owner: string): number;
   /** Passes a block's selection change to `onSelectionChange`, once per store event. */
   selectionChanged(change: SelectionChange, event: SelectionEvent): void;
+  /** The host's default actions for views, or false when it allows none. */
+  actions?: readonly ViewAction[] | false;
   /**
    * Whether the document's Markdown closes the fence holding `source`: true for finished
    * blocks of a streaming answer, undefined when the document was not given its Markdown.
@@ -95,6 +98,12 @@ export interface QuartileDocumentProps extends Omit<QuartileProviderProps, 'chil
    * dataset, else `block-<n>` for a block with its own rows.
    */
   onSelectionChange?: (change: SelectionChange) => void;
+  /**
+   * Controls views may show: `table`, `rows` (the rows behind a view) and `download` (those
+   * rows as CSV). A list is the default for views whose block does not set `actions:`; `false`
+   * shows none whatever a block asks. Without it, only blocks that ask show any.
+   */
+  actions?: readonly ViewAction[] | false;
   children?: ReactNode;
 }
 
@@ -128,6 +137,7 @@ export function QuartileDocument({
   provider = true,
   stores: externalStores,
   onSelectionChange,
+  actions,
   children,
   ...providerProps
 }: QuartileDocumentProps) {
@@ -280,6 +290,7 @@ export function QuartileDocument({
       store,
       blockNumber,
       selectionChanged,
+      actions,
       isClosed: (source: string) => closedSources?.has(source.trimEnd()),
     }),
     [
@@ -296,6 +307,7 @@ export function QuartileDocument({
       store,
       blockNumber,
       selectionChanged,
+      actions,
       closedSources,
     ],
   );

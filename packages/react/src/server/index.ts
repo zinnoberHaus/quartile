@@ -69,6 +69,8 @@ export function renderBlockToHTML(source: string, options: StaticRenderOptions =
         timeZone: options.timeZone,
         initialWidth: options.initialWidth,
         dataDisplay: options.dataDisplay,
+        // Buttons need script: the embed adds them when it upgrades this markup.
+        actions: false,
       },
       createElement(QuartileBlock, { source }),
     ),

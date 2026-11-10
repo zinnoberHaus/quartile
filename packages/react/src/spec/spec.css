@@ -71,6 +71,48 @@
   color: var(--q-text-3);
 }
 
+/* A view's own controls: beside the card title, or under a view that has no card. */
+.q-spec-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.q-spec-card-top > .q-spec-card-head {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.q-spec-actions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.q-spec-actions > .q-btn[aria-pressed="true"] {
+  --q-btn-bg: var(--q-subtle);
+  --q-btn-fg: var(--q-text);
+}
+
+/* The rows a view is drawn from. */
+.q-spec-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--q-line);
+}
+
+.q-spec-rows-count {
+  margin: 0;
+  font-size: 12px;
+  color: var(--q-text-3);
+}
+
 /* Where the data came from: one muted line under a view or a dashboard. */
 .q-spec-source {
   margin: 0;

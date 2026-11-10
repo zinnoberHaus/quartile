@@ -17,6 +17,7 @@ import {
   type ThemeSetting,
 } from '../provider/QuartileProvider';
 import type { SelectionChange, SelectionStore } from '../selection/store';
+import { knownActions, type ViewAction } from '../spec/actions';
 import { type EmbedOptions, pageScope } from './scope';
 import { actingElement, elementStore, type QuartileSelectDetail } from './selection';
 
@@ -79,7 +80,25 @@ const THEMES = new Set<ThemeSetting>(['light', 'dark', 'system', 'auto']);
 let counter = 0;
 
 /** Page-wide defaults for elements without their own attributes. */
-const defaults: { theme: ThemeSetting; host?: HostTheme; accent?: string } = { theme: 'auto' };
+const defaults: {
+  theme: ThemeSetting;
+  host?: HostTheme;
+  accent?: string;
+  actions?: readonly ViewAction[] | false;
+} = { theme: 'auto' };
+
+/**
+ * Reads an actions setting written as text, as on `data-actions="rows download"`: a list of
+ * actions is the page's default, and `none`, `off` or `false` turns every toolbar off.
+ */
+export function readActionsSetting(value: string): ViewAction[] | false {
+  const words = value
+    .toLowerCase()
+    .split(/[\s,]+/)
+    .filter(Boolean);
+  if (words.some((w) => w === 'none' || w === 'off' || w === 'false')) return false;
+  return knownActions(words);
+}
 
 export function setElementDefaults(options: Partial<typeof defaults>) {
   Object.assign(defaults, options);
@@ -284,6 +303,7 @@ export class QuartileChartElement extends HTMLElement {
           pending: scope.pending,
           stores: this.#store,
           onSelectionChange: this.#announce,
+          actions: defaults.actions,
           loadSource: scope.loader() ? (url: string) => scope.load(url) : undefined,
           languages: scope.options.languages ?? DEFAULT_LANGUAGES,
           theme: theme && THEMES.has(theme) ? theme : defaults.theme,
@@ -409,15 +429,24 @@ export function observeBlocks(root: ParentNode = document, options: EmbedOptions
   };
 }
 
-/** Page-wide settings: source policy, languages, and defaults for theme, host and accent. */
+/**
+ * Page-wide settings: source policy, languages, defaults for theme, host and accent, and the
+ * actions views may show (`actions`: a default list, or false for none).
+ */
 export function configureEmbed(
-  options: EmbedOptions & { theme?: ThemeSetting; host?: HostTheme; accent?: string },
+  options: EmbedOptions & {
+    theme?: ThemeSetting;
+    host?: HostTheme;
+    accent?: string;
+    actions?: readonly ViewAction[] | false;
+  },
 ) {
-  const { theme, host, accent, ...rest } = options;
+  const { theme, host, accent, actions, ...rest } = options;
   Object.assign(pageScope().options, rest);
   setElementDefaults({
     ...(theme ? { theme } : {}),
     ...(host ? { host } : {}),
     ...(accent ? { accent } : {}),
+    ...(actions !== undefined ? { actions: actions && knownActions(actions) } : {}),
   });
 }

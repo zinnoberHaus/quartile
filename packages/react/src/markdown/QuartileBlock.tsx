@@ -18,6 +18,7 @@ import { cx } from '../lib/cx';
 import { Selection, SelectionStoreProvider, useSelectionStore } from '../selection/Selection';
 import { type SelectionChange, type SelectionEvent, SelectionStore } from '../selection/store';
 import { SelectionWatch } from '../selection/watch';
+import type { ViewAction } from '../spec/actions';
 import { SpecView } from '../spec/SpecView';
 import { type DataDisplay, useQuartileDocument } from './QuartileDocument';
 
@@ -42,6 +43,11 @@ export interface QuartileBlockProps {
   group?: string;
   /** Called after every change of the selection group this block takes part in. */
   onSelectionChange?: (change: SelectionChange) => void;
+  /**
+   * Controls the block's views may show: a default list for views that do not set `actions:`,
+   * or `false` for none whatever the block asks. Defaults to the document's choice.
+   */
+  actions?: readonly ViewAction[] | false;
   className?: string;
   style?: CSSProperties;
 }
@@ -62,11 +68,13 @@ export function QuartileBlock({
   renderError,
   group,
   onSelectionChange,
+  actions: actionsProp,
   className,
   style,
 }: QuartileBlockProps) {
   const doc = useQuartileDocument();
   const owner = useId();
+  const actions = actionsProp ?? doc?.actions;
   const standalone = group ?? `block-${doc?.blockNumber(owner) ?? 1}`;
   const streaming = streamingProp ?? doc?.streaming ?? false;
   const dataDisplay = dataDisplayProp ?? doc?.dataDisplay ?? 'summary';
@@ -158,7 +166,7 @@ export function QuartileBlock({
           anonymous={group === undefined}
           onChange={onSelectionChange}
         >
-          <SpecView spec={compiled.spec} data={compiled.data} linked />
+          <SpecView spec={compiled.spec} data={compiled.data} linked actions={actions} />
         </BlockSelection>
         <BlockError title="Some views could not be drawn" diagnostics={errors} source={source} />
       </>
@@ -181,7 +189,7 @@ export function QuartileBlock({
         anonymous={group === undefined}
         onChange={onSelectionChange}
       >
-        <SpecView spec={compiled.spec} data={compiled.data} linked />
+        <SpecView spec={compiled.spec} data={compiled.data} linked actions={actions} />
       </BlockSelection>
     );
   }

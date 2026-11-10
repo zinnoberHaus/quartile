@@ -163,6 +163,12 @@ const META = {
   description: str('One line under the title.'),
   span: int('Columns this item spans in a Dashboard layout (12-column grid).', 1, 12),
   ...PROVENANCE,
+  actions: {
+    type: 'array',
+    items: { enum: ['table', 'rows', 'download'] },
+    description:
+      'Controls shown with the view: `table` switches the chart and its table, `rows` opens the rows the view is drawn from, `download` saves those rows as CSV. An empty list shows none. A host may set a default or turn them all off.',
+  },
 };
 const DATA = { data: str('Name of a dataset passed to SpecView in `data`.') };
 const CHART = {
@@ -192,6 +198,7 @@ function component(
             tooltipNote: str(
               'Plain-text chart context, included in accessible descriptions and supported hover tooltips.',
             ),
+            view: oneOfEnum(['chart', 'table'], 'Show the chart, or the same data as a table.'),
           }
         : {}),
       ...props,
@@ -579,6 +586,8 @@ export interface ComponentSpec {
   sourceUrl?: string;
   /** When the data was current, shown as "As of …". */
   asOf?: string;
+  /** Controls shown with the view; see `ViewAction`. */
+  actions?: ('table' | 'rows' | 'download')[];
   [prop: string]: unknown;
 }
 

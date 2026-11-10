@@ -1,5 +1,6 @@
 // The spec layer: JSON Schema for every component a model may generate, a validator and a renderer.
 
+export type { ViewAction } from './actions';
 export type { SpecViewProps } from './SpecView';
 export { SpecView } from './SpecView';
 export type {

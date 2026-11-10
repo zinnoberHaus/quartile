@@ -1,4 +1,11 @@
-import { type ComponentType, type CSSProperties, type ReactNode, useId, useMemo } from 'react';
+import {
+  type ComponentType,
+  type CSSProperties,
+  type ReactNode,
+  useId,
+  useMemo,
+  useState,
+} from 'react';
 import * as Charts from '../charts';
 import { FigureDescriptionContext } from '../charts/core/figure-context';
 import { applyPredicates, type Predicate } from '../data/predicates';
@@ -10,11 +17,13 @@ import { IconAlertCircle } from '../icons';
 import { cx } from '../lib/cx';
 import { useQuartile } from '../provider/QuartileProvider';
 import { AppliedPredicatesContext } from '../selection/appliedPredicates';
-import { Selection, useSelection } from '../selection/Selection';
+import { Selection, useSelection, useSourceId } from '../selection/Selection';
 import type { SelectionChange } from '../selection/store';
 import { SelectionWatch } from '../selection/watch';
+import { resolveActions, type ViewAction } from './actions';
 import { formatAsOf, hostOf, httpUrl, type Provenance, provenanceText } from './provenance';
 import type { ComponentSpec, DashboardSpec, SpecComponentName } from './schema';
+import { RowsPanel, ViewToolbar } from './ViewActions';
 import { isDashboardSpec, type SpecError, validateSpec } from './validate';
 
 export interface SpecViewProps {
@@ -33,6 +42,12 @@ export interface SpecViewProps {
    * `group` is that selection's id; name a Dashboard's with `selection` to keep it stable.
    */
   onSelectionChange?: (change: SelectionChange) => void;
+  /**
+   * Controls the views may show: `table`, `rows`, `download`. A list is the default for views
+   * that do not set `actions` themselves; `false` shows none whatever a view asks. Without it,
+   * a view shows only the actions its own spec lists.
+   */
+  actions?: readonly ViewAction[] | false;
   className?: string;
   style?: CSSProperties;
 }
@@ -94,6 +109,23 @@ const META_KEYS = new Set([
   'source',
   'sourceUrl',
   'asOf',
+  'actions',
+]);
+
+/** Components that publish to the selection under the `id` they are given. */
+const PUBLISHERS = new Set<SpecComponentName>([
+  'LineChart',
+  'AreaChart',
+  'BarChart',
+  'BarList',
+  'DonutChart',
+  'Histogram',
+  'ScatterPlot',
+  'Heatmap',
+  'CalendarHeatmap',
+  'BoxPlot',
+  'Sankey',
+  'DataTable',
 ]);
 
 function isComponent(v: unknown): v is AnyComponent {
@@ -307,10 +339,12 @@ function SpecItem({
   spec,
   data,
   errors,
+  actions,
 }: {
   spec: ComponentSpec;
   data: Record<string, DataInput>;
   errors: SpecError[];
+  actions?: readonly ViewAction[] | false;
 }) {
   const name = typeof spec?.component === 'string' ? spec.component : undefined;
   if (errors.length > 0) {
@@ -343,47 +377,110 @@ function SpecItem({
       />
     );
   }
-  return <SpecComponent spec={spec} Comp={Comp} input={spec.data ? data[spec.data] : undefined} />;
+  return (
+    <SpecComponent
+      spec={spec}
+      Comp={Comp}
+      input={spec.data ? data[spec.data] : undefined}
+      hostActions={actions}
+    />
+  );
 }
 
 function SpecComponent({
   spec,
   Comp,
   input,
+  hostActions,
 }: {
   spec: ComponentSpec;
   Comp: AnyComponent;
   input: DataInput | undefined;
+  hostActions?: readonly ViewAction[] | false;
 }) {
   const { props, appliedPredicates } = useSpecProps(spec, input);
   const shape = SHAPES[spec.component];
   const noteId = useId();
+  const panelId = useId();
+  const publisher = useSourceId();
+  // Both start as the spec says, on the server and on the first client render alike.
+  const [tableChoice, setTableChoice] = useState<boolean | null>(null);
+  const [rowsOpen, setRowsOpen] = useState(false);
+  const actions =
+    input === undefined ? [] : resolveActions(spec.component, spec.actions, hostActions);
+  const asTable = tableChoice ?? spec.view === 'table';
+  const traced = actions.includes('rows') || actions.includes('download');
+  const name =
+    typeof spec.title === 'string' && spec.title
+      ? spec.title
+      : spec.component === 'KPI' && typeof spec.label === 'string'
+        ? spec.label
+        : undefined;
+  const shown =
+    actions.length === 0
+      ? props
+      : {
+          ...props,
+          ...(actions.includes('table') ? { view: asTable ? 'table' : 'chart' } : null),
+          // The view's publisher id, so the rows behind it can leave out its own selection.
+          ...(traced && PUBLISHERS.has(spec.component) ? { id: publisher } : null),
+        };
   const note = provenanceText(spec) ? <SourceNote spec={spec} id={noteId} /> : null;
+  const toolbar =
+    actions.length > 0 && input !== undefined ? (
+      <ViewToolbar
+        name={name}
+        actions={actions}
+        table={asTable}
+        onTable={() => setTableChoice(!asTable)}
+        rows={rowsOpen}
+        onRows={() => setRowsOpen((open) => !open)}
+        panelId={panelId}
+        input={input}
+        publisher={publisher}
+      />
+    ) : null;
+  const panel =
+    rowsOpen && input !== undefined && actions.includes('rows') ? (
+      <RowsPanel id={panelId} name={name} input={input} publisher={publisher} />
+    ) : null;
   const node = (
     <AppliedPredicatesContext.Provider value={appliedPredicates}>
       <FigureDescriptionContext.Provider value={note ? noteId : undefined}>
-        <Comp {...props} />
+        <Comp {...shown} />
       </FigureDescriptionContext.Provider>
     </AppliedPredicatesContext.Provider>
   );
   if (shape.frame === 'bare') {
-    if (!note) return node;
+    if (!note && !toolbar) return node;
     return (
       <div className="q-spec-noted">
         {node}
+        {toolbar}
+        {panel}
         {note}
       </div>
     );
   }
+  const head =
+    spec.title || spec.description ? (
+      <div className="q-spec-card-head">
+        {spec.title && <div className="q-spec-card-title">{spec.title}</div>}
+        {spec.description && <div className="q-spec-card-desc">{spec.description}</div>}
+      </div>
+    ) : null;
   return (
     <div className="q-spec-card">
-      {(spec.title || spec.description) && (
-        <div className="q-spec-card-head">
-          {spec.title && <div className="q-spec-card-title">{spec.title}</div>}
-          {spec.description && <div className="q-spec-card-desc">{spec.description}</div>}
+      {toolbar ? (
+        <div className="q-spec-card-top">
+          {head}
+          {toolbar}
         </div>
+      ) : (
+        head
       )}
       {node}
+      {panel}
       {note}
     </div>
   );
@@ -405,6 +502,7 @@ export function SpecView({
   data,
   linked,
   onSelectionChange,
+  actions,
   className,
   style,
 }: SpecViewProps) {
@@ -414,7 +512,12 @@ export function SpecView({
     return (
       <div className={cx('q-spec', className)} style={style}>
         {watch}
-        <SpecItem spec={spec as ComponentSpec} data={data} errors={result.errors} />
+        <SpecItem
+          spec={spec as ComponentSpec}
+          data={data}
+          errors={result.errors}
+          actions={actions}
+        />
       </div>
     );
   }
@@ -441,6 +544,7 @@ export function SpecView({
                 spec={item as ComponentSpec}
                 data={data}
                 errors={errorsUnder(result.errors, `/layout/${i}`)}
+                actions={actions}
               />
             </div>
           );

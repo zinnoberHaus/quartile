@@ -2,8 +2,10 @@
  * Compiles a parsed Quartile block into the existing JSON spec (`QuartileSpec`) plus the datasets
  * it references, so the language and the JSON contract always render through the same SpecView.
  */
+import { derivedFrom } from '../data/origin';
 import { dataset, humanize, resolveData } from '../data/schema';
 import type { DataInput, Dataset, FieldDef, Formatter, Row } from '../data/types';
+import type { ViewAction } from '../spec/actions';
 import {
   type ComponentSpec,
   type DashboardSpec,
@@ -12,6 +14,7 @@ import {
   type SpecComponentName,
 } from '../spec/schema';
 import { type SpecError, validateSpec } from '../spec/validate';
+import { parseActions, supportedActions } from './actions';
 import { type Diagnostic, error, hasErrors, info, warning } from './diagnostics';
 import { readFormat } from './formats';
 import { KINDS, type KindDef, PROPERTY_ALIASES, type ViewKind } from './kinds';
@@ -411,6 +414,8 @@ interface ViewContext {
   inDashboard: boolean;
   complete: boolean;
   diagnostics: Diagnostic[];
+  /** A dashboard's `actions:`, the default for its views. */
+  actions?: ViewAction[];
 }
 
 interface CompiledView {
@@ -712,6 +717,14 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
       link = b === false ? null : b === true ? undefined : unquote(p.value);
       continue;
     }
+    if (p.norm === 'actions') {
+      spec.actions = supportedActions(parseActions(p, diagnostics), component, {
+        kind: view.kind,
+        line: p.line,
+        diagnostics,
+      });
+      continue;
+    }
     if (
       p.norm === 'title' ||
       p.norm === 'description' ||
@@ -729,7 +742,13 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
       continue;
     }
     let key = canonicalProp(p.norm, component);
-    if (key === 'kind') continue;
+    if (key === 'kind') {
+      // `view: table` reaches a view only as a display choice; a table is already one.
+      if (p.norm === 'view' && component !== 'DataTable' && /^table$/i.test(p.value.trim())) {
+        diagnostics.push(warning(`A ${view.kind} has no table view; “view” was ignored.`, p.line));
+      }
+      continue;
+    }
     if (key === 'x.label' || key === 'y.label' || key === 'x.format') {
       const [channel, attr] = key.split('.');
       const target = channelProp(channel, def);
@@ -815,6 +834,9 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
     }
   }
   Object.assign(spec, readProvenance(view.props, diagnostics, dataProp));
+  if (spec.actions === undefined && ctx.actions) {
+    spec.actions = supportedActions(ctx.actions, component);
+  }
   for (const [k, v] of Object.entries(view.implied)) if (spec[k] === undefined) spec[k] = v;
 
   // 3. The sentence: measures, dimensions and the `vs` field.
@@ -1124,7 +1146,10 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
     }
     return m;
   };
-  if (def.measureType !== 'columns') spec[def.measure] = simplify(stripLabels(spec[def.measure]));
+  // Table columns and filter chips are lists of objects; only encodings shorten to a field name.
+  if (def.measureType !== 'columns' && def.measureType !== 'fields') {
+    spec[def.measure] = simplify(stripLabels(spec[def.measure]));
+  }
   if (spec[def.measure] === undefined) delete spec[def.measure];
 
   if (viewFormat) {
@@ -1160,7 +1185,7 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
         };
       }
     }
-    viewInput = dataset(derivedRows ?? rows, base);
+    viewInput = derivedFrom(dataset(derivedRows ?? rows, base), input);
     const derivedName = freeName(`${dataName}__${view.kind}`, { ...ctx.local, ...ctx.datasets });
     ctx.local[derivedName] = viewInput;
     spec.data = derivedName;
@@ -1648,6 +1673,8 @@ export function compileBlock(
     complete,
     diagnostics,
   };
+  const dashboardActions = block.props.find((p) => p.norm === 'actions');
+  if (dashboardActions) ctx.actions = parseActions(dashboardActions, diagnostics);
 
   if (block.type === 'view') {
     const view = block.views[0];

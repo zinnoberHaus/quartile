@@ -14,6 +14,7 @@ import {
   defineQuartileElements,
   observeBlocks,
   QuartileChartElement,
+  readActionsSetting,
   setEmbedStyles,
   upgradeBlocks,
 } from './element';
@@ -27,6 +28,8 @@ interface GlobalConfig {
   host?: HostTheme;
   accent?: string;
   languages?: string[];
+  /** Actions views show by default (`rows`, `download`, `table`), or false for none. */
+  actions?: readonly ('table' | 'rows' | 'download')[] | false;
 }
 
 declare global {
@@ -50,6 +53,7 @@ function fromScript(script: HTMLScriptElement | null): GlobalConfig {
   if (d.host) out.host = d.host as HostTheme;
   if (d.accent) out.accent = d.accent;
   if (d.languages) out.languages = d.languages.split(/[\s,]+/).filter(Boolean);
+  if (d.actions) out.actions = readActionsSetting(d.actions);
   return out;
 }
 

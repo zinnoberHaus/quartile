@@ -34,3 +34,24 @@ describe('static HTML: provenance', () => {
     expect(html).not.toContain('aria-describedby');
   });
 });
+
+describe('static HTML: actions and view mode', () => {
+  it('has no toolbar, even when the block asks: buttons need script', () => {
+    const html = renderBlockToHTML(
+      `bar sum(amount) by region\ntitle: Revenue\nactions: table, rows, download\n---\n${rows}`,
+    );
+    expect(html).not.toContain('<button');
+    expect(html).not.toContain('q-spec-actions');
+    expect(html).not.toContain('q-spec-rows');
+    expect(html).toContain('<svg');
+    // The request travels with the source, for the embed script to honor.
+    expect(html).toContain('actions: table, rows, download');
+  });
+
+  it('draws view: table as the table, which needs no script', () => {
+    const html = renderBlockToHTML(`bar sum(amount) by region\nview: table\n---\n${rows}`);
+    expect(html).toContain('class="q-chart-table"');
+    expect(html).not.toContain('<svg');
+    expect(html).toContain('EMEA');
+  });
+});

@@ -131,17 +131,73 @@ describe('actions: rows', () => {
     expect(count(rowsPanel('By region'))).toBe('3 rows');
   });
 
-  it('traces a dashboard number back to its rows', () => {
-    render(
+  it('traces a dashboard’s numbers back to their rows from one toolbar', () => {
+    const { container } = render(
       <QuartileBlock
-        source={`dashboard Sales\nactions: rows\nkpi sum(amount) as "Revenue"\nbarlist sum(amount) by region\n---\n${csv}`}
+        source={`dashboard Sales\nactions: rows, download\nkpi sum(amount) as "Revenue"\nbarlist sum(amount) by region\n---\n${csv}`}
       />,
     );
-    fireEvent.click(screen.getAllByRole('button', { name: 'Rows' })[0]);
-    expect(count(rowsPanel('Revenue'))).toBe('3 rows');
+    // One toolbar for the dashboard, beside its heading; none on the views.
+    expect(screen.getAllByRole('group', { name: /actions$/ })).toHaveLength(1);
+    const toolbar = screen.getByRole('group', { name: 'Sales actions' });
+    expect(
+      within(toolbar)
+        .getAllByRole('button')
+        .map((b) => b.textContent),
+    ).toEqual(['Rows', 'Download CSV']);
+    const top = container.querySelector('.q-spec-dashboard > .q-spec-top')!;
+    expect([...top.children].map((c) => c.className)).toEqual(['q-spec-head', 'q-spec-actions']);
+    expect(container.querySelector('.q-spec-noted, .q-spec-card-top')).toBeNull();
+
+    fireEvent.click(button('Rows'));
+    const panel = rowsPanel('Sales');
+    expect(count(panel)).toBe('3 rows');
+    // The rows open under the grid.
+    expect(panel.previousElementSibling?.className).toBe('q-spec-grid');
     fireEvent.click(button(/^EMEA/));
-    expect(count(rowsPanel('Revenue'))).toBe('2 of 3 rows');
-    expect(bodyRows(rowsPanel('Revenue'))).toEqual(['EMEADesk$120', 'EMEAChair$40']);
+    expect(screen.getByRole('group', { name: 'Revenue' }).textContent).toContain('$160');
+    expect(count(rowsPanel('Sales'))).toBe('2 of 3 rows');
+    expect(bodyRows(rowsPanel('Sales'))).toEqual(['EMEADesk$120', 'EMEAChair$40']);
+  });
+
+  it('gives a view inside a dashboard its own toolbar only when the view asks', () => {
+    render(
+      <QuartileBlock
+        source={`dashboard Sales\nactions: rows\nkpi sum(amount) as "Revenue"\nbar sum(amount) by region\ntitle: By region\nactions: table\n---\n${csv}`}
+      />,
+    );
+    const names = screen.getAllByRole('group', { name: /actions$/ }).map((g) => [
+      g.getAttribute('aria-label'),
+      within(g)
+        .getAllByRole('button')
+        .map((b) => b.textContent),
+    ]);
+    expect(names).toEqual([
+      ['Sales actions', ['Rows']],
+      ['By region actions', ['Table']],
+    ]);
+  });
+
+  it('names an untitled dashboard’s controls, and leaves a dashboard without actions alone', () => {
+    const untitled = render(
+      <QuartileBlock
+        source={`dashboard\nactions: rows\nkpi sum(amount)\nbarlist sum(amount) by region\n---\n${csv}`}
+      />,
+    );
+    fireEvent.click(
+      within(screen.getByRole('group', { name: 'Dashboard actions' })).getByRole('button'),
+    );
+    expect(count(rowsPanel('this dashboard'))).toBe('3 rows');
+    untitled.unmount();
+
+    const { container } = render(
+      <QuartileBlock
+        source={`dashboard Sales\nkpi sum(amount)\nbarlist sum(amount) by region\n---\n${csv}`}
+      />,
+    );
+    expect(screen.queryByRole('group', { name: /actions$/ })).toBeNull();
+    const dashboard = container.querySelector('.q-spec-dashboard')!;
+    expect([...dashboard.children].map((c) => c.className)).toEqual(['q-spec-head', 'q-spec-grid']);
   });
 
   it('shows the author’s columns, not the ones a chart adds to count rows', () => {
@@ -223,6 +279,20 @@ describe('actions: download', () => {
       '"region","product","amount"\r\n"EMEA","Desk","120"\r\n"EMEA","Chair","40"',
     );
     expect(screen.getByRole('status').textContent).toBe('Downloaded 2 rows as by-region.csv.');
+  });
+
+  it('saves a dashboard’s rows under its selection, named after the dashboard', async () => {
+    render(
+      <QuartileBlock
+        source={`dashboard Sales by region\nactions: rows, download\nkpi sum(amount) as "Revenue"\nbarlist sum(amount) by region\n---\n${csv}`}
+      />,
+    );
+    fireEvent.click(button(/^EMEA/));
+    fireEvent.click(button('Download CSV'));
+    expect(saved[0].name).toBe('sales-by-region.csv');
+    expect(await text(saved[0].blob)).toBe(
+      '"region","product","amount"\r\n"EMEA","Desk","120"\r\n"EMEA","Chair","40"',
+    );
   });
 
   it('saves the same rows the panel shows: the selection of other views applies', async () => {
@@ -363,6 +433,60 @@ describe('host control of actions', () => {
         .map((b) => b.textContent),
     ).toEqual(['Table', 'Rows', 'Download CSV']);
     expect(screen.queryByRole('group', { name: 'Refusing actions' })).toBeNull();
+  });
+
+  it('resolve to the one dashboard toolbar inside a dashboard', () => {
+    const dashboard = `dashboard Sales\nkpi sum(amount) as "Revenue"\nbar sum(amount) by region\n---\n${csv}`;
+    const toolbars = () =>
+      screen.queryAllByRole('group', { name: /actions$/ }).map((g) => [
+        g.getAttribute('aria-label'),
+        within(g)
+          .getAllByRole('button')
+          .map((b) => b.textContent),
+      ]);
+    // The host's default: the dashboard's rows and download; `table` is a chart's own.
+    const defaulted = render(
+      <QuartileBlock source={dashboard} actions={['table', 'rows', 'download']} />,
+    );
+    expect(toolbars()).toEqual([['Sales actions', ['Rows', 'Download CSV']]]);
+    defaulted.unmount();
+    // The dashboard's own choice wins over the default, and `false` over both.
+    const refusing = render(
+      <QuartileBlock
+        source={dashboard.replace('dashboard Sales\n', 'dashboard Sales\nactions: none\n')}
+        actions={['rows']}
+      />,
+    );
+    expect(toolbars()).toEqual([]);
+    refusing.unmount();
+    render(
+      <QuartileBlock
+        source={dashboard.replace('dashboard Sales\n', 'dashboard Sales\nactions: rows\n')}
+        actions={false}
+      />,
+    );
+    expect(toolbars()).toEqual([]);
+  });
+
+  it('fall back to a toolbar per view when a dashboard’s views read different datasets', () => {
+    render(
+      <SpecView
+        data={{ orders, returns: [{ region: 'EMEA', amount: 5 }] }}
+        spec={{
+          title: 'Mixed',
+          actions: ['rows'],
+          layout: [
+            { component: 'KPI', data: 'orders', label: 'Orders', value: 'amount' },
+            { component: 'KPI', data: 'returns', label: 'Returns', value: 'amount' },
+          ],
+        }}
+      />,
+    );
+    expect(
+      screen.getAllByRole('group', { name: /actions$/ }).map((g) => g.getAttribute('aria-label')),
+    ).toEqual(['Orders actions', 'Returns actions']);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Rows' })[1]);
+    expect(count(rowsPanel('Returns'))).toBe('1 row');
   });
 
   it('a block prop overrides the document, and each view gets only what it can do', () => {

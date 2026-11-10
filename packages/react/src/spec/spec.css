@@ -71,6 +71,20 @@
   color: var(--q-text-3);
 }
 
+/* A dashboard's own controls sit beside its heading; its rows open under the grid. */
+.q-spec-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.q-spec-top > .q-spec-head {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
 /* A view's own controls: beside the card title, or under a view that has no card. */
 .q-spec-card-top {
   display: flex;
@@ -111,6 +125,10 @@
   margin: 0;
   font-size: 12px;
   color: var(--q-text-3);
+}
+
+.q-spec-dashboard > .q-spec-rows {
+  margin-top: 12px;
 }
 
 /* Where the data came from: one muted line under a view or a dashboard. */

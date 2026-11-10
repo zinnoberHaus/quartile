@@ -19,6 +19,8 @@ export const VIEW_ACTIONS: readonly ViewAction[] = ['table', 'rows', 'download']
  * filters and explorers have their own controls.
  */
 export function actionsFor(component: string): readonly ViewAction[] {
+  // A dashboard's own toolbar is about its dataset; switching to a table is each chart's.
+  if (component === 'Dashboard') return ['rows', 'download'];
   if (component === 'FilterBar' || component === 'DataExplorer') return [];
   if (component === 'DataTable') return ['download'];
   const def = (quartileSchema.$defs as Record<string, { properties?: object }>)[component];

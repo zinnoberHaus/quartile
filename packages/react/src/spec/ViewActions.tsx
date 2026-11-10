@@ -24,24 +24,28 @@ function saveText(text: string, fileName: string) {
 }
 
 /**
- * The buttons a view shows with its drawing. The rows it downloads are the ones its rows panel
- * shows: the dataset's rows under the group's whole selection, the view's own included.
+ * The buttons a view, or a dashboard, shows with its drawing. The rows it downloads are the
+ * ones its rows panel shows: the dataset's rows under the group's whole selection, the view's
+ * own included.
  */
 export function ViewToolbar({
   name,
+  kind = 'view',
   actions,
-  table,
+  table = false,
   onTable,
   rows,
   onRows,
   panelId,
   input,
 }: {
-  /** The view's title: names the group for assistive technology and the downloaded file. */
+  /** The title: names the group for assistive technology and the downloaded file. */
   name?: string;
+  /** What the buttons belong to, for the names of an untitled one. */
+  kind?: 'view' | 'dashboard';
   actions: readonly ViewAction[];
-  table: boolean;
-  onTable: () => void;
+  table?: boolean;
+  onTable?: () => void;
   rows: boolean;
   onRows: () => void;
   panelId: string;
@@ -70,7 +74,11 @@ export function ViewToolbar({
     }
   };
   return (
-    <div className="q-spec-actions" role="group" aria-label={`${name ?? 'View'} actions`}>
+    <div
+      className="q-spec-actions"
+      role="group"
+      aria-label={`${name ?? (kind === 'dashboard' ? 'Dashboard' : 'View')} actions`}
+    >
       {actions.includes('table') && (
         <Button
           size="sm"
@@ -114,7 +122,17 @@ export function ViewToolbar({
  * reader can choose another: clicking a bar and opening its rows shows that bar's rows. The
  * count line says how many of the dataset's rows remain.
  */
-export function RowsPanel({ id, name, input }: { id: string; name?: string; input: DataInput }) {
+export function RowsPanel({
+  id,
+  name,
+  kind = 'view',
+  input,
+}: {
+  id: string;
+  name?: string;
+  kind?: 'view' | 'dashboard';
+  input: DataInput;
+}) {
   const { locale } = useQuartile();
   const { rows: all, schema } = useMemo(() => sourceRows(input), [input]);
   const { predicates } = useSelection();
@@ -122,7 +140,7 @@ export function RowsPanel({ id, name, input }: { id: string; name?: string; inpu
   const data = useMemo<Dataset>(() => ({ kind: 'dataset', rows: shown, schema }), [shown, schema]);
   const columns = useMemo(() => Object.keys(schema).map((field) => ({ field })), [schema]);
   const count = useMemo(() => makeFormatter('integer', { locale }), [locale]);
-  const label = name ? `Rows behind ${name}` : 'Rows behind this view';
+  const label = `Rows behind ${name ?? `this ${kind}`}`;
   return (
     <div className="q-spec-rows" id={id} role="group" aria-label={label}>
       <p className="q-spec-rows-count q-num" aria-live="polite">

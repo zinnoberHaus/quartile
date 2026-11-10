@@ -15,6 +15,11 @@ export function derivedFrom<T extends object>(copy: T, origin: DataInput): T {
   return copy;
 }
 
+/** The dataset `input` was derived from, or `input` itself when it is nobody's copy. */
+export function originOf(input: DataInput): DataInput {
+  return (typeof input === 'object' && input !== null && origins.get(input)) || input;
+}
+
 /**
  * The rows a view is drawn from: the origin's rows and columns, described by the view's field
  * settings where it has any.

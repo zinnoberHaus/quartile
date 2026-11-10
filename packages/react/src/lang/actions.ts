@@ -52,7 +52,11 @@ export function supportedActions(
         warning(
           `${article(report.kind)} has no “${action}” action; it was ignored.`,
           report.line,
-          possible.length ? `It can show: ${possible.join(', ')}.` : undefined,
+          report.kind === 'dashboard'
+            ? 'A dashboard shows rows and download; write “actions: table” under a chart.'
+            : possible.length
+              ? `It can show: ${possible.join(', ')}.`
+              : undefined,
         ),
       );
     }

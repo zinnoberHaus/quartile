@@ -18,7 +18,7 @@ import { DEFAULT_LANGUAGES, findFencedBlocks, scanDocument } from '../lang/docum
 import type { SourceValue } from '../lang/source';
 import { QuartileProvider, type QuartileProviderProps } from '../provider/QuartileProvider';
 import { type SelectionChange, type SelectionEvent, SelectionStore } from '../selection/store';
-import type { ViewAction } from '../spec/actions';
+import { knownActions, type ViewAction } from '../spec/actions';
 import { type SourceRequest, SourceStore } from './sourceStore';
 
 export type DataDisplay = 'summary' | 'table' | 'hidden';
@@ -170,7 +170,7 @@ function DocumentScope({
   provider = true,
   stores: externalStores,
   onSelectionChange,
-  actions,
+  actions: actionsProp,
   children,
   ...providerProps
 }: QuartileDocumentProps & { handle?: Ref<QuartileDocumentHandle> }) {
@@ -304,6 +304,14 @@ function DocumentScope({
     }
     return n;
   }, []);
+
+  // Hosts usually write the list inline; compare it by content so blocks do not re-render for it.
+  const actionsKey =
+    actionsProp === undefined || actionsProp === false ? actionsProp : actionsProp.join(' ');
+  const actions = useMemo(
+    () => (typeof actionsKey === 'string' ? knownActions(actionsKey.split(' ')) : actionsKey),
+    [actionsKey],
+  );
 
   const selectionListener = useRef(onSelectionChange);
   selectionListener.current = onSelectionChange;

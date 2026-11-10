@@ -223,6 +223,29 @@ describe('sources at build time', () => {
     expect(out[2].html).toContain('15');
   });
 
+  it('reads column names kept beside bare rows at build time', async () => {
+    const split = {
+      columns: ['plan', 'seats'],
+      index: [0, 1],
+      data: [
+        ['Team', 12],
+        ['Solo', 3],
+      ],
+    };
+    const loadSource = vi.fn(async (url: string) =>
+      url === 'plans.json'
+        ? JSON.stringify(split)
+        : { data: { cols: split.columns, rows: split.data } },
+    );
+    const out = await renderMarkdownBlocks(page.replace('path: data.items', 'path: data'), {
+      loadSource,
+    });
+    expect(out[0].html).toContain('<svg');
+    expect(out[0].html).toContain('Team');
+    expect(out[0].html).not.toContain('q-block-error');
+    expect(out[2].html).toContain('15');
+  });
+
   it('stops the build when a path does not resolve', async () => {
     const loadSource = async () => ({ data: { rows: [] } });
     await expect(renderMarkdownBlocks(page, { loadSource })).rejects.toThrow(

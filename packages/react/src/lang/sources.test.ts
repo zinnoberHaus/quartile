@@ -135,17 +135,17 @@ describe('JSON envelopes', () => {
   });
 
   it('does not take a list of arrays on its name alone, since its header may be elsewhere', () => {
-    // Metabase: `cols` describes the columns and `rows` holds bare arrays.
-    const metabase = parseTable({
-      cols: [{ name: 'region' }, { name: 'revenue' }],
+    // Bare arrays beside another list, and nothing that names their columns.
+    const unnamed = parseTable({
+      meta: [{ name: 'region' }, { name: 'revenue' }],
       rows: [
         ['EMEA', 120],
         ['APAC', 80],
       ],
     });
-    expect(metabase.rows).toEqual([]);
-    expect(of('error', metabase)[0]).toMatchObject({
-      message: 'Several keys hold rows: `cols`, `rows`.',
+    expect(unnamed.rows).toEqual([]);
+    expect(of('error', unnamed)[0]).toMatchObject({
+      message: 'Several keys hold rows: `meta`, `rows`.',
       hint: 'Choose one with `path:`, e.g. `path: rows`. A list of arrays is read with its first array as the header.',
     });
     // On its own, a list of arrays is still read under its header row.
@@ -157,6 +157,223 @@ describe('JSON envelopes', () => {
       total: 1,
     });
     expect(sheet.rows).toEqual([{ region: 'EMEA', revenue: 120 }]);
+    expect(notes(sheet)).toEqual(['Read rows from `rows`.']);
+  });
+
+  describe('column names beside a list of arrays', () => {
+    const arrays = [
+      ['EMEA', 120],
+      ['APAC', 80],
+    ];
+    const described = [
+      { name: 'region', display_name: 'Region', base_type: 'type/Text' },
+      { name: 'revenue', display_name: 'Revenue', base_type: 'type/Integer' },
+    ];
+
+    it('reads Metabase: `cols` describes the columns of bare `rows`', () => {
+      const response = {
+        data: { rows: arrays, cols: described, native_form: { query: 'select 1' } },
+        status: 'completed',
+        row_count: 2,
+      };
+      const inner = parseTable(response, { path: 'data' });
+      expect(errors(inner)).toEqual([]);
+      expect(inner.rows).toEqual(rows);
+      expect(notes(inner)).toEqual([
+        'Read rows from `data.rows`.',
+        'Read column names from `data.cols`.',
+      ]);
+
+      // A path that ends at the list finds the names in the object that holds it.
+      const direct = parseTable(response, { path: 'data.rows' });
+      expect(direct.rows).toEqual(rows);
+      expect(notes(direct)).toEqual(['Read column names from `data.cols`.']);
+
+      // The inner object on its own.
+      const bare = parseTable(JSON.stringify(response.data));
+      expect(bare.rows).toEqual(rows);
+      expect(notes(bare)).toEqual(['Read rows from `rows`.', 'Read column names from `cols`.']);
+    });
+
+    it('reads `{ columns, rows }` with names as strings or as descriptions', () => {
+      const strings = parseTable({ columns: ['region', 'revenue'], rows: arrays });
+      expect(strings.rows).toEqual(rows);
+      expect(notes(strings)).toEqual([
+        'Read rows from `rows`.',
+        'Read column names from `columns`.',
+      ]);
+
+      // Elasticsearch SQL, Trino: `columns` of descriptions.
+      const objects = parseTable({
+        columns: [
+          { name: 'region', type: 'keyword' },
+          { name: 'revenue', type: 'long' },
+        ],
+        rows: arrays,
+      });
+      expect(errors(objects)).toEqual([]);
+      expect(objects.rows).toEqual(rows);
+      expect(notes(objects)).toEqual([
+        'Read rows from `rows`.',
+        'Read column names from `columns`.',
+      ]);
+
+      // Redash keeps its rows as objects, which need no names.
+      const redash = parseTable({ columns: described, rows });
+      expect(redash.rows).toEqual(rows);
+      expect(notes(redash)).toEqual(['Read rows from `rows`.']);
+    });
+
+    it('reads pandas `orient="split"`', () => {
+      const split = parseTable(
+        JSON.stringify({ columns: ['region', 'revenue'], index: [0, 1], data: arrays }),
+      );
+      expect(errors(split)).toEqual([]);
+      expect(split.rows).toEqual(rows);
+      expect(split.columns).toEqual(['region', 'revenue']);
+      expect(notes(split)).toEqual(['Read rows from `data`.', 'Read column names from `columns`.']);
+      // Unnamed columns are numbered by pandas.
+      const numbered = parseTable({ columns: [0, 1], index: [0, 1], data: arrays });
+      expect(numbered.rows).toEqual([
+        { 0: 'EMEA', 1: 120 },
+        { 0: 'APAC', 1: 80 },
+      ]);
+    });
+
+    it('tries columns, cols, fields, then schema, whatever their case', () => {
+      const from = (doc: Record<string, unknown>) =>
+        notes(parseTable(doc)).find((n) => n.startsWith('Read column names'));
+      const names = ['region', 'revenue'];
+      const wrong = ['only one'];
+      expect(
+        from({ schema: names, fields: names, cols: names, columns: names, data: arrays }),
+      ).toBe('Read column names from `columns`.');
+      expect(from({ schema: names, fields: names, cols: names, data: arrays })).toBe(
+        'Read column names from `cols`.',
+      );
+      expect(from({ schema: names, fields: names, data: arrays })).toBe(
+        'Read column names from `fields`.',
+      );
+      expect(from({ schema: names, data: arrays })).toBe('Read column names from `schema`.');
+      expect(from({ Columns: names, data: arrays })).toBe('Read column names from `Columns`.');
+      // A key whose count does not fit is passed over for the next one.
+      expect(from({ columns: wrong, fields: names, data: arrays })).toBe(
+        'Read column names from `fields`.',
+      );
+      // `schema: { fields: [...] }`, as table schemas are written.
+      const schema = parseTable({
+        schema: {
+          fields: [
+            { name: 'region', type: 'STRING' },
+            { name: 'revenue', type: 'INTEGER' },
+          ],
+        },
+        data: arrays,
+      });
+      expect(schema.rows).toEqual(rows);
+      expect(notes(schema)).toEqual([
+        'Read rows from `data`.',
+        'Read column names from `schema.fields`.',
+      ]);
+    });
+
+    it('takes `name`, and another spelling only when there is no `name`', () => {
+      const named = (cols: unknown[]) => parseTable({ cols, rows: [['EMEA', 120]] }).columns;
+      expect(named([{ name: 'region', display_name: 'Region' }, { name: 'revenue' }])).toEqual([
+        'region',
+        'revenue',
+      ]);
+      expect(named([{ display_name: 'Region' }, { field: 'revenue' }])).toEqual([
+        'Region',
+        'revenue',
+      ]);
+      expect(named([{ label: 'Region' }, 'revenue'])).toEqual(['Region', 'revenue']);
+      // Repeated and empty names are made distinct, as for a header row.
+      expect(named(['region', 'region'])).toEqual(['region', 'region_2']);
+      expect(named(['', 'revenue'])).toEqual(['column_1', 'revenue']);
+    });
+
+    it('keeps today’s reading when the names do not fit the rows', () => {
+      // Three names for rows of two values: the first array is the header, as before.
+      const single = parseTable({
+        columns: ['a', 'b', 'c'],
+        data: [
+          ['region', 'revenue'],
+          ['EMEA', 120],
+        ],
+      });
+      expect(single.rows).toEqual([{ region: 'EMEA', revenue: 120 }]);
+      expect(notes(single)).toEqual(['Read rows from `data`.']);
+
+      // Descriptions without a name are not names.
+      const nameless = parseTable({ fields: [{ type: 'text' }, { type: 'int' }], result: arrays });
+      expect(of('error', nameless)[0]).toMatchObject({
+        message: 'Several keys hold rows: `fields`, `result`.',
+        hint: 'Choose one with `path:`, e.g. `path: result`.',
+      });
+      // Named that way, the list finds the names its own key could not claim.
+      const chosen = parseTable(
+        { columns: [{ name: 'region' }, { name: 'revenue' }], values: arrays },
+        { path: 'values' },
+      );
+      expect(chosen.rows).toEqual(rows);
+      expect(notes(chosen)).toEqual(['Read column names from `columns`.']);
+      const nullName = parseTable({
+        cols: [{ name: null, label: 'Region' }, { name: 'revenue' }],
+        rows: arrays,
+      });
+      expect(errors(nullName)).toEqual(['Several keys hold rows: `cols`, `rows`.']);
+
+      // Beside another list, arrays whose names do not fit stay ambiguous.
+      const misfit = parseTable({ cols: [{ name: 'region' }], rows: arrays });
+      expect(of('error', misfit)[0]).toMatchObject({
+        message: 'Several keys hold rows: `cols`, `rows`.',
+        hint: 'Choose one with `path:`, e.g. `path: rows`. A list of arrays is read with its first array as the header.',
+      });
+
+      // Rows of another width than the first are filled or cut, as under a header row.
+      const ragged = parseTable({
+        columns: ['region', 'revenue'],
+        rows: [['EMEA', 120], ['APAC'], ['LATAM', 5, 'x']],
+      });
+      expect(ragged.rows).toEqual([
+        { region: 'EMEA', revenue: 120 },
+        { region: 'APAC', revenue: null },
+        { region: 'LATAM', revenue: 5 },
+      ]);
+
+      // Objects need no names, and a list at the top level has nothing beside it.
+      expect(notes(parseTable({ columns: ['x', 'y'], rows }))).toEqual(['Read rows from `rows`.']);
+      expect(
+        parseTable([
+          ['region', 'revenue'],
+          ['EMEA', 120],
+        ]).rows,
+      ).toEqual([{ region: 'EMEA', revenue: 120 }]);
+    });
+
+    it('applies through a path spelled as JSONPath, an index, and the compiler', () => {
+      const doc = { results: [{ columns: ['region', 'revenue'], values: arrays }] };
+      const t = parseTable(doc, { path: '$.results[0].values' });
+      expect(t.rows).toEqual(rows);
+      expect(notes(t)).toEqual([
+        'Read `$.results[0].values` as `results.0.values`.',
+        'Read column names from `results.0.columns`.',
+      ]);
+
+      const block = compileBlock(
+        `bar sum(revenue) by region\npath: data\n---\n${JSON.stringify({ data: { cols: described, rows: arrays } })}\n`,
+      );
+      expect(errors(block)).toEqual([]);
+      expect(notes(block)).toEqual(
+        expect.arrayContaining([
+          'Read rows from `data.rows`.',
+          'Read column names from `data.cols`.',
+        ]),
+      );
+      expect(block.spec).toMatchObject({ component: 'BarChart', x: 'region' });
+      expect(Object.values(block.data)[0]).toMatchObject({ rows });
+    });
   });
 
   it('still reads an object of equal-length column arrays as columns', () => {

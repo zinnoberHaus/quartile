@@ -75,6 +75,40 @@ describe('QuartileDocument sources', () => {
     expect(loadSource).toHaveBeenCalledTimes(2);
   });
 
+  it('reads column names kept beside bare rows in a loaded response', async () => {
+    const metabase = {
+      data: {
+        rows: [
+          ['EMEA', 120],
+          ['APAC', 80],
+        ],
+        cols: [
+          { name: 'region', display_name: 'Region' },
+          { name: 'revenue', display_name: 'Revenue' },
+        ],
+      },
+      status: 'completed',
+      row_count: 2,
+    };
+    const loadSource = vi.fn(async (url: string) =>
+      url === '/api/card/7/query'
+        ? metabase
+        : JSON.stringify({ columns: ['region', 'revenue'], rows: [['LATAM', 45]] }),
+    );
+    render(
+      <QuartileDocument loadSource={loadSource}>
+        <QuartileBlock
+          source={
+            'kpi sum(revenue) as "Card"\nsrc: /api/card/7/query\npath: data\nformat: integer\n'
+          }
+        />
+        <QuartileBlock source={'kpi sum(revenue) as "Sql"\nsrc: /api/sql\nformat: integer\n'} />
+      </QuartileDocument>,
+    );
+    await waitFor(() => expect(screen.getByText('200')).toBeTruthy());
+    expect(screen.getByText('45')).toBeTruthy();
+  });
+
   it('shows why a path did not resolve', async () => {
     const loadSource = vi.fn(async () => api(1));
     render(

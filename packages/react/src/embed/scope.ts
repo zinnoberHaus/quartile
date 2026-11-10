@@ -4,6 +4,7 @@
  * source-loading policy.
  */
 import type { DataInput } from '../data/types';
+import { dict } from '../lang/dict';
 import {
   createPolicyLoader,
   createSourceLoader,
@@ -70,7 +71,7 @@ function warnRejected(tokens: readonly string[]) {
 
 export class PageScope {
   /** Datasets defined by `data` blocks on the page. */
-  datasets: Record<string, DataInput> = {};
+  datasets: Record<string, DataInput> = dict();
   private owners = new Map<string, string>();
   private listeners = new Set<Listener>();
   private stores = new Map<string, SelectionStore>();
@@ -115,17 +116,20 @@ export class PageScope {
   register(name: string, data: DataInput, owner: string) {
     const current = this.owners.get(name);
     if (current && current !== owner) return;
-    if (current === owner && this.datasets[name] === data) return;
-    if (this.datasets[name] === data) return;
+    const same = Object.hasOwn(this.datasets, name) && this.datasets[name] === data;
+    if (same) return;
     this.owners.set(name, owner);
-    this.datasets = { ...this.datasets, [name]: data };
+    const next = dict(this.datasets);
+    next[name] = data;
+    this.datasets = next;
     this.emit();
   }
 
   unregister(name: string, owner: string) {
     if (this.owners.get(name) !== owner) return;
     this.owners.delete(name);
-    const { [name]: _removed, ...rest } = this.datasets;
+    const rest = dict(this.datasets);
+    delete rest[name];
     this.datasets = rest;
     this.emit();
   }

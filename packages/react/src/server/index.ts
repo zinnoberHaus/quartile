@@ -8,6 +8,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import type { DataInput } from '../data/types';
 import { type CompiledBlock, compileBlock } from '../lang/compile';
 import type { Diagnostic } from '../lang/diagnostics';
+import { dict } from '../lang/dict';
 import { DEFAULT_LANGUAGES, scanDocument } from '../lang/document';
 import { readSourceValue, type SourceValue } from '../lang/source';
 import { QuartileBlock } from '../markdown/QuartileBlock';
@@ -106,7 +107,7 @@ async function loadSources(
   markdown: string,
   options: MarkdownRenderOptions,
 ): Promise<Record<string, DataInput>> {
-  const datasets: Record<string, DataInput> = { ...options.datasets };
+  const datasets: Record<string, DataInput> = dict(options.datasets);
   if (!options.loadSource) return datasets;
   const scan = scanDocument(markdown, { languages: options.languages, datasets });
   for (const s of scan.sources) {

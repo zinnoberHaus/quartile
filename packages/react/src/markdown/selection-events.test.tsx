@@ -368,3 +368,33 @@ describe('asking a follow-up from a selection', () => {
     expect(screen.queryByRole('button', { name: /Ask about/ })).toBeNull();
   });
 });
+
+describe('a host that changes another group from its handler', () => {
+  it('still hears one report per change of each group', () => {
+    const ref = createRef<QuartileDocumentHandle>();
+    const seen: string[] = [];
+    const orders = 'data orders\n---\nregion,revenue\nEMEA,1\nAPAC,2\n';
+    const chart = (t: string) => `bar sum(revenue) by region\ntitle: ${t}\ndata: orders\n`;
+    const other = 'bar sum(v) by k\nlink: other\n---\nk,v\na,1\nb,2\n';
+    render(
+      <QuartileDocument
+        ref={ref}
+        onSelectionChange={(change) => {
+          seen.push(change.group);
+          // Mirror one group into another while the blocks of the first are still reporting.
+          if (change.group === 'orders') {
+            ref.current?.selection('other').set('k', change.predicates.length ? 'a' : undefined);
+          }
+        }}
+      >
+        <QuartileBlock source={orders} />
+        <QuartileBlock source={chart('one')} />
+        <QuartileBlock source={chart('two')} />
+        <QuartileBlock source={chart('three')} />
+        <QuartileBlock source={other} />
+      </QuartileDocument>,
+    );
+    act(() => ref.current?.selection('orders').set('region', 'EMEA'));
+    expect(seen).toEqual(['orders', 'other']);
+  });
+});

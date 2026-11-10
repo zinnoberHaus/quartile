@@ -17,6 +17,7 @@ import * as DataDisplay from '../data-display';
 import { aggregateRows } from '../data-display/shared';
 import { parseSort } from '../data-display/table-model';
 import { IconAlertCircle } from '../icons';
+import { dict } from '../lang/dict';
 import { cx } from '../lib/cx';
 import { useQuartile } from '../provider/QuartileProvider';
 import { AppliedPredicatesContext } from '../selection/appliedPredicates';
@@ -164,7 +165,7 @@ function useSpecProps(spec: ComponentSpec, input: DataInput | undefined) {
   return useMemo(() => {
     const props: Record<string, unknown> = {};
     const appliedPredicates = new Set<Predicate>();
-    const overrides: Record<string, Exclude<FieldOverride, string>> = {};
+    const overrides: Record<string, Exclude<FieldOverride, string>> = dict();
     const dims = new Set<string>();
     const measures: Encoded[] = [];
     for (const [key, raw] of Object.entries(spec)) {
@@ -229,7 +230,7 @@ function useSpecProps(spec: ComponentSpec, input: DataInput | undefined) {
         for (const m of measures) row[m.field] = aggregateRows(g, m.field, m.aggregate ?? how);
         out.push(row);
       }
-      const fields: Record<string, Exclude<FieldOverride, string>> = {};
+      const fields: Record<string, Exclude<FieldOverride, string>> = dict();
       for (const name of [...dimList, ...measures.map((m) => m.field)]) {
         if (schema[name]) {
           const { name: _n, ...def } = schema[name];
@@ -243,7 +244,7 @@ function useSpecProps(spec: ComponentSpec, input: DataInput | undefined) {
       rows = dataset(out, fields);
     } else if (input && Object.keys(overrides).length) {
       const { rows: raw, schema } = resolveData(input);
-      const fields: Record<string, Exclude<FieldOverride, string>> = {};
+      const fields: Record<string, Exclude<FieldOverride, string>> = dict();
       for (const [name, def] of Object.entries(schema)) {
         const { name: _n, ...rest } = def;
         fields[name] = rest;

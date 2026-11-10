@@ -5,6 +5,7 @@
  * No React here: QuartileDocument subscribes to it and the embed's page scope owns one.
  */
 import type { DataInput } from '../data/types';
+import { dict } from '../lang/dict';
 import { DEFAULT_MIN_REFRESH, readSourceValue } from '../lang/source';
 
 /** One block's request for remote rows, as the compiler records it in `sources`. */
@@ -62,7 +63,7 @@ interface Target {
   settledAt?: number;
 }
 
-const EMPTY: SourceSnapshot = { loaded: {}, pending: [], errors: {} };
+const EMPTY: SourceSnapshot = { loaded: dict(), pending: [], errors: dict() };
 /** Longest delay a timer holds without overflowing to "now". */
 const MAX_DELAY = 2 ** 31 - 1;
 
@@ -329,8 +330,8 @@ export class SourceStore {
   }
 
   private publish(): void {
-    const loaded: Record<string, DataInput> = {};
-    const errors: Record<string, string> = {};
+    const loaded: Record<string, DataInput> = dict();
+    const errors: Record<string, string> = dict();
     const pending: string[] = [];
     for (const entry of this.entries.values()) {
       if (entry.data !== undefined) loaded[entry.name] = entry.data;

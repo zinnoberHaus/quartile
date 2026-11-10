@@ -15,6 +15,7 @@ import {
 import { type SpecError, validateSpec } from '../spec/validate';
 import { article, parseActions, supportedActions } from './actions';
 import { type Diagnostic, error, hasErrors, info, warning } from './diagnostics';
+import { dict } from './dict';
 import { readFormat } from './formats';
 import { KINDS, type KindDef, PROPERTY_ALIASES, type ViewKind } from './kinds';
 import {
@@ -261,7 +262,7 @@ function isPercentField(def: FieldDef | undefined): boolean {
 /* ------------------------------------------------------------------------------------------ */
 
 function definitions(schema: Record<string, FieldDef>): Record<string, FieldMeta> {
-  const out: Record<string, FieldMeta> = {};
+  const out: Record<string, FieldMeta> = dict();
   for (const [name, def] of Object.entries(schema)) {
     const { name: _n, ...rest } = def;
     out[name] = rest;
@@ -275,7 +276,7 @@ function fieldMetaFrom(
   columns: string[],
   diagnostics: Diagnostic[],
 ): Record<string, FieldMeta> {
-  const out: Record<string, FieldMeta> = {};
+  const out: Record<string, FieldMeta> = dict();
   for (const p of props) {
     const dot = p.key.lastIndexOf('.');
     if (dot <= 0) continue;
@@ -453,7 +454,7 @@ function wholeCurrencyFields(
   declared: Record<string, FieldMeta> = {},
 ): Record<string, FieldMeta> {
   const { rows, schema } = resolveData(input);
-  const out: Record<string, FieldMeta> = {};
+  const out: Record<string, FieldMeta> = dict();
   for (const [name, def] of Object.entries(schema)) {
     if (Object.hasOwn(declared, name)) {
       const meta = declareFormat(declared[name], def, rows, name);
@@ -751,7 +752,7 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
     resolver.columns,
     diagnostics,
   );
-  const channelMeta: Record<string, FieldMeta> = {};
+  const channelMeta: Record<string, FieldMeta> = dict();
   let link: string | null | undefined;
   let hasCountMeasure = false;
   let viewFormat: { format: Formatter; currency?: string; line: number } | undefined;
@@ -1054,7 +1055,7 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
   // 5. Derived data: row counts, explicit order for categories on a continuous axis.
   let viewInput: DataInput = input;
   let derivedRows: Row[] | null = null;
-  const derivedFields: Record<string, FieldMeta> = {};
+  const derivedFields: Record<string, FieldMeta> = dict();
   const ensureRows = () => (derivedRows ??= rows.map((r) => ({ ...r })));
 
   const countName = (() => {
@@ -1581,7 +1582,7 @@ function compileJson(block: BlockNode, options: CompileOptions): CompiledBlock {
     return base;
   }
   const obj = { ...(json as Record<string, unknown>) };
-  const data: Record<string, DataInput> = {};
+  const data: Record<string, DataInput> = dict();
   const datasets = (obj.datasets ?? obj.data_sets) as Record<string, unknown> | undefined;
   delete obj.datasets;
   delete obj.data_sets;
@@ -1626,7 +1627,7 @@ function compileJson(block: BlockNode, options: CompileOptions): CompiledBlock {
   if (Array.isArray((spec as DashboardSpec).layout)) {
     for (const item of (spec as DashboardSpec).layout) checkSourceUrl(item, diagnostics);
   }
-  const all = { ...options.datasets, ...data };
+  const all = dict(options.datasets, data);
   for (const item of Array.isArray((spec as DashboardSpec).layout)
     ? (spec as DashboardSpec).layout
     : [spec as ComponentSpec]) {
@@ -1669,9 +1670,9 @@ export function compileBlock(
   if (block.type === 'json') return compileJson(block, options);
   const diagnostics: Diagnostic[] = [...block.diagnostics];
   const complete = block.complete;
-  const datasets = { ...(options.datasets ?? {}) };
+  const datasets = dict(options.datasets);
   const pending = new Set(options.pendingDatasets ?? []);
-  const local: Record<string, DataInput> = {};
+  const local: Record<string, DataInput> = dict();
   const sources: CompiledBlock['sources'] = [];
   const result: CompiledBlock = {
     type: block.type === 'empty' ? 'empty' : block.type === 'data' ? 'data' : block.type,
@@ -1733,7 +1734,7 @@ export function compileBlock(
       table.columns,
       diagnostics,
     );
-    const fields: Record<string, FieldMeta> = { ...table.fields };
+    const fields: Record<string, FieldMeta> = dict(table.fields);
     for (const [k, v] of Object.entries(meta)) fields[k] = { ...fields[k], ...v };
     const inline = dataset(table.rows, fields);
     const whole = wholeCurrencyFields(inline, meta);

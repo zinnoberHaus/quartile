@@ -14,6 +14,7 @@ import {
   useSyncExternalStore,
 } from 'react';
 import type { DataInput } from '../data/types';
+import { dict } from '../lang/dict';
 import { DEFAULT_LANGUAGES, findFencedBlocks, scanDocument } from '../lang/document';
 import type { SourceValue } from '../lang/source';
 import { QuartileProvider, type QuartileProviderProps } from '../provider/QuartileProvider';
@@ -197,7 +198,7 @@ function DocumentScope({
   ...providerProps
 }: QuartileDocumentProps & { handle?: Ref<QuartileDocumentHandle> }) {
   const docId = useId();
-  const [registered, setRegistered] = useState<Record<string, Registered>>({});
+  const [registered, setRegistered] = useState<Record<string, Registered>>(() => dict());
   const stores = useRef(new Map<string, SelectionStore>());
   const loaderRef = useRef(loadSource);
   loaderRef.current = loadSource;
@@ -244,7 +245,7 @@ function DocumentScope({
   }, [markdown, languages]);
 
   const datasets = useMemo(() => {
-    const out: Record<string, DataInput> = { ...(scanned?.datasets ?? {}), ...(data ?? {}) };
+    const out: Record<string, DataInput> = dict(scanned?.datasets, data);
     for (const [name, r] of Object.entries(registered)) {
       if (!Object.hasOwn(out, name)) out[name] = r.data;
     }
@@ -260,10 +261,12 @@ function DocumentScope({
   const register = useCallback(
     (name: string, value: DataInput, owner: string, key: string, basis?: unknown) => {
       setRegistered((current) => {
-        const existing = current[name];
+        const existing = Object.hasOwn(current, name) ? current[name] : undefined;
         if (existing && existing.key === key && existing.basis === basis) return current;
         if (existing && existing.owner !== owner) return current;
-        return { ...current, [name]: { owner, key, data: value, basis } };
+        const next = dict(current);
+        next[name] = { owner, key, data: value, basis };
+        return next;
       });
     },
     [],
@@ -271,8 +274,9 @@ function DocumentScope({
 
   const unregister = useCallback((name: string, owner: string) => {
     setRegistered((current) => {
-      if (current[name]?.owner !== owner) return current;
-      const { [name]: _removed, ...rest } = current;
+      if (!Object.hasOwn(current, name) || current[name].owner !== owner) return current;
+      const rest = dict(current);
+      delete rest[name];
       return rest;
     });
   }, []);
@@ -352,11 +356,12 @@ function DocumentScope({
 
   const selectionListener = useRef(onSelectionChange);
   selectionListener.current = onSelectionChange;
-  const lastSelectionEvent = useRef<SelectionEvent | null>(null);
-  // Every block over a group reports the same store event; the host hears it once.
+  const reportedEvents = useRef(new WeakSet<SelectionEvent>());
+  // Every block over a group reports the same store event; the host hears it once, also when its
+  // handler changes another group while the blocks of this one are still reporting.
   const selectionChanged = useCallback((change: SelectionChange, event: SelectionEvent) => {
-    if (lastSelectionEvent.current === event) return;
-    lastSelectionEvent.current = event;
+    if (reportedEvents.current.has(event)) return;
+    reportedEvents.current.add(event);
     selectionListener.current?.(change);
   }, []);
 

@@ -5,6 +5,7 @@
  */
 import type { FieldOverride, Row } from '../data/types';
 import { type Diagnostic, error, info, warning } from './diagnostics';
+import { dict } from './dict';
 import { keyList, pathNote, resolveDataPath } from './path';
 
 export type TableFormat = 'csv' | 'tsv' | 'semicolon' | 'markdown' | 'json';
@@ -779,7 +780,7 @@ function typeJsonRows(rows: Row[]): {
       }
     }
   }
-  const fields: ParsedTable['fields'] = {};
+  const fields: ParsedTable['fields'] = dict();
   const notes: string[] = [];
   const out = rows.map((r) => ({ ...r }));
   for (const c of columns) {
@@ -987,7 +988,7 @@ export function parseTable(input: unknown, options: TableOptions = {}): ParsedTa
   }
 
   const rows: Row[] = Array.from({ length: kept }, () => ({}));
-  const fields: ParsedTable['fields'] = {};
+  const fields: ParsedTable['fields'] = dict();
   columns.forEach((name, c) => {
     const typed = typeColumn(name, raw[c]);
     typed.values.forEach((v, r) => {

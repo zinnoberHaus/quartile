@@ -6,6 +6,7 @@
 import type { DataInput, Dataset } from '../data/types';
 import { type CompiledBlock, compileBlock } from './compile';
 import type { Diagnostic } from './diagnostics';
+import { dict } from './dict';
 
 /** Info-string languages read as Quartile blocks. Hosts may add aliases such as `chart`. */
 export const DEFAULT_LANGUAGES: readonly string[] = ['quartile'];
@@ -95,7 +96,7 @@ export interface ScanOptions {
 /** Compiles every block of a document with the datasets the whole document defines. */
 export function scanDocument(markdown: string, options: ScanOptions = {}): DocumentScan {
   const fenced = findFencedBlocks(markdown, options.languages);
-  const datasets: Record<string, DataInput> = { ...options.datasets };
+  const datasets: Record<string, DataInput> = dict(options.datasets);
   const sources: DocumentScan['sources'] = [];
   // Pass 1: named datasets, wherever they appear.
   for (const block of fenced) {

@@ -13,6 +13,7 @@ import { resolveData } from '../data/schema';
 import type { DataInput } from '../data/types';
 import { type CompiledBlock, compileBlock } from '../lang/compile';
 import { type Diagnostic, hasErrors } from '../lang/diagnostics';
+import { dict } from '../lang/dict';
 import { parseBlock } from '../lang/parse';
 import { cx } from '../lib/cx';
 import { useQuartile } from '../provider/QuartileProvider';
@@ -55,7 +56,7 @@ export interface QuartileBlockProps {
   style?: CSSProperties;
 }
 
-const EMPTY: Record<string, DataInput> = {};
+const EMPTY: Record<string, DataInput> = dict();
 
 /**
  * Renders one Quartile block. Inside a QuartileDocument it shares datasets and selections with
@@ -91,10 +92,11 @@ export function QuartileBlock({
   // A `data` block depends only on its own rows (or its loaded source), not on other datasets.
   const isData = parsed.type === 'data';
   // Rows loaded from the block's own `src:` come first, so reloaded rows are described again.
-  const raw = isData && parsed.name ? doc?.loaded[parsed.name] : undefined;
-  const own = raw ?? (isData && parsed.name ? datasets[parsed.name] : undefined);
+  const name = isData ? parsed.name : undefined;
+  const raw = name && doc && Object.hasOwn(doc.loaded, name) ? doc.loaded[name] : undefined;
+  const own = raw ?? (name && Object.hasOwn(datasets, name) ? datasets[name] : undefined);
   const scope = useMemo(
-    () => (isData ? (own && parsed.name ? { [parsed.name]: own } : EMPTY) : datasets),
+    () => (isData ? (own && parsed.name ? dict({ [parsed.name]: own }) : EMPTY) : datasets),
     [isData, own, parsed.name, datasets],
   );
   const compiled = useMemo(

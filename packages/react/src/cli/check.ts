@@ -6,6 +6,7 @@
 import type { DataInput } from '../data/types';
 import { compileBlock } from '../lang/compile';
 import type { Diagnostic } from '../lang/diagnostics';
+import { dict } from '../lang/dict';
 import { findFencedBlocks } from '../lang/document';
 
 export interface CheckOptions {
@@ -36,7 +37,7 @@ export interface CheckResult {
 /** `offset` is the document line before the text's first line: 0, or an outer fence's line. */
 function checkDocument(text: string, options: CheckOptions, offset: number): CheckResult {
   const fenced = findFencedBlocks(text, options.languages);
-  const datasets: Record<string, DataInput> = { ...options.datasets };
+  const datasets: Record<string, DataInput> = dict(options.datasets);
   const awaited = new Set(options.hostDatasets);
   // Pass 1: `data` blocks define datasets for the whole document, wherever they appear.
   for (const block of fenced) {

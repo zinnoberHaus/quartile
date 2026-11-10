@@ -2,7 +2,7 @@
 
 `@quartile/react/ai` supplies bounded profiling, context construction, a typed proposal contract, validation, a React lifecycle hook, and a review panel. The entry is optional and provider-agnostic. It has no model SDK, hosted model, automatic execution, Python interpreter, or SQL endpoint.
 
-The [assistant example](https://quartile-design.vercel.app/examples/assistant) starts with an explicitly labeled deterministic local planner. This exercises proposal/review/apply and does not claim model inference. Connect your own HTTP backend to use a real model; the [server example](../../examples/ai-server) documents a concrete server-side integration.
+The [assistant example](https://docs.usequartile.com/examples/assistant) starts with an explicitly labeled deterministic local planner. This exercises proposal/review/apply and does not claim model inference. Connect your own HTTP backend to use a real model; the [server example](../../examples/ai-server) documents a concrete server-side integration.
 
 ## Build the context deliberately
 
@@ -71,7 +71,7 @@ export function ProposalInspector({ context }: { context: AnalysisContext }) {
 }
 ```
 
-This complete component reviews and commits view state; it does not itself render a chart. The gallery demonstrates the additional view-to-chart mapping. For filters already active elsewhere, initialize/synchronize `view.filters` and `context.selection` from the same application state.
+This complete component reviews and commits view state; it does not itself render a chart. The examples app demonstrates the additional view-to-chart mapping. For filters already active elsewhere, initialize/synchronize `view.filters` and `context.selection` from the same application state.
 
 The hook exposes `idle`, `loading`, `review`, `applied`, `error`, and `cancelled`, plus `submit`, `cancel`, `discard`, and `apply`. It makes no request on mount. Only explicit Apply invokes the synchronous `onApply`, after revalidation; each proposal is consumed once. Newer requests, unmount, changed context or adapter invalidate stale results even if an adapter ignores its abort signal. Cancellation does not guarantee that a remote model stopped computing. Keep the adapter identity stable with `useMemo`. Revision/staleness tracking belongs to this lifecycle hook; standalone validation and reduction only validate against the supplied context.
 

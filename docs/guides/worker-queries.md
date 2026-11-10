@@ -2,7 +2,7 @@
 
 This is an experimental extension of the unpublished source preview. Existing rows and `dataset()` inputs remain synchronous. For larger local datasets, import Arrow into a DuckDB worker and ask for bounded aggregates or pages. React receives those results, rather than an object for every source record.
 
-The runnable [worker explorer](https://quartile-design.vercel.app/examples/scale) generates deterministic Arrow IPC in a worker and links category counts, metrics, a 25-row detail page, and a bounded scatter plot. Its controls distinguish source records, matching records, returned rows, and drawn points. The first matching IDs in the scatter are **not a representative sample**.
+The runnable [worker explorer](https://docs.usequartile.com/examples/scale) generates deterministic Arrow IPC in a worker and links category counts, metrics, a 25-row detail page, and a bounded scatter plot. Its controls distinguish source records, matching records, returned rows, and drawn points. The first matching IDs in the scatter are **not a representative sample**.
 
 ## Installation and assets
 
@@ -14,7 +14,7 @@ pnpm add @duckdb/duckdb-wasm@1.32.0 apache-arrow@17.0.0
 
 Use the worker and Wasm files from that same installed DuckDB version. The example uses Vite asset imports and the single-threaded MVP/EH bundles. It does not require cross-origin isolation. Other bundlers need equivalent asset handling; never pair a worker from one release with another release's Wasm.
 
-Copy and adapt the [tested gallery initializer](../../apps/gallery/src/examples/scale/database.ts) for complete startup: it selects compatible assets, fetches Wasm on the host with HTTP and abort checks, supplies a temporary blob URL to the worker, races worker errors and an initialization deadline, and releases resources when setup fails. Host-side loading matters: in DuckDB 1.32.0 a failed Wasm fetch inside the worker can leave `instantiate()` pending.
+Copy and adapt the [tested examples-app initializer](../../apps/gallery/src/examples/scale/database.ts) for complete startup: it selects compatible assets, fetches Wasm on the host with HTTP and abort checks, supplies a temporary blob URL to the worker, races worker errors and an initialization deadline, and releases resources when setup fails. Host-side loading matters: in DuckDB 1.32.0 a failed Wasm fetch inside the worker can leave `instantiate()` pending.
 
 After that application-owned startup succeeds, this wrapper transfers ownership of the initialized database and worker to the adapter:
 
@@ -35,7 +35,7 @@ export function openBackend(database: AsyncDuckDB, worker: Worker) {
 }
 ```
 
-Serve Wasm with `application/wasm`; the application's CSP must permit its worker, Wasm execution, and the temporary blob URL used during initialization. The gallery serves assets from its own origin. No library-owned CDN or remote database is required.
+Serve Wasm with `application/wasm`; the application's CSP must permit its worker, Wasm execution, and the temporary blob URL used during initialization. The examples app serves assets from its own origin. No library-owned CDN or remote database is required.
 
 ## Ingest once, query many views
 

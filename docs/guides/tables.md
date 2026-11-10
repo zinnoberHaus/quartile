@@ -1,6 +1,6 @@
 # Analytical tables and saved views
 
-Use `DataTable` for a table inside a composed report. Use `DataExplorer` when readers need search, typed filters, multiple sort priorities, column controls, grouping, view JSON, and CSV export. Both use the existing provider, field metadata, and linked selection. [Run the dataset explorer](https://quartile-design.vercel.app/examples/explore).
+Use `DataTable` for a table inside a composed report. Use `DataExplorer` when readers need search, typed filters, multiple sort priorities, column controls, grouping, view JSON, and CSV export. Both use the existing provider, field metadata, and linked selection. [Run the dataset explorer](https://docs.usequartile.com/examples/explore).
 
 ```tsx
 import { useState } from 'react';

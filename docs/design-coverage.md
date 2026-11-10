@@ -4,9 +4,9 @@ This maps the supplied Quartile design's product claims to the implemented publi
 
 | Design area | Current implementation | Evidence and limits |
 | --- | --- | --- |
-| Quarter-disc identity, paper/ink/signal palette, typography | Public logo, tokens, gallery, and brand guide | [Brand](brand.md), [tokens](../packages/react/src/styles/tokens.css); fonts have system fallbacks |
+| Quarter-disc identity, paper/ink/signal palette, typography | Public logo, tokens, examples app, and brand guide | [Brand](brand.md), [tokens](../packages/react/src/styles/tokens.css); fonts have system fallbacks |
 | Light/dark and comfortable/compact density | Provider and token remapping | [Provider](../packages/react/src/provider/QuartileProvider.tsx); live example controls exercise both |
-| Actions, inputs, dates, navigation, overlays, feedback | React component families | [Components](../packages/react/src/components); controls render in the design gallery |
+| Actions, inputs, dates, navigation, overlays, feedback | React component families | [Components](../packages/react/src/components); controls render in the examples and in a development-only component catalog |
 | KPI, FilterBar, detail tables | Shared schema/selection, sorting, grouping, pagination and virtualization | [Data display](../packages/react/src/data-display); clean consumer SSR and unit checks |
 | Trends, comparisons, distributions, parts, flows | SVG line, area, bars, bar list, donut, scatter, histogram, box plot, calendar heatmap, heatmap, funnel and Sankey, plus sparklines | [Charts](../packages/react/src/charts); mixed-sign and selection regressions covered |
 | Loading, empty, error, retry | Shared chart state contract | [ChartFrame](../packages/react/src/charts/core/ChartFrame.tsx) |

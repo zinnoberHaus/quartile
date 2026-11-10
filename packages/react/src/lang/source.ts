@@ -164,6 +164,23 @@ export type SourceValue =
   | { readonly [key: string]: unknown }
   | readonly unknown[];
 
+/** Rows a limit cut, by the array that holds what was kept; a described copy shares it. */
+const rowLimits = new WeakMap<object, { kept: number; total: number; loaded: boolean }>();
+
+/**
+ * Remembers that `rows` are the first of `total`, so every view drawn from them can say so.
+ * `loaded` marks rows of a `src:` response, whose cut no block has reported yet.
+ */
+export function markRowLimit(rows: readonly unknown[], total: number, loaded = false): void {
+  rowLimits.set(rows, { kept: rows.length, total, loaded });
+}
+
+export function rowLimitOf(
+  rows: readonly unknown[],
+): { kept: number; total: number; loaded: boolean } | undefined {
+  return rowLimits.get(rows);
+}
+
 function isRows(value: unknown): value is Row[] {
   return (
     Array.isArray(value) && value.every((v) => !!v && typeof v === 'object' && !Array.isArray(v))
@@ -185,6 +202,7 @@ export function readSourceValue(
   const problem = table.diagnostics.find((d) => d.severity === 'error');
   if (problem)
     throw new Error(problem.hint ? `${problem.message} ${problem.hint}` : problem.message);
+  if (table.rowsTotal !== undefined) markRowLimit(table.rows, table.rowsTotal, true);
   return dataset(table.rows, table.fields);
 }
 

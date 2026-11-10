@@ -95,6 +95,11 @@ export interface MarkdownRenderOptions extends StaticRenderOptions {
    * a URL render their "no data" message. `refresh:` has no meaning in static output.
    */
   loadSource?: (url: string) => Promise<SourceValue> | SourceValue;
+  /**
+   * Rows kept from each loaded `src:` response. A longer one is cut, and the blocks drawn from
+   * it say how many of its rows they show. Default 5,000.
+   */
+  maxRows?: number;
 }
 
 async function loadSources(
@@ -108,7 +113,7 @@ async function loadSources(
     if (Object.hasOwn(datasets, s.name)) continue;
     const value = await options.loadSource(s.url);
     try {
-      datasets[s.name] = readSourceValue(value, { path: s.path });
+      datasets[s.name] = readSourceValue(value, { path: s.path, maxRows: options.maxRows });
     } catch (err) {
       // A build should stop on data it cannot read rather than publish an empty chart.
       throw new Error(`Could not read ${s.url}: ${(err as Error).message}`);

@@ -17,6 +17,14 @@
   max-width: none;
 }
 
+/* What a reader must know about the view above it, e.g. that it shows part of its rows. */
+.q-block-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--q-text-3);
+}
+
 .q-block-skeleton {
   display: flex;
   flex-direction: column;

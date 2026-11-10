@@ -207,6 +207,8 @@ The [interaction guide](guides/interaction.md) covers these with examples.
 
 An unknown format is ignored with a warning. Formats change display only, never the stored values.
 
+A currency format over amounts written without cents shows whole amounts in the written summary and the table (`$1,200,000`, not `$1,200,000.00`); this holds for an inferred format and for an explicit `format: currency USD`. Axis ticks stay compact (`$1.2M`).
+
 ## 6. Data
 
 ### Inline rows
@@ -311,7 +313,7 @@ Blocks compile to the [JSON spec](guides/generated-dashboards.md) that `SpecView
 - **Across blocks**, views over the same named dataset share one selection: clicking a region in one block filters every other block over that dataset. Such views publish by default; `select: no` or `brush: no` makes one a follower only, and `link: no` takes it out of the group.
 - **Groups have names.** A view's group is its `link: name`, else the name of the dataset it reads (a `data` block, a dataset the host provides, or a loaded `src:`), else `block-<n>` for a block with its own inline rows, `n` being the block's number in the document. A block with its own rows stands alone and publishes only when it sets `select:` or `brush:`. Hosts use the group name to read, set and observe a selection ([interaction](guides/interaction.md#6-react-to-selections-in-your-app)).
 - **The rows behind a view.** `actions: rows, download` opens and downloads the rows a view is drawn from, under the group's selection including the view's own. Written before the first view of a dashboard, it is one toolbar and one rows panel for the dashboard.
-- **Layout** uses a 12-column grid. Defaults: KPIs and sparklines 3; lists, donuts and funnels 4; tables, explorers, calendars, sankeys and filter bars 12; other charts 6. `span:` overrides. On narrow containers every item takes the full width.
+- **Layout** uses a 12-column grid. Defaults: KPIs and sparklines 3; lists, donuts and funnels 4; tables, explorers, calendars, sankeys and filter bars 12; other charts 6. `span:` overrides. In a container 720 px wide or narrower, each item takes the full width.
 
 ## 9. JSON and dbt Charts forms
 

@@ -1115,7 +1115,10 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
     }
     return m;
   };
-  if (def.measureType !== 'columns') spec[def.measure] = simplify(stripLabels(spec[def.measure]));
+  // Table columns and filter fields are lists of objects; only measures collapse to plain names.
+  if (def.measureType !== 'columns' && def.measureType !== 'fields') {
+    spec[def.measure] = simplify(stripLabels(spec[def.measure]));
+  }
   if (spec[def.measure] === undefined) delete spec[def.measure];
 
   if (viewFormat) {

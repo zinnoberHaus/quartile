@@ -1,29 +1,39 @@
 /**
- * Checks the prerendered gallery the way crawlers and browsers receive it:
+ * Checks the prerendered examples app the way crawlers and browsers receive it:
  *   node apps/gallery/scripts/verify-prerender.mjs http://127.0.0.1:4188 [evidence-dir]
  *
- * For every page in sitemap.xml, the HTML alone (no JavaScript) must carry a unique title and
- * description, a canonical URL, Open Graph and Twitter tags, JSON-LD, the page's h1 and, where
- * the page draws charts, their SVG. With JavaScript, each page must hydrate that same markup
- * (the server's h1 node survives) without console errors, in two locales and time zones that
- * differ from the build's UTC. Client navigation must update the head, and the discovery files
- * must point at the same origin as the canonical URLs.
+ * For every page in /examples/sitemap.xml, the HTML alone (no JavaScript) must carry a unique
+ * title and description, a canonical URL, Open Graph and Twitter tags, JSON-LD, the page's h1
+ * and, where the page draws charts, their SVG. With JavaScript, each page must hydrate that same
+ * markup (the server's h1 node survives) without console errors, in two locales and time zones
+ * that differ from the build's UTC. Client navigation must update the head, and the discovery
+ * files must point at the same origin as the canonical URLs.
+ *
+ * The documentation site proxies /examples/* to this app, so every page, link and runtime request
+ * must stay under /examples: a request to the app's origin for anything else fails the check.
+ * Paths from before the move under /examples must land on their new location, unknown paths must
+ * show the not-found view, and the development-only component catalog must not be served.
  */
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { chromium } from 'playwright';
+import { watchRequests } from './examples-only.mjs';
 
 const base = (process.argv[2] ?? 'http://127.0.0.1:4188').replace(/\/+$/, '');
 const output = process.argv[3] ? resolve(process.argv[3]) : undefined;
+const EXAMPLES = '/examples';
+const underExamples = (path) => path === EXAMPLES || path.startsWith(`${EXAMPLES}/`);
 const VISITORS = [
   { locale: 'en-US', timezoneId: 'America/Los_Angeles', colorScheme: 'light' },
   { locale: 'de-DE', timezoneId: 'Asia/Tokyo', colorScheme: 'dark' },
 ];
-const NOT_REACT = new Set(['/embed/demo']);
-// First renders without charts: the worker explorer draws after "Load sample data", Studio after
-// its public API responds. Every other page must ship its charts as SVG in the HTML.
-const CHARTS_AFTER_LOAD = new Set(['/examples/scale', '/studio']);
+const NOT_REACT = new Set(['/examples/embed/demo']);
+// First renders without charts: the index is a list of links, the worker explorer draws after
+// "Load sample data" and Studio after its public API responds. Every other page must ship its
+// charts as SVG in the HTML.
+const NO_CHARTS_IN_HTML = new Set([EXAMPLES, '/examples/scale', '/examples/studio']);
+const NOT_FOUND_HEADING = 'There is no example at this address.';
 
 async function get(path) {
   const response = await fetch(`${base}${path}`, { headers: { accept: 'text/html,*/*' } });
@@ -77,26 +87,46 @@ const reactOwnsHeading = () => {
 };
 
 const browser = await chromium.launch({ headless: true });
-const report = { base, pages: {}, navigation: {}, discovery: {} };
+const report = { base, pages: {}, navigation: {}, discovery: {}, paths: {} };
+// Every browser context is watched for requests to the app's origin outside /examples.
+const watchers = [];
+const watch = (context, allow) => watchers.push(watchRequests(context, base, allow));
+// Built files the pages load, to show that none belongs to a development-only page.
+const builtFiles = new Set();
+const recordBuiltFiles = (context) =>
+  context.on('request', (request) => {
+    const url = new URL(request.url());
+    if (url.origin === new URL(base).origin && url.pathname.startsWith(`${EXAMPLES}/_assets/`))
+      builtFiles.add(url.pathname);
+  });
 try {
   // --- Discovery files ------------------------------------------------------------------------
-  const sitemap = await get('/sitemap.xml');
+  const sitemap = await get(`${EXAMPLES}/sitemap.xml`);
   assert.equal(sitemap.status, 200, 'sitemap.xml');
+  assert.match(sitemap.type, /xml/, 'sitemap.xml content type');
   const locs = [...sitemap.body.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => decode(m[1]));
   assert.ok(locs.length > 1, 'sitemap.xml lists pages');
   const origin = new URL(locs[0]).origin;
-  for (const loc of locs) assert.equal(new URL(loc).origin, origin, `${loc} uses the site origin`);
+  for (const loc of locs) {
+    assert.equal(new URL(loc).origin, origin, `${loc} uses the site origin`);
+    assert.ok(underExamples(new URL(loc).pathname), `${loc} is under ${EXAMPLES}`);
+  }
+  assert.ok(locs.includes(`${origin}${EXAMPLES}`), 'sitemap.xml lists the index');
+  // The app's own origin is not for search indexes; the pages are indexed where they are proxied.
   const robots = await get('/robots.txt');
   assert.equal(robots.status, 200, 'robots.txt');
-  assert.match(robots.body, /^User-agent: \*$/m);
-  assert.match(robots.body, /^Allow: \/$/m);
-  assert.ok(robots.body.includes(`Sitemap: ${origin}/sitemap.xml`), 'robots.txt names the sitemap');
-  const llms = await get('/llms.txt');
+  assert.equal(robots.body, 'User-agent: *\nDisallow: /\n', 'robots.txt disallows the origin');
+  const llms = await get(`${EXAMPLES}/llms.txt`);
   assert.equal(llms.status, 200, 'llms.txt');
-  assert.match(llms.body, /^# Quartile\n\n> \S/);
+  assert.match(llms.body, /^# Quartile examples\n\n> \S/);
   assert.match(llms.body, /^## /m);
   assert.match(llms.body, /not published to npm/);
-  report.discovery = { sitemapUrls: locs.length, origin, robots: true, llms: true };
+  for (const [, url] of llms.body.matchAll(/\]\((https?:[^)\s]+)\)/g)) {
+    if (new URL(url).origin === origin && underExamples(new URL(url).pathname)) {
+      assert.ok(locs.includes(url), `llms.txt links ${url}, which the sitemap does not list`);
+    }
+  }
+  report.discovery = { sitemapUrls: locs.length, origin, robots: 'disallow', llms: true };
 
   // --- Raw HTML, as a crawler without JavaScript receives it ------------------------------------
   const pages = [];
@@ -105,11 +135,16 @@ try {
     const response = await get(path);
     assert.equal(response.status, 200, `${path} status`);
     assert.match(response.type, /text\/html/, `${path} content type`);
+    const html = response.body;
+    // Links and files a page names in its HTML: all under /examples, or on another origin.
+    const local = [...html.matchAll(/\s(?:href|src)="(\/[^"]*)"/g)].map((m) => decode(m[1]));
+    const outside = local.filter((url) => !underExamples(new URL(url, base).pathname));
+    assert.deepEqual(outside, [], `${path} names paths outside ${EXAMPLES}`);
     if (NOT_REACT.has(path)) {
+      assert.equal(attribute(html, 'rel="canonical"', 'href'), loc, `${path} canonical`);
       report.pages[path] = { status: response.status, staticPage: true };
       continue;
     }
-    const html = response.body;
     const titles = html.match(/<title>([^<]*)<\/title>/g) ?? [];
     assert.equal(titles.length, 1, `${path} has one <title>`);
     const title = decode(titles[0].replace(/<\/?title>/g, ''));
@@ -134,9 +169,10 @@ try {
     assert.equal(scripts.length, 1, `${path} has one JSON-LD block`);
     const data = JSON.parse(scripts[0][1]);
     assert.equal(data['@context'], 'https://schema.org');
-    if (path === '/') {
-      assert.equal(data['@type'], 'WebSite');
+    if (path === EXAMPLES) {
+      assert.equal(data['@type'], 'CollectionPage');
       assert.equal(data.url, loc);
+      assert.equal(data.isPartOf?.url, `${origin}/`);
     } else {
       assert.equal(data['@type'], 'TechArticle', `${path} JSON-LD type`);
       assert.equal(data.url, loc);
@@ -145,6 +181,8 @@ try {
       assert.equal(data.about?.programmingLanguage, 'TypeScript');
     }
     assert.ok(!html.includes('"SoftwareApplication"'), `${path} avoids SoftwareApplication`);
+    // A pending boundary means content was moved out of reading order or never rendered.
+    assert.ok(!html.includes('<!--$?-->'), `${path} keeps every Suspense boundary in place`);
     const root = html.match(
       /<div id="root" data-prerendered-path="([^"]*)" data-prerender="(hydrate|mount)">/,
     );
@@ -164,6 +202,7 @@ try {
     viewport: { width: 1280, height: 900 },
   });
   await stubThirdParty(offline);
+  watch(offline);
   const raw = await offline.newPage();
   for (const page of pages) {
     await raw.goto(`${base}${page.path}`);
@@ -172,8 +211,8 @@ try {
     assert.ok(await h1.count(), `${page.path} has an h1 without JavaScript`);
     page.heading = normalize(await h1.innerText());
     assert.ok(page.heading.length > 0, `${page.path} h1 has text`);
-    page.charts = await raw.locator('#root .q-chart svg').count();
-    if (!CHARTS_AFTER_LOAD.has(page.path)) {
+    page.charts = await raw.locator('#root .q-chart svg').filter({ visible: true }).count();
+    if (!NO_CHARTS_IN_HTML.has(page.path)) {
       assert.ok(page.charts > 0, `${page.path} has no chart SVG without JavaScript`);
     }
     page.words = normalize(await raw.locator('#root').innerText()).split(' ').length;
@@ -190,6 +229,8 @@ try {
       viewport: { width: 1440, height: 1000 },
     });
     await stubThirdParty(context);
+    watch(context);
+    recordBuiltFiles(context);
     // Tag the server's h1 after parsing and before any module runs; hydration keeps that node.
     await context.addInitScript(() => {
       window.__verifySkeleton = false;
@@ -258,16 +299,21 @@ try {
   // --- Client navigation and fresh mounts -------------------------------------------------------
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   await stubThirdParty(context);
+  watch(context);
+  recordBuiltFiles(context);
   const tab = await context.newPage();
   tab.setDefaultTimeout(30_000);
   const errors = collectErrors(tab);
   const byPath = Object.fromEntries(pages.map((page) => [page.path, page]));
-  const routeIs = (path) =>
-    tab.waitForFunction(
+  const routeIs = (path, page = tab) =>
+    page.waitForFunction(
       (expected) =>
         document.querySelector('.g-route-content')?.getAttribute('data-route') === expected,
       path,
     );
+  // The title follows the page in an effect, a moment after its heading appears.
+  const titleIs = (page, title) =>
+    page.waitForFunction((expected) => document.title === expected, title);
   const headIs = async (path) => {
     const head = await tab.evaluate(() => ({
       title: document.title,
@@ -284,38 +330,55 @@ try {
     assert.equal(head.canonical, byPath[path].loc, `${path} canonical after navigation`);
     assert.equal(normalize(head.h1), byPath[path].heading, `${path} h1 after navigation`);
   };
-  await tab.goto(`${base}/`);
+  await tab.goto(`${base}${EXAMPLES}`);
   await tab.waitForFunction(reactOwnsHeading);
+  // The index lists every page of the sitemap, itself excepted, and nothing else.
+  const cards = await tab
+    .locator('.xi-card')
+    .evaluateAll((links) => links.map((link) => link.getAttribute('href')));
+  assert.deepEqual(
+    [...cards].sort(),
+    locs
+      .map((loc) => new URL(loc).pathname)
+      .filter((path) => path !== EXAMPLES)
+      .sort(),
+    'the index cards and the sitemap list the same pages',
+  );
   await tab.evaluate(() => {
     window.__sameDocument = true;
   });
-  await tab.locator('.g-header-nav a[href="/examples/storefront"]').click();
+  await tab.locator('.xi-card[href="/examples/storefront"]').click();
   await routeIs('/examples/storefront');
   await tab.locator('#root h1').waitFor();
   await headIs('/examples/storefront');
   await tab.goBack();
-  await routeIs('/');
-  await headIs('/');
-  await tab.locator('.g-header-nav a[href="/examples/formatting"]').click();
-  await routeIs('/examples/formatting');
+  await routeIs(EXAMPLES);
+  await headIs(EXAMPLES);
+  await tab.locator('.g-header-nav a[href="/examples/playground"]').click();
+  await routeIs('/examples/playground');
   await tab.locator('#root h1').waitFor();
-  await headIs('/examples/formatting');
+  await headIs('/examples/playground');
+  // Every page's brand leads back to the index.
+  await tab.getByRole('link', { name: 'Quartile examples', exact: true }).click();
+  await routeIs(EXAMPLES);
+  await headIs(EXAMPLES);
   assert.equal(
     await tab.evaluate(() => window.__sameDocument),
     true,
     'navigation stayed client-side',
   );
   report.navigation.clientSide = [
-    '/ → /examples/storefront',
-    'back → /',
-    '/ → /examples/formatting',
+    '/examples → /examples/storefront',
+    'back → /examples',
+    '/examples → /examples/playground',
+    'brand → /examples',
   ];
 
-  // Paths without their own file get the home page's markup; the client mounts the real page.
+  // Paths without their own file get the app shell; the client mounts the real page.
   await tab.goto(`${base}/examples/saas/accounts`);
   await routeIs('/examples/saas/accounts');
   await tab.getByRole('heading', { level: 1, name: byPath['/examples/saas'].heading }).waitFor();
-  assert.equal(await tab.title(), byPath['/examples/saas'].title);
+  await titleIs(tab, byPath['/examples/saas'].title);
   // A query changes the first render, so the prerendered page is mounted fresh rather than hydrated.
   await tab.goto(`${base}/examples/storefront?region=Europe`);
   await tab.locator('.sf-trend .q-chart svg').first().waitFor();
@@ -323,10 +386,80 @@ try {
     .getByRole('heading', { level: 1, name: byPath['/examples/storefront'].heading })
     .waitFor();
   await tab.waitForTimeout(500);
-  assert.deepEqual(errors, [], 'navigation logged errors');
   report.navigation.fallbackSubPath = '/examples/saas/accounts mounted the SaaS workbench';
   report.navigation.queryMount = '/examples/storefront?region=Europe mounted without hydration';
+
+  // The plain-HTML embed demo loads its script and data from next to itself.
+  await tab.goto(`${base}/examples/embed/demo`);
+  await tab.waitForFunction(() => document.querySelectorAll('quartile-chart').length === 5);
+  await tab.waitForLoadState('networkidle');
+
+  // An unknown path gets the app shell, which says so, stays out of indexes and links back.
+  const unknown = await get('/examples/no-such-example');
+  assert.equal(unknown.status, 200, 'unknown paths receive the app shell');
+  assert.match(unknown.body, /<meta name="robots" content="noindex" \/>/);
+  assert.ok(!unknown.body.includes('data-prerendered-path'), 'the app shell has no page markup');
+  const notFound = tab.getByRole('heading', { level: 1, name: NOT_FOUND_HEADING });
+  await tab.goto(`${base}/examples/no-such-example`);
+  await notFound.waitFor();
+  await titleIs(tab, 'Page not found · Quartile examples');
+  await tab.getByRole('link', { name: 'All examples', exact: true }).click();
+  await routeIs(EXAMPLES);
+  await tab.getByRole('heading', { level: 1, name: byPath[EXAMPLES].heading }).waitFor();
+  await titleIs(tab, byPath[EXAMPLES].title);
+  report.navigation.notFound = '/examples/no-such-example shows the not-found view';
+
+  // The component catalog is a development-only page: production has neither it nor its files.
+  await tab.goto(`${base}/examples/_design`);
+  await notFound.waitFor();
+  assert.deepEqual(errors, [], 'navigation logged errors');
   await context.close();
+
+  // --- Paths from before the move under /examples ---------------------------------------------
+  // vercel.json redirects these on the deployment. Elsewhere the app shell answers and the client
+  // moves on, which is what this checks; the paths themselves are the only requests allowed
+  // outside /examples.
+  const LEGACY = [
+    ['/', EXAMPLES],
+    ['/language', '/examples/playground'],
+    ['/studio?source=earthquakes', '/examples/studio?source=earthquakes'],
+    ['/embed/demo', '/examples/embed/demo'],
+  ];
+  const legacy = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  await stubThirdParty(legacy);
+  watch(
+    legacy,
+    LEGACY.map(([from]) => from.split('?')[0]),
+  );
+  recordBuiltFiles(legacy);
+  const old = await legacy.newPage();
+  old.setDefaultTimeout(30_000);
+  const legacyErrors = collectErrors(old);
+  for (const [from, to] of LEGACY) {
+    await old.goto(`${base}${from}`);
+    await old.waitForURL(`${base}${to}`);
+    await old.locator('h1').first().waitFor();
+    const path = to.split('?')[0];
+    if (!NOT_REACT.has(path)) {
+      await routeIs(path, old);
+      await titleIs(old, byPath[path].title);
+    }
+  }
+  assert.deepEqual(legacyErrors, [], 'legacy paths logged errors');
+  report.navigation.legacy = LEGACY.map(([from, to]) => `${from} → ${to}`);
+  await legacy.close();
+
+  // --- Nothing outside /examples, nothing from the component catalog ---------------------------
+  const outsideExamples = [...new Set(watchers.flatMap((outside) => outside()))];
+  assert.deepEqual(outsideExamples, [], `requests to the app's origin outside ${EXAMPLES}`);
+  assert.ok(builtFiles.size > 0, 'pages load their scripts from /examples/_assets');
+  const catalogFiles = [...builtFiles].filter((file) => /DesignSystem|Scratch/i.test(file));
+  assert.deepEqual(catalogFiles, [], 'no page loads a development-only file');
+  report.paths = {
+    requestsOutsideExamples: outsideExamples,
+    builtFilesLoaded: builtFiles.size,
+    developmentOnlyFilesLoaded: catalogFiles,
+  };
 
   if (output) {
     await mkdir(output, { recursive: true });

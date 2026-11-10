@@ -1,19 +1,23 @@
-// Browser verification for the Markdown language pages and the plain-HTML embed demo.
+// Browser verification for the playground, the Markdown pages and the plain-HTML embed demo.
 // Usage: node apps/gallery/src/examples/markdown/verify.mjs [base-url] [output-dir]
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { chromium } from 'playwright';
+import { watchRequests } from '../../../scripts/examples-only.mjs';
 
 const base = process.argv[2] ?? process.env.QUARTILE_MARKDOWN_BASE_URL ?? 'http://127.0.0.1:4173';
 const output = resolve(process.argv[3] ?? '/tmp/quartile-markdown-verification');
 await fs.mkdir(output, { recursive: true });
 const browser = await chromium.launch({ headless: true });
+// The embed demo loads its script and its CSV from next to itself, under /examples/embed.
+const watched = [];
 
 async function open(path, viewport = { width: 1280, height: 1000 }) {
   const page = await browser.newPage({ viewport });
   page.setDefaultTimeout(20_000);
   const errors = [];
+  watched.push(watchRequests(page, base));
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (message) => {
     // Vercel Web Analytics exists only on Vercel deployments; local previews answer 404.
@@ -27,7 +31,7 @@ async function open(path, viewport = { width: 1280, height: 1000 }) {
 try {
   // Playground: every example compiles to a chart without errors.
   {
-    const { page, errors } = await open('/language');
+    const { page, errors } = await open('/examples/playground');
     for (const label of [
       'Bar chart',
       'Line over quarters',
@@ -43,7 +47,7 @@ try {
     // The forgiving example reports what it corrected.
     await page.getByRole('button', { name: 'Forgiving input', exact: true }).click();
     await page.getByText(/Used column “region” for “Regoin”/).waitFor();
-    await page.screenshot({ path: `${output}/language.png`, fullPage: true });
+    await page.screenshot({ path: `${output}/playground.png`, fullPage: true });
     assert.deepEqual(errors, []);
     await page.close();
   }
@@ -93,7 +97,7 @@ try {
 
   // Plain HTML embed: same-origin data, shared selection, host theme and the root part.
   {
-    const { page, errors } = await open('/embed/demo', { width: 900, height: 1200 });
+    const { page, errors } = await open('/examples/embed/demo', { width: 900, height: 1200 });
     await page.waitForFunction(() => document.querySelectorAll('quartile-chart').length === 5);
     await page.waitForFunction(() =>
       [...document.querySelectorAll('quartile-chart')][3]?.shadowRoot?.textContent?.includes(
@@ -140,6 +144,11 @@ try {
     assert.deepEqual(errors, []);
     await page.close();
   }
+  assert.deepEqual(
+    watched.flatMap((outsideExamples) => outsideExamples()),
+    [],
+    'requests outside /examples',
+  );
   console.log(`Markdown, AI answer and embed verification passed. Evidence: ${output}`);
 } finally {
   await browser.close();

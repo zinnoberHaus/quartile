@@ -13,11 +13,12 @@ import {
 } from 'react';
 import {
   completeNavigation,
+  Link,
   type RouteLocation,
   RouteLocationProvider,
   useBrowserLocation,
 } from './router';
-import { type GalleryRoute, matchRoute, type PageId } from './routes';
+import { EXAMPLES_PATH, type GalleryRoute, matchRoute, normalizePath, type PageId } from './routes';
 import { SiteAnalytics } from './SiteAnalytics';
 import { applyRouteHead } from './ssr/head';
 import './shell/transitions.css';
@@ -49,10 +50,10 @@ function page<P extends object>(module: string, load: () => Promise<ComponentTyp
 
 const markdownPages = 'src/examples/markdown/MarkdownPages.tsx';
 const PAGES = {
-  'design-system': page('src/design-system/DesignSystemPage.tsx', () =>
-    import('./design-system/DesignSystemPage').then((m) => m.DesignSystemPage),
+  index: page('src/examples/index/ExamplesIndex.tsx', () =>
+    import('./examples/index/ExamplesIndex').then((m) => m.ExamplesIndex),
   ),
-  language: page(markdownPages, () =>
+  playground: page(markdownPages, () =>
     import('./examples/markdown/MarkdownPages').then((m) => m.LanguagePage),
   ),
   'ai-answer': page(markdownPages, () =>
@@ -94,10 +95,24 @@ export function preloadPage(route: GalleryRoute): Promise<unknown> {
   return PAGES[route.page].preload();
 }
 
-// The scratch page is for local development only and is left out of production builds.
+// Local development only, left out of production builds: the component catalog (a test bed for
+// every library component) at /examples/_design and a scratch page at /examples/_dev. Neither is
+// in the route table, so neither is prerendered, listed in the sitemap or linked.
+const DesignSystem = import.meta.env.DEV
+  ? lazy(() =>
+      import('./design-system/DesignSystemPage').then((m) => ({ default: m.DesignSystemPage })),
+    )
+  : null;
 const Scratch = import.meta.env.DEV
   ? lazy(() => import('./dev/Scratch').then((m) => ({ default: m.Scratch })))
   : null;
+
+function devPage(pathname: string) {
+  const path = normalizePath(pathname);
+  if (path === `${EXAMPLES_PATH}/_design`) return DesignSystem;
+  if (path === `${EXAMPLES_PATH}/_dev`) return Scratch;
+  return null;
+}
 
 function RoutePage({ route }: { route: GalleryRoute }) {
   switch (route.page) {
@@ -153,11 +168,22 @@ class RouteErrorBoundary extends Component<
           <button type="button" onClick={() => window.location.reload()}>
             Reload workspace
           </button>
-          <a href="/">Return to the gallery</a>
+          <a href={EXAMPLES_PATH}>All examples</a>
         </main>
       </RouteFrame>
     );
   }
+}
+
+/** A path under /examples that no example lives at: the server sent the app shell for it. */
+function NotFound() {
+  return (
+    <main className="g-route-error">
+      <h1>There is no example at this address.</h1>
+      <p>The link may be out of date, or the example may have moved.</p>
+      <Link to={EXAMPLES_PATH}>All examples</Link>
+    </main>
+  );
 }
 
 function RouteFrame({ location, children }: { location: RouteLocation; children: ReactNode }) {
@@ -180,14 +206,17 @@ export function App() {
   const pending = requested !== location;
   const path = location.pathname;
   const route = matchRoute(path);
+  const DevPage = devPage(path);
   // After the page commits, so it also wins over a title a page sets for itself.
-  useEffect(() => applyRouteHead(route), [route]);
-  if (Scratch && path.startsWith('/_dev')) {
+  useEffect(() => {
+    if (!DevPage) applyRouteHead(route);
+  }, [route, DevPage]);
+  if (DevPage) {
     return (
       <Suspense fallback={<InitialLoading />}>
         <RouteErrorBoundary key={path + location.search} location={location}>
           <RouteFrame location={location}>
-            <Scratch />
+            <DevPage />
           </RouteFrame>
         </RouteErrorBoundary>
       </Suspense>
@@ -206,7 +235,7 @@ export function App() {
       <Suspense fallback={<InitialLoading />}>
         <RouteErrorBoundary key={path + location.search} location={location}>
           <RouteFrame key={path + location.search} location={location}>
-            <RoutePage route={route} />
+            {route ? <RoutePage route={route} /> : <NotFound />}
           </RouteFrame>
         </RouteErrorBoundary>
       </Suspense>

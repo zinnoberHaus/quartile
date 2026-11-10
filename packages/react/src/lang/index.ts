@@ -38,5 +38,7 @@ export {
   quartileChartTool,
   quartilePrompt,
 } from './prompt';
+export type { SourceLoader, SourceLoaderOptions, SourceValue } from './source';
+export { createSourceLoader } from './source';
 export type { NumberToken, ParsedTable, TableFormat, TableOptions } from './table';
 export { DEFAULT_MAX_ROWS, parseMonth, parseNumberToken, parseQuarter, parseTable } from './table';

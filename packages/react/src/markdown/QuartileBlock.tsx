@@ -85,14 +85,21 @@ export function QuartileBlock({
   const parsed = useMemo(() => parseBlock(source, { partial: streaming }), [source, streaming]);
   // A `data` block depends only on its own rows (or its loaded source), not on other datasets.
   const isData = parsed.type === 'data';
-  const own = isData && parsed.name ? datasets[parsed.name] : undefined;
+  // Rows loaded from the block's own `src:` come first, so reloaded rows are described again.
+  const raw = isData && parsed.name ? doc?.loaded[parsed.name] : undefined;
+  const own = raw ?? (isData && parsed.name ? datasets[parsed.name] : undefined);
   const scope = useMemo(
     () => (isData ? (own && parsed.name ? { [parsed.name]: own } : EMPTY) : datasets),
     [isData, own, parsed.name, datasets],
   );
   const compiled = useMemo(
-    () => compileBlock(parsed, { datasets: scope, pendingDatasets: doc?.pending }),
-    [parsed, scope, doc?.pending],
+    () =>
+      compileBlock(parsed, {
+        datasets: scope,
+        pendingDatasets: doc?.pending,
+        minRefresh: doc?.minRefresh,
+      }),
+    [parsed, scope, doc?.pending, doc?.minRefresh],
   );
 
   // A `data` block makes its rows available to the rest of the document. The effect is keyed by
@@ -105,18 +112,23 @@ export function QuartileBlock({
   useEffect(() => {
     const value = definedData.current;
     if (!definedName || !value || !register || !unregister) return;
-    register(definedName, value, owner, source);
+    register(definedName, value, owner, source, raw);
     return () => unregister(definedName, owner);
-  }, [definedName, register, unregister, owner, source]);
+  }, [definedName, register, unregister, owner, source, raw]);
 
-  // `src:` URLs go to the host's loader, if it has one.
-  const requestSource = doc?.requestSource;
+  // `src:` URLs go to the host's loader, if it has one. A complete block holds its sources
+  // while it is mounted, which keeps a `refresh:` timer running and stops it afterwards.
+  const retainSource = doc?.retainSource;
+  const sourceKey = JSON.stringify(
+    compiled.complete ? compiled.sources.filter((s) => !Object.hasOwn(data, s.name)) : [],
+  );
   useEffect(() => {
-    if (!requestSource) return;
-    for (const s of compiled.sources) {
-      if (!Object.hasOwn(datasets, s.name)) requestSource(s.name, s.url);
-    }
-  }, [compiled.sources, datasets, requestSource]);
+    if (!retainSource) return;
+    const releases = (JSON.parse(sourceKey) as CompiledBlock['sources']).map(retainSource);
+    return () => {
+      for (const release of releases) release();
+    };
+  }, [sourceKey, retainSource]);
 
   const report = useRef(onDiagnostics);
   report.current = onDiagnostics;

@@ -3,6 +3,9 @@
  *
  *   <script src="quartile.global.js" data-sources="same-origin" data-theme="auto"></script>
  *
+ * `data-sources` lists what `src:` may fetch: `none`, `same-origin` and exact origins such as
+ * `https://api.example.com`. `data-min-refresh` is the shortest `refresh:` interval in seconds.
+ *
  * On load it defines `<quartile-chart>`, upgrades ```quartile code blocks and statically
  * rendered blocks, and keeps watching for new ones (single-page docs, streaming chat).
  * Configure with data attributes on the script tag, or `window.QuartileConfig` set before it.
@@ -18,12 +21,13 @@ import {
   setEmbedStyles,
   upgradeBlocks,
 } from './element';
-import type { SourcePolicy } from './scope';
+import { pageScope, type SourcePolicy } from './scope';
 import { embedGroups, embedSelection } from './selection';
 
 interface GlobalConfig {
   auto?: boolean;
   sources?: SourcePolicy;
+  minRefresh?: number;
   theme?: ThemeSetting;
   host?: HostTheme;
   accent?: string;
@@ -48,7 +52,8 @@ function fromScript(script: HTMLScriptElement | null): GlobalConfig {
   if (!d) return {};
   const out: GlobalConfig = {};
   if (d.auto) out.auto = d.auto !== 'false';
-  if (d.sources === 'same-origin' || d.sources === 'none') out.sources = d.sources;
+  if (d.sources) out.sources = d.sources;
+  if (d.minRefresh && Number(d.minRefresh) > 0) out.minRefresh = Number(d.minRefresh);
   if (d.theme) out.theme = d.theme as ThemeSetting;
   if (d.host) out.host = d.host as HostTheme;
   if (d.accent) out.accent = d.accent;
@@ -73,6 +78,11 @@ if (typeof document !== 'undefined' && config.auto !== false) {
   if (document.readyState === 'loading')
     document.addEventListener('DOMContentLoaded', start, { once: true });
   else start();
+}
+
+/** Fetches the page's `src:` data again now: all of it, or the sources of one URL. */
+export function reload(url?: string): Promise<void> {
+  return pageScope().reload(url);
 }
 
 export {

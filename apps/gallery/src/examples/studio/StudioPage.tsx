@@ -16,7 +16,7 @@ import {
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import license from '../../../../../LICENSE?raw';
 import { Link, useLocation } from '../../router';
-import { Wordmark } from '../../shell/Logo';
+import { ExamplesBrand } from '../../shell/Brand';
 import { links } from '../../shell/links';
 import { blockDataError } from './chart-data';
 import chartRuntime from './chart-data.ts?raw';
@@ -568,7 +568,7 @@ export function StudioPage() {
     setExporting(true);
     setNotice('Preparing the React starter…');
     try {
-      const manifestResponse = await fetch('/starter/manifest.json', {
+      const manifestResponse = await fetch('/examples/starter/manifest.json', {
         signal: AbortSignal.timeout(20000),
       });
       if (!manifestResponse.ok)
@@ -582,7 +582,7 @@ export function StudioPage() {
         !/^[a-f0-9]{64}$/.test(manifest.sha256)
       )
         throw new Error('Invalid starter package manifest.');
-      const response = await fetch('/starter/quartile-react-0.1.0.tgz', {
+      const response = await fetch('/examples/starter/quartile-react-0.1.0.tgz', {
         signal: AbortSignal.timeout(20000),
       });
       if (!response.ok)
@@ -615,9 +615,7 @@ export function StudioPage() {
     <QuartileProvider locale={project.formatting?.locale} timeZone={project.formatting?.timeZone}>
       <div className="st-page">
         <header className="st-header">
-          <Link to="/" aria-label="Quartile component gallery">
-            <Wordmark />
-          </Link>
+          <ExamplesBrand />
           <nav aria-label="Studio navigation">
             <span aria-current="page">
               App Studio <small>preview</small>
@@ -664,7 +662,7 @@ export function StudioPage() {
                 {sourcePresets.map((preset) => (
                   <Link
                     key={preset.id}
-                    to={`/studio?source=${preset.id}`}
+                    to={`/examples/studio?source=${preset.id}`}
                     onClick={(event) => {
                       if (
                         requestedSource === preset.id &&

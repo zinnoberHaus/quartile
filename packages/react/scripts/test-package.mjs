@@ -176,6 +176,25 @@ console.log('Packed import, SSR, CSS, schema, language, static rendering, embed,
       'typescript@5.9.3',
     ]);
     run(process.execPath, [join(temporary, 'runtime.mjs')]);
+    // The `quartile` command from the installed package: a valid document passes, a misspelt
+    // column fails with its line.
+    writeFileSync(
+      join(temporary, 'ok.md'),
+      '# Report\n\n```quartile\nbar sum(amount) by region\n---\nregion,amount\nEU,1\n```\n',
+    );
+    writeFileSync(
+      join(temporary, 'bad.md'),
+      '```quartile\nbar sum(amuont) by nowhere\n---\nregion,amount\nEU,1\n```\n',
+    );
+    run('npx', ['--no-install', 'quartile', 'check', 'ok.md']);
+    let failed = false;
+    try {
+      execFileSync('npx', ['--no-install', 'quartile', 'check', 'bad.md'], { cwd: temporary });
+    } catch (error) {
+      failed = error.status === 1 && /bad\.md:2: error/.test(String(error.stdout));
+    }
+    if (!failed)
+      throw new Error('quartile check must exit 1 and name bad.md:2 for an unknown column');
     run(process.execPath, [
       join(temporary, 'node_modules/typescript/bin/tsc'),
       '--noEmit',

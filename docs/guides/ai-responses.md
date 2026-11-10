@@ -56,6 +56,8 @@ export function Answer({ text, streaming }: { text: string; streaming: boolean }
 
 `quartileRenderer()` uses Streamdown's `isIncomplete` flag for each fence. Passing `plugins` replaces AI Elements' default plugin set, so include the defaults you use alongside `renderers`.
 
+Streamdown renders each custom renderer inside a Suspense boundary. If you render answers on the server with React's `prerender` or streaming APIs, React moves boundaries larger than `progressiveChunkSize` (12,800 bytes by default), such as a chart with its data table, to the end of the HTML and swaps them into place with an inline script. Pass `progressiveChunkSize: Infinity` so readers and crawlers without JavaScript find each chart where it belongs.
+
 **react-markdown and others:** use `components={{ pre: QuartilePre }}` and pass `streaming` to `QuartileDocument` while the message is in progress. With the full message text, also pass `markdown={text}` so `data` blocks are known to every block.
 
 **Non-React chat pages:** include the [embed script](embedding.md). Its observer upgrades code blocks as messages append to the page, follows each block's text while it grows, and treats a block as complete once its text stops changing.

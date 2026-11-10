@@ -9,6 +9,7 @@ import type { DataInput } from '../data/types';
 import { type CompiledBlock, compileBlock } from '../lang/compile';
 import type { Diagnostic } from '../lang/diagnostics';
 import { DEFAULT_LANGUAGES, scanDocument } from '../lang/document';
+import { readSourceValue, type SourceValue } from '../lang/source';
 import { QuartileBlock } from '../markdown/QuartileBlock';
 import { QuartileDocument } from '../markdown/QuartileDocument';
 import type { Density } from '../provider/QuartileProvider';
@@ -84,9 +85,10 @@ export interface MarkdownRenderOptions extends StaticRenderOptions {
   languages?: readonly string[];
   /**
    * Loads `src:` URLs at build time, e.g. a CSV file next to the page. Returns rows, a dataset,
-   * or CSV/JSON text. Without it, blocks naming a URL render their "no data" message.
+   * CSV/JSON text or parsed JSON; a block's `path:` is applied to it. Without it, blocks naming
+   * a URL render their "no data" message. `refresh:` has no meaning in static output.
    */
-  loadSource?: (url: string) => Promise<DataInput | string> | DataInput | string;
+  loadSource?: (url: string) => Promise<SourceValue> | SourceValue;
 }
 
 async function loadSources(
@@ -99,12 +101,12 @@ async function loadSources(
   for (const s of scan.sources) {
     if (Object.hasOwn(datasets, s.name)) continue;
     const value = await options.loadSource(s.url);
-    if (typeof value === 'string') {
-      const { parseTable } = await import('../lang/table');
-      const { dataset } = await import('../data/schema');
-      const table = parseTable(value);
-      datasets[s.name] = dataset(table.rows, table.fields);
-    } else datasets[s.name] = value;
+    try {
+      datasets[s.name] = readSourceValue(value, { path: s.path });
+    } catch (err) {
+      // A build should stop on data it cannot read rather than publish an empty chart.
+      throw new Error(`Could not read ${s.url}: ${(err as Error).message}`);
+    }
   }
   return datasets;
 }

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { arch, cpus, platform, release } from 'node:os';
 import { resolve } from 'node:path';
+import { watchRequests } from '../../../scripts/examples-only.mjs';
 
 // Install Playwright separately or point PLAYWRIGHT_MODULE at its package entry point.
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
@@ -15,6 +16,8 @@ const context = await browser.newContext({ viewport: { width: 1440, height: 1100
 const page = await context.newPage();
 const errors = [];
 const requests = [];
+// The sample worker, the DuckDB worker and its WebAssembly module are fetched while this runs.
+const outsideExamples = watchRequests(context, origin);
 page.on('pageerror', (error) => errors.push(error.message));
 context.on('request', (request) => requests.push(request.url()));
 const checks = [];
@@ -114,7 +117,7 @@ try {
   assert.equal(
     await page.locator('script[src="/@vite/client"]').count(),
     0,
-    'Use the production gallery preview server for reproducible verification and measurements.',
+    'Use the production preview server for reproducible verification and measurements.',
   );
   assert.equal(page.workers().length, 0);
   await load(100_000);
@@ -253,7 +256,7 @@ try {
     );
   }
 
-  await page.locator('.scale-header a[href="/"]').click();
+  await page.locator('.scale-header a[href="/examples"]').click();
   await poll(() => page.workers().length, 0);
   await page.goto(`${origin}/examples/scale`);
   await page.getByRole('combobox', { name: 'Source rows', exact: true }).selectOption('100000');
@@ -315,6 +318,11 @@ try {
       /^https?:/.test(url) && !url.startsWith(origin) && !fontOrigins.has(new URL(url).origin),
   );
   assert.deepEqual(remote, []);
+  assert.deepEqual(outsideExamples(), [], 'requests outside /examples');
+  assert.ok(
+    requests.some((url) => /\/examples\/_assets\/duckdb-[^/]+\.wasm$/.test(new URL(url).pathname)),
+    'the DuckDB module is served from /examples/_assets',
+  );
   const artifact = {
     recordedAt: new Date().toISOString(),
     build: 'Vite production preview, local HTTP; headless Chromium; no CPU/network throttling',
@@ -324,7 +332,7 @@ try {
     builtAssets: [
       ...new Set(
         requests
-          .filter((url) => url.startsWith(`${origin}/assets/`))
+          .filter((url) => url.startsWith(`${origin}/examples/_assets/`))
           .map((url) => new URL(url).pathname),
       ),
     ].sort(),

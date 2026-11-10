@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
+import { watchRequests } from '../../scripts/examples-only.mjs';
 
 const base = process.env.QUARTILE_NAV_BASE_URL ?? 'http://127.0.0.1:4173';
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1440, height: 960 } });
+const outsideExamples = watchRequests(context, base);
 const page = await context.newPage();
 page.setDefaultTimeout(20_000);
 const errors = [];
@@ -79,11 +81,12 @@ try {
   await routeIs('/examples/explore');
   await page.waitForFunction(() => Math.abs(window.scrollY - 500) < 2);
 
-  await page.locator('a[href="/"]').first().click();
-  await routeIs('/');
-  await page.locator('a[href="#charts"]').click();
+  // The brand in every page header leads to the index; its section links move focus in the page.
+  await page.locator('a[href="/examples"]').first().click();
+  await routeIs('/examples');
+  await page.locator('a[href="#tools"]').click();
   await page.waitForFunction(
-    () => location.hash === '#charts' && document.activeElement?.id === 'charts',
+    () => location.hash === '#tools' && document.activeElement?.id === 'tools',
   );
   assert.ok(await page.evaluate(() => window.scrollY > 0));
 
@@ -120,6 +123,7 @@ try {
   await recovery.locator('.g-route-content[data-route="/examples/explore"]').waitFor();
   await recovery.waitForFunction(() => Math.abs(window.scrollY - 500) < 2);
   await recovery.close();
+  assert.deepEqual(outsideExamples(), [], 'requests outside /examples');
   console.log(
     JSON.stringify(
       {

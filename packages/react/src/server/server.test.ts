@@ -246,6 +246,29 @@ describe('sources at build time', () => {
     expect(out[2].html).toContain('15');
   });
 
+  it('renders an empty answer as the empty state, and says when rows were cut', async () => {
+    const warnings: string[] = [];
+    const loadSource = async (url: string) => (url === 'plans.json' ? '[]' : JSON.stringify(api));
+    const out = await renderMarkdownBlocks(page, {
+      loadSource,
+      maxRows: 1,
+      dataDisplay: 'table',
+      onDiagnostics: (diagnostics) =>
+        warnings.push(...diagnostics.filter((d) => d.severity !== 'info').map((d) => d.message)),
+    });
+    // Two plans, one kept: the chart is drawn and says what it shows.
+    expect(out[0].html).toContain('<svg');
+    expect(out[0].html).toContain('Showing the first 1 of 2 rows.');
+    expect(warnings).toEqual(['Kept the first 1 of 2 rows.']);
+    // The other source answered with nothing: no error anywhere.
+    expect(out[1].html).toContain('No data to show');
+    expect(out[2].html).toContain('Seats');
+    for (const block of out) {
+      expect(block.html).not.toContain('q-block-error');
+      expect(block.html).not.toContain('There is no column');
+    }
+  });
+
   it('stops the build when a path does not resolve', async () => {
     const loadSource = async () => ({ data: { rows: [] } });
     await expect(renderMarkdownBlocks(page, { loadSource })).rejects.toThrow(

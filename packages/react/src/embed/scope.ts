@@ -40,6 +40,11 @@ export interface EmbedOptions {
   loadSource?: (url: string, signal: AbortSignal) => Promise<SourceValue>;
   /** Shortest `refresh:` interval a block may ask for, in seconds. Default 10. */
   minRefresh?: number;
+  /**
+   * Rows kept from each loaded `src:` response; blocks drawn from a longer one say how many of
+   * its rows they show. Default 50,000.
+   */
+  maxRows?: number;
   /** Largest response the built-in loader reads, in bytes. Default 5,000,000. */
   maxBytes?: number;
   /** Time the built-in loader allows for a response, in milliseconds. Default 15,000. */
@@ -75,7 +80,7 @@ export class PageScope {
   readonly sources = new SourceStore({
     loader: () => this.loader(),
     minRefresh: () => this.options.minRefresh,
-    maxRows: MAX_SOURCE_ROWS,
+    maxRows: () => this.options.maxRows ?? MAX_SOURCE_ROWS,
   });
 
   constructor(private readonly id: string) {
@@ -130,7 +135,7 @@ export class PageScope {
     const loader = this.loader();
     if (!loader) return Promise.reject(new Error('The page does not load remote data.'));
     return Promise.resolve(loader(url, new AbortController().signal)).then((value) =>
-      readSourceValue(value, { path, maxRows: MAX_SOURCE_ROWS }),
+      readSourceValue(value, { path, maxRows: this.options.maxRows ?? MAX_SOURCE_ROWS }),
     );
   }
 

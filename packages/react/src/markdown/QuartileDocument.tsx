@@ -101,6 +101,11 @@ export interface QuartileDocumentProps extends Omit<QuartileProviderProps, 'chil
    */
   minRefresh?: number;
   /**
+   * Rows kept from each loaded `src:` response. A longer one is cut, and the blocks drawn from
+   * it say how many of its rows they show. Default 5,000.
+   */
+  maxRows?: number;
+  /**
    * Shares loaded sources, their refresh timers and errors with other documents, as the embed
    * does for the elements of one page. It replaces `loadSource` and `minRefresh`.
    */
@@ -176,6 +181,7 @@ function DocumentScope({
   markdown,
   loadSource,
   minRefresh,
+  maxRows,
   sourceStore,
   handle,
   streaming = false,
@@ -197,6 +203,8 @@ function DocumentScope({
   loaderRef.current = loadSource;
   const floorRef = useRef(minRefresh);
   floorRef.current = minRefresh;
+  const maxRowsRef = useRef(maxRows);
+  maxRowsRef.current = maxRows;
   const dataRef = useRef(data);
   dataRef.current = data;
   // Loading, retrying and refreshing live in a store, which the embed shares across a page.
@@ -205,6 +213,7 @@ function DocumentScope({
     ownSources.current = new SourceStore({
       loader: () => loaderRef.current,
       minRefresh: () => floorRef.current,
+      maxRows: () => maxRowsRef.current,
     });
   }
   const sources = sourceStore ?? ownSources.current!;

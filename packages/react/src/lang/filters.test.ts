@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { validateSpec } from '../spec/validate';
 import { compileBlock } from './compile';
 
-const rows = '---\nregion,channel,revenue\nEMEA,Online,552000\nAPAC,Retail,310000\nAmericas,Online,120000\n';
+const rows =
+  '---\nregion,channel,revenue\nEMEA,Online,552000\nAPAC,Retail,310000\nAmericas,Online,120000\n';
 const errors = (source: string) =>
   compileBlock(source).diagnostics.filter((d) => d.severity === 'error');
 

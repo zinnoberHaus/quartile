@@ -7,7 +7,7 @@
       "!**/node_modules",
       "!**/.vercel",
       "!**/coverage",
-      "!**/public/embed/quartile*.js"
+      "!**/public/examples/embed/quartile*.js"
     ]
   },
   "formatter": {

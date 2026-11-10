@@ -34,7 +34,7 @@ jobs:
           quartile_preview_pid=$!
           trap 'kill "$quartile_preview_pid"' EXIT
           for attempt in {1..60}; do
-            if curl --fail --silent http://127.0.0.1:4178/ > /dev/null; then break; fi
+            if curl --fail --silent http://127.0.0.1:4178/examples > /dev/null; then break; fi
             sleep 1
           done
           node apps/gallery/src/examples/scale/verify.mjs http://127.0.0.1:4178 /tmp/quartile-browser-evidence

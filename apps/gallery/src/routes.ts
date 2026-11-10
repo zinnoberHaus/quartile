@@ -1,17 +1,54 @@
 /**
- * Every public gallery route. App.tsx renders from this table and scripts/prerender.mjs writes
- * one HTML file per entry (titles, descriptions, sitemap), so the two cannot drift apart.
+ * Every public route of the examples app. App.tsx renders from this table, the index page lists
+ * it and scripts/prerender.mjs writes one HTML file per entry (titles, descriptions, sitemap), so
+ * they cannot drift apart.
  */
 
 import type { ScienceKind } from './examples/science/ScienceWorkbench';
 import type { WorkbenchKind } from './examples/workbench/Workbench';
 
+/**
+ * Everything the app serves lives under this path: pages, static files and built assets. The
+ * documentation site proxies /examples/* to this app, so the same URLs work on both hosts.
+ */
+export const EXAMPLES_PATH = '/examples';
+
+/** Sections of the index page, in order. */
+export const GROUPS = [
+  {
+    id: 'embed',
+    title: 'Embed',
+    description:
+      'A quartile block is a sentence and CSV rows. These pages render such blocks in an editor, in a streamed answer, in a Markdown document and on a plain HTML page.',
+  },
+  {
+    id: 'apps',
+    title: 'Dashboards and data apps',
+    description:
+      'React pages where charts, KPIs, filters and tables follow one selection, plus a dashboard rendered from JSON and one that queries a database in a browser worker.',
+  },
+  {
+    id: 'science',
+    title: 'Data science',
+    description:
+      'Workspaces for profiling a dataset, comparing cohorts, evaluating a classifier and reviewing proposed analysis steps before they are applied.',
+  },
+  {
+    id: 'tools',
+    title: 'Tools',
+    description:
+      'A formatting lab for numbers, dates and units, and a visual editor that exports a React starter.',
+  },
+] as const;
+
+export type ExampleGroup = (typeof GROUPS)[number]['id'];
+
 /** Which page component renders a route; `kind` selects one view of a multi-route page. */
 export type RoutePage =
   | {
       page:
-        | 'design-system'
-        | 'language'
+        | 'index'
+        | 'playground'
         | 'ai-answer'
         | 'markdown-report'
         | 'storefront'
@@ -27,9 +64,11 @@ export type PageId = RoutePage['page'];
 
 export type GalleryRoute = RoutePage & {
   path: string;
+  /** The index section that lists the page. The index itself has none. */
+  group?: ExampleGroup;
   /** Sub-paths render the same page, e.g. /examples/storefront/anything. */
   prefix?: boolean;
-  /** Short page name for structured data. */
+  /** Short page name: the card title on the index and the headline in structured data. */
   name: string;
   title: string;
   description: string;
@@ -45,7 +84,18 @@ export type GalleryRoute = RoutePage & {
   sources: string[];
 };
 
-const DEFAULT_SITE_URL = 'https://quartile-design.vercel.app';
+/** A plain static file listed with the routes: on the index, in the sitemap and in llms.txt. */
+export interface StaticPage {
+  path: string;
+  group: ExampleGroup;
+  name: string;
+  description: string;
+  /** Repository paths whose last commit dates the page in the sitemap. */
+  sources: string[];
+}
+
+// The pages are published at docs.usequartile.com/examples, which proxies them from this app.
+const DEFAULT_SITE_URL = 'https://docs.usequartile.com';
 /** Absolute origin for canonical URLs, Open Graph and the sitemap. Override with VITE_SITE_URL. */
 export const SITE_URL = String(import.meta.env.VITE_SITE_URL || DEFAULT_SITE_URL).replace(
   /\/+$/,
@@ -58,21 +108,22 @@ const gallery = 'apps/gallery/src';
 
 export const routes: readonly GalleryRoute[] = [
   {
-    path: '/',
-    page: 'design-system',
-    name: 'Quartile design system',
-    title: 'Quartile Design System: React charts, tables and controls',
+    path: EXAMPLES_PATH,
+    page: 'index',
+    name: 'Quartile examples',
+    title: 'Quartile examples: charts and dashboards in Markdown, AI answers and web pages',
     description:
-      'Foundations, interface components, data components, charts and patterns of Quartile, an open-source React toolkit for data apps.',
-    heading: 'Quartile design system',
+      'Runnable examples of Quartile, an open-source React toolkit in preview: a Markdown chart playground, a streamed AI answer, a Markdown report, a script-tag embed, dashboards, data-science workspaces and App Studio.',
+    heading: 'Examples',
     render: 'hydrate',
-    sources: [`${gallery}/design-system`, `${gallery}/data`],
+    sources: [`${gallery}/examples/index`, `${gallery}/routes.ts`],
   },
   {
-    path: '/language',
-    page: 'language',
-    name: 'Charts and dashboards in Markdown',
-    title: 'Charts and dashboards in Markdown · Quartile',
+    path: '/examples/playground',
+    page: 'playground',
+    group: 'embed',
+    name: 'Markdown chart playground',
+    title: 'Playground: charts and dashboards in Markdown · Quartile',
     description:
       'Write a quartile Markdown block: a sentence such as “bar sum(revenue) by region”, then CSV rows. Pages render an interactive, accessible chart; anywhere else it stays readable text.',
     heading: 'Charts and dashboards in Markdown',
@@ -81,6 +132,7 @@ export const routes: readonly GalleryRoute[] = [
   },
   {
     path: '/examples/ai-answer',
+    group: 'embed',
     page: 'ai-answer',
     name: 'Charts inside a streamed answer',
     title: 'AI answer: charts inside a streamed answer · Quartile',
@@ -92,6 +144,7 @@ export const routes: readonly GalleryRoute[] = [
   },
   {
     path: '/examples/markdown-report',
+    group: 'embed',
     page: 'markdown-report',
     name: 'A dashboard written in Markdown',
     title: 'A dashboard written in Markdown · Quartile',
@@ -103,6 +156,7 @@ export const routes: readonly GalleryRoute[] = [
   },
   {
     path: '/examples/storefront',
+    group: 'apps',
     page: 'storefront',
     prefix: true,
     name: 'Storefront analytics',
@@ -115,6 +169,7 @@ export const routes: readonly GalleryRoute[] = [
   },
   {
     path: '/examples/saas',
+    group: 'apps',
     page: 'workbench',
     kind: 'saas',
     prefix: true,
@@ -128,6 +183,7 @@ export const routes: readonly GalleryRoute[] = [
   },
   {
     path: '/examples/operations',
+    group: 'apps',
     page: 'workbench',
     kind: 'operations',
     prefix: true,
@@ -141,6 +197,7 @@ export const routes: readonly GalleryRoute[] = [
   },
   {
     path: '/examples/ai-dashboard',
+    group: 'apps',
     page: 'workbench',
     kind: 'ai-dashboard',
     prefix: true,
@@ -154,6 +211,7 @@ export const routes: readonly GalleryRoute[] = [
   },
   {
     path: '/examples/scale',
+    group: 'apps',
     page: 'scale',
     name: 'Worker query explorer',
     title: 'Worker queries: explore more rows, return fewer · Quartile',
@@ -165,6 +223,7 @@ export const routes: readonly GalleryRoute[] = [
   },
   {
     path: '/examples/explore',
+    group: 'science',
     page: 'science',
     kind: 'explore',
     prefix: true,
@@ -179,6 +238,7 @@ export const routes: readonly GalleryRoute[] = [
   },
   {
     path: '/examples/cohorts',
+    group: 'science',
     page: 'science',
     kind: 'cohorts',
     prefix: true,
@@ -192,6 +252,7 @@ export const routes: readonly GalleryRoute[] = [
   },
   {
     path: '/examples/model-evaluation',
+    group: 'science',
     page: 'science',
     kind: 'model-evaluation',
     prefix: true,
@@ -205,6 +266,7 @@ export const routes: readonly GalleryRoute[] = [
   },
   {
     path: '/examples/assistant',
+    group: 'science',
     page: 'assistant',
     name: 'AI workbench',
     title: 'AI workbench: ask, inspect, apply · Quartile',
@@ -216,6 +278,7 @@ export const routes: readonly GalleryRoute[] = [
   },
   {
     path: '/examples/formatting',
+    group: 'tools',
     page: 'formatting',
     name: 'Number formatting',
     title: 'Number formatting: make every number mean something · Quartile',
@@ -226,8 +289,9 @@ export const routes: readonly GalleryRoute[] = [
     sources: [`${gallery}/examples/formatting`],
   },
   {
-    path: '/studio',
+    path: '/examples/studio',
     page: 'studio',
+    group: 'tools',
     name: 'App Studio',
     title: 'App Studio: a working analysis, your way of building · Quartile',
     description:
@@ -239,18 +303,60 @@ export const routes: readonly GalleryRoute[] = [
   },
 ];
 
+/** The script-tag embed demo is a static HTML file, not a React route. */
+export const staticPages: readonly StaticPage[] = [
+  {
+    path: '/examples/embed/demo',
+    group: 'embed',
+    name: 'Charts on a plain HTML page',
+    description:
+      'A plain HTML page with one script tag: Quartile turns quartile code blocks into interactive charts that take the page’s own colors and fonts.',
+    sources: ['apps/gallery/public/examples/embed/demo.html'],
+  },
+];
+
+/** The pages of one index section: its routes in table order, then its static pages. */
+export function pagesInGroup(group: ExampleGroup): (GalleryRoute | StaticPage)[] {
+  return [
+    ...routes.filter((route) => route.group === group),
+    ...staticPages.filter((page) => page.group === group),
+  ];
+}
+
+/**
+ * Where the paths this app served before it moved under /examples went. vercel.json redirects
+ * them on the deployment (scripts/prerender.mjs fails the build when the two disagree); main.tsx
+ * applies the same moves on hosts without those rules, such as `vite preview`.
+ */
+export const LEGACY_REDIRECTS: readonly { from: string; to: string; subpaths?: boolean }[] = [
+  { from: '/', to: EXAMPLES_PATH },
+  { from: '/language', to: '/examples/playground' },
+  { from: '/studio', to: '/examples/studio' },
+  { from: '/embed', to: '/examples/embed', subpaths: true },
+  { from: '/starter', to: '/examples/starter', subpaths: true },
+];
+
 /** "/examples/saas/" and "/examples/saas" are the same route. */
 export function normalizePath(pathname: string): string {
   return pathname.length > 1 ? pathname.replace(/\/+$/, '') || '/' : pathname;
 }
 
-/** The route for a path. Unknown paths render the design system, as they always have. */
-export function matchRoute(pathname: string): GalleryRoute {
+/** The new location of a path from before the move under /examples, if it is one. */
+export function legacyRedirect(pathname: string): string | undefined {
+  const path = normalizePath(pathname);
+  for (const { from, to, subpaths } of LEGACY_REDIRECTS) {
+    if (path === from) return to;
+    if (subpaths && path.startsWith(`${from}/`)) return `${to}${path.slice(from.length)}`;
+  }
+  return undefined;
+}
+
+/** The route for a path; undefined when no example lives there. */
+export function matchRoute(pathname: string): GalleryRoute | undefined {
   const path = normalizePath(pathname);
   return (
     routes.find((r) => r.path === path) ??
-    routes.find((r) => r.prefix && path.startsWith(`${r.path}/`)) ??
-    routes[0]
+    routes.find((r) => r.prefix && path.startsWith(`${r.path}/`))
   );
 }
 

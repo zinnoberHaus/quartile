@@ -3,42 +3,99 @@
  * anywhere on the page, selections shared by elements over the same dataset, and the page's
  * source-loading policy.
  */
-import { dataset } from '../data/schema';
 import type { DataInput } from '../data/types';
-import { parseTable } from '../lang/table';
+import {
+  createPolicyLoader,
+  createSourceLoader,
+  parseSourceOrigins,
+  readSourceValue,
+  type SourceLoader,
+  type SourceValue,
+} from '../lang/source';
+import { SourceStore } from '../markdown/sourceStore';
 import { SelectionStore } from '../selection/store';
 
-export type SourcePolicy = 'none' | 'same-origin' | ((url: URL) => boolean);
+/**
+ * Which `src:` URLs the page may fetch: `none`, `same-origin` and exact origins such as
+ * `https://api.example.com`, as one space- or comma-separated string or as a list; or a function
+ * that decides per URL. Only http(s) URLs are ever fetched, whichever form is used.
+ */
+export type SourcePolicy =
+  | 'none'
+  | 'same-origin'
+  | (string & {})
+  | readonly string[]
+  | ((url: URL) => boolean);
 
 export interface EmbedOptions {
   /** Fence languages upgraded on the page. Default `quartile`. */
   languages?: readonly string[];
   /**
    * Which `src:` URLs the page may fetch. `none` (default) fetches nothing; `same-origin`
-   * fetches the page's own files, e.g. `src: data/sales.csv` next to a docs page.
+   * fetches the page's own files, e.g. `src: data/sales.csv` next to a docs page; an exact
+   * origin (`https://api.example.com`) allows that API, without the page's cookies.
    */
   sources?: SourcePolicy;
   /** Replaces fetching entirely, e.g. to read through an authenticated API. */
-  loadSource?: (url: string, signal: AbortSignal) => Promise<DataInput | string>;
+  loadSource?: (url: string, signal: AbortSignal) => Promise<SourceValue>;
+  /** Shortest `refresh:` interval a block may ask for, in seconds. Default 10. */
+  minRefresh?: number;
+  /** Largest response the built-in loader reads, in bytes. Default 5,000,000. */
+  maxBytes?: number;
+  /** Time the built-in loader allows for a response, in milliseconds. Default 15,000. */
+  timeoutMs?: number;
 }
 
 type Listener = () => void;
 
+/** Rows kept per loaded source; pages chart larger files than a block holds inline. */
+const MAX_SOURCE_ROWS = 50_000;
+
+const warned = new Set<string>();
+
+function warnRejected(tokens: readonly string[]) {
+  for (const token of tokens) {
+    if (warned.has(token)) continue;
+    warned.add(token);
+    console.warn(
+      `[quartile] Ignored the data source “${token}”. Use none, same-origin or an exact origin such as https://api.example.com (no wildcards, paths or other schemes).`,
+    );
+  }
+}
+
 export class PageScope {
+  /** Datasets defined by `data` blocks on the page. */
   datasets: Record<string, DataInput> = {};
-  /** Dataset names whose `src` is loading. */
-  pending: string[] = [];
-  /** Why a source failed, by dataset name. */
-  errors: Record<string, string> = {};
-  /** Rows as loaded, before the defining block's field settings are applied. */
-  loaded: Record<string, DataInput> = {};
-  private requests = new Map<string, Promise<DataInput>>();
   private owners = new Map<string, string>();
   private listeners = new Set<Listener>();
   private stores = new Map<string, SelectionStore>();
+  private builtIn?: { key: unknown; loader: SourceLoader | undefined };
   options: EmbedOptions = {};
+  /** Loads, retries and refreshes the page's `src:` URLs for every element. */
+  readonly sources = new SourceStore({
+    loader: () => this.loader(),
+    minRefresh: () => this.options.minRefresh,
+    maxRows: MAX_SOURCE_ROWS,
+  });
 
-  constructor(private readonly id: string) {}
+  constructor(private readonly id: string) {
+    this.sources.subscribe(() => this.emit());
+  }
+
+  /** Dataset names whose `src` is loading. */
+  get pending(): readonly string[] {
+    return this.sources.getSnapshot().pending;
+  }
+
+  /** Why a source failed, by dataset name. */
+  get errors(): Readonly<Record<string, string>> {
+    return this.sources.getSnapshot().errors;
+  }
+
+  /** Rows as loaded, before the defining block's field settings are applied. */
+  get loaded(): Readonly<Record<string, DataInput>> {
+    return this.sources.getSnapshot().loaded;
+  }
 
   subscribe(fn: Listener): () => void {
     this.listeners.add(fn);
@@ -68,43 +125,27 @@ export class PageScope {
     this.emit();
   }
 
-  /** Loads a URL once per page under the source policy; repeated calls share the request. */
-  load(url: string): Promise<DataInput> {
-    let request = this.requests.get(url);
-    if (!request) {
-      const loader = this.loader();
-      if (!loader) return Promise.reject(new Error('The page does not load remote data.'));
-      request = loader(url, new AbortController().signal).then((value) => {
-        if (typeof value !== 'string') return value;
-        const table = parseTable(value, { maxRows: 50_000 });
-        return dataset(table.rows, table.fields);
-      });
-      this.requests.set(url, request);
-    }
-    return request;
+  /** Reads a URL once under the source policy, outside the page's shared sources. */
+  load(url: string, path?: string): Promise<DataInput> {
+    const loader = this.loader();
+    if (!loader) return Promise.reject(new Error('The page does not load remote data.'));
+    return Promise.resolve(loader(url, new AbortController().signal)).then((value) =>
+      readSourceValue(value, { path, maxRows: MAX_SOURCE_ROWS }),
+    );
   }
 
-  /** Loads `url` into the page's datasets under `name`, so every element can read it. */
-  requestSource(name: string, url: string) {
-    if (Object.hasOwn(this.datasets, name) || this.pending.includes(name) || this.errors[name])
-      return;
-    if (!this.loader()) return;
-    this.pending = [...this.pending, name];
-    this.emit();
-    this.load(url).then(
-      (data) => {
-        this.pending = this.pending.filter((n) => n !== name);
-        this.loaded = { ...this.loaded, [name]: data };
-        // Usable at once; a defining `data` block replaces it with its described version.
-        if (!this.owners.has(name)) this.datasets = { ...this.datasets, [name]: data };
-        this.emit();
-      },
-      (err: unknown) => {
-        this.pending = this.pending.filter((n) => n !== name);
-        this.errors = { ...this.errors, [name]: err instanceof Error ? err.message : String(err) };
-        this.emit();
-      },
-    );
+  /** Loads `url` into the page's sources under `name`, so every element can read it. */
+  requestSource(name: string, url: string, path?: string) {
+    if (Object.hasOwn(this.datasets, name)) return;
+    this.sources.request({ name, url, path });
+  }
+
+  /**
+   * Fetches the page's `src:` data again now: every source in use, or those of one URL. Charts
+   * keep their rows until the new ones arrive.
+   */
+  reload(url?: string): Promise<void> {
+    return this.sources.reload(url);
   }
 
   /** One store per link group, shared by every element on the page. */
@@ -117,26 +158,41 @@ export class PageScope {
     return s;
   };
 
+  /** Names of the selection groups used so far, in the order they were first used. */
+  groups(): string[] {
+    return [...this.stores.keys()];
+  }
+
   /** The loader elements receive, honoring the page's source policy. Undefined when off. */
-  loader(): ((url: string, signal: AbortSignal) => Promise<DataInput | string>) | undefined {
+  loader(): ((url: string, signal: AbortSignal) => Promise<SourceValue>) | undefined {
     if (this.options.loadSource) return this.options.loadSource;
-    const policy = this.options.sources ?? 'none';
-    if (policy === 'none') return undefined;
-    return async (raw, signal) => {
-      const url = new URL(raw, document.baseURI);
-      const allowed =
-        typeof policy === 'function'
-          ? policy(url)
-          : url.origin === window.location.origin && /^https?:$/.test(url.protocol);
-      if (!allowed) throw new Error(`The page does not allow loading ${url.href}.`);
-      const res = await fetch(url, { signal, credentials: 'same-origin' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const text = await res.text();
-      const table = parseTable(text, { maxRows: 50_000 });
-      const problem = table.diagnostics.find((d) => d.severity === 'error');
-      if (problem) throw new Error(problem.message);
-      return dataset(table.rows, table.fields);
-    };
+    const { sources: policy = 'none', maxBytes, timeoutMs } = this.options;
+    const key =
+      typeof policy === 'function'
+        ? policy
+        : `${typeof policy === 'string' ? policy : policy.join(' ')}\u0000${maxBytes}\u0000${timeoutMs}`;
+    if (this.builtIn?.key !== key) this.builtIn = { key, loader: this.policyLoader(policy) };
+    return this.builtIn.loader;
+  }
+
+  /** Builds the fetching loader for a policy; the same code path as `createSourceLoader`. */
+  private policyLoader(policy: SourcePolicy): SourceLoader | undefined {
+    const { maxBytes, timeoutMs } = this.options;
+    if (typeof policy === 'function') {
+      return createPolicyLoader(
+        (url) =>
+          policy(url) ? undefined : `This page does not allow data from \`${url.origin}\`.`,
+        { maxBytes, timeoutMs },
+      );
+    }
+    const allowed = parseSourceOrigins(policy);
+    warnRejected(allowed.rejected);
+    if (!allowed.sameOrigin && allowed.origins.length === 0) return undefined;
+    return createSourceLoader({
+      origins: [...(allowed.sameOrigin ? ['same-origin'] : []), ...allowed.origins],
+      maxBytes,
+      timeoutMs,
+    });
   }
 }
 

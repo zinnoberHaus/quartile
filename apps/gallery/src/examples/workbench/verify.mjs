@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { chromium } from 'playwright';
+import { watchRequests } from '../../../scripts/examples-only.mjs';
 
 const base = process.argv[2] ?? process.env.QUARTILE_WORKBENCH_BASE_URL ?? 'http://127.0.0.1:4173';
 const output = resolve(process.argv[3] ?? '/tmp/quartile-workbench-verification');
@@ -11,6 +12,7 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 page.setDefaultTimeout(20_000);
 const errors = [];
 page.on('pageerror', (error) => errors.push(error.message));
+const outsideExamples = watchRequests(page, base);
 const summary = () => page.locator('.q-filterbar-summary').first();
 async function expectSummary(text) {
   await page.waitForFunction(
@@ -97,8 +99,8 @@ try {
       document.activeElement?.closest('[data-sf-section="products"]'),
   );
   await page.getByRole('button', { name: 'Open navigation', exact: true }).click();
-  await page.getByRole('link', { name: 'Component gallery ↗', exact: true }).click();
-  await page.locator('.g-route-content[data-route="/"]').waitFor();
+  await page.getByRole('link', { name: 'All examples ↗', exact: true }).click();
+  await page.locator('.g-route-content[data-route="/examples"]').waitFor();
 
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(`${base}/examples/saas`);
@@ -177,12 +179,13 @@ try {
   assert.equal(await editor.inputValue(), original);
   await noOverflow();
   assert.deepEqual(errors, []);
+  assert.deepEqual(outsideExamples(), [], 'requests outside /examples');
   const result = {
     storefrontSharedBrush: true,
     filteredCsv: true,
     realSectionNavigation: true,
     mobileDrawer: true,
-    galleryExit: true,
+    examplesIndexExit: true,
     linkedAccountDrilldown: true,
     emptySelectionReset: true,
     chartTableGuidance: true,

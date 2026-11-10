@@ -5,10 +5,35 @@
 import { prerender } from 'react-dom/static';
 import { GalleryRoot, PAGE_MODULES } from '../App';
 import { ServerLocation } from '../router';
-import { REPOSITORY_URL, routes, SITE_NAME, SITE_URL } from '../routes';
-import { headTags } from './head';
+import {
+  EXAMPLES_PATH,
+  GROUPS,
+  LEGACY_REDIRECTS,
+  pagesInGroup,
+  REPOSITORY_URL,
+  routes,
+  SITE_NAME,
+  SITE_URL,
+  staticPages,
+} from '../routes';
+import { links } from '../shell/links';
+import { headTags, NOT_FOUND_TITLE } from './head';
 
-export { headTags, PAGE_MODULES, REPOSITORY_URL, routes, SITE_NAME, SITE_URL };
+export {
+  EXAMPLES_PATH,
+  GROUPS,
+  headTags,
+  LEGACY_REDIRECTS,
+  links,
+  NOT_FOUND_TITLE,
+  PAGE_MODULES,
+  pagesInGroup,
+  REPOSITORY_URL,
+  routes,
+  SITE_NAME,
+  SITE_URL,
+  staticPages,
+};
 
 /** Resolves once every lazy page and Suspense boundary has rendered; errors are collected. */
 export async function renderRoute(path: string): Promise<{ html: string; errors: unknown[] }> {

@@ -32,7 +32,7 @@ with zipfile.ZipFile(archive) as z:
 );
 const bundled = readFileSync(join(consumer, 'vendor/quartile-react-0.1.0.tgz'));
 const expected = JSON.parse(
-  readFileSync(new URL('../public/starter/manifest.json', import.meta.url), 'utf8'),
+  readFileSync(new URL('../public/examples/starter/manifest.json', import.meta.url), 'utf8'),
 );
 assert.equal(
   createHash('sha256').update(bundled).digest('hex'),

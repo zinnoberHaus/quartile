@@ -3,6 +3,8 @@
  *
  *   <script src="quartile.global.js" data-sources="same-origin" data-theme="auto"></script>
  *
+ * `data-sources` lists what `src:` may fetch: `none`, `same-origin` and exact origins such as
+ * `https://api.example.com`. `data-min-refresh` is the shortest `refresh:` interval in seconds.
  * `data-block-colors="off"` keeps every chart on the page's palette: blocks cannot set colors.
  *
  * On load it defines `<quartile-chart>`, upgrades ```quartile code blocks and statically
@@ -16,18 +18,24 @@ import {
   defineQuartileElements,
   observeBlocks,
   QuartileChartElement,
+  readActionsSetting,
   setEmbedStyles,
   upgradeBlocks,
 } from './element';
-import type { SourcePolicy } from './scope';
+import { pageScope, type SourcePolicy } from './scope';
+import { embedGroups, embedSelection } from './selection';
 
 interface GlobalConfig {
   auto?: boolean;
   sources?: SourcePolicy;
+  minRefresh?: number;
   theme?: ThemeSetting;
   host?: HostTheme;
   accent?: string;
   languages?: string[];
+  /** Actions views show by default (`rows`, `download`, `table`), or false for none. */
+  actions?: readonly ('table' | 'rows' | 'download')[] | false;
+  /** False keeps every chart on the page's palette: blocks cannot set colors. */
   blockColors?: boolean;
 }
 
@@ -47,11 +55,13 @@ function fromScript(script: HTMLScriptElement | null): GlobalConfig {
   if (!d) return {};
   const out: GlobalConfig = {};
   if (d.auto) out.auto = d.auto !== 'false';
-  if (d.sources === 'same-origin' || d.sources === 'none') out.sources = d.sources;
+  if (d.sources) out.sources = d.sources;
+  if (d.minRefresh && Number(d.minRefresh) > 0) out.minRefresh = Number(d.minRefresh);
   if (d.theme) out.theme = d.theme as ThemeSetting;
   if (d.host) out.host = d.host as HostTheme;
   if (d.accent) out.accent = d.accent;
   if (d.languages) out.languages = d.languages.split(/[\s,]+/).filter(Boolean);
+  if (d.actions) out.actions = readActionsSetting(d.actions);
   if (d.blockColors) out.blockColors = !['off', 'false', 'no', '0'].includes(d.blockColors);
   return out;
 }
@@ -74,8 +84,15 @@ if (typeof document !== 'undefined' && config.auto !== false) {
   else start();
 }
 
+/** Fetches the page's `src:` data again now: all of it, or the sources of one URL. */
+export function reload(url?: string): Promise<void> {
+  return pageScope().reload(url);
+}
+
 export {
   configureEmbed as configure,
+  embedGroups as groups,
+  embedSelection as selection,
   observeBlocks as observe,
   QuartileChartElement,
   upgradeBlocks as upgrade,

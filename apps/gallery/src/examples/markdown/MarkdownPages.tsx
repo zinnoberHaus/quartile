@@ -13,24 +13,22 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import { Streamdown } from 'streamdown';
 import { Link } from '../../router';
-import { Wordmark } from '../../shell/Logo';
+import { ExamplesBrand } from '../../shell/Brand';
 import { links } from '../../shell/links';
 import { ANSWER_MARKDOWN, ANSWER_QUESTION, LANGUAGE_EXAMPLES, REPORT_MARKDOWN } from './content';
 import '../workbench/workbench.css';
 import './markdown.css';
 
-type Page = 'language' | 'ai-answer' | 'markdown-report';
+type Page = 'playground' | 'ai-answer' | 'markdown-report';
 
 function Header({ page }: { page: Page }) {
   const current = (p: Page) => (page === p ? 'page' : undefined);
   return (
     <header className="w-header">
-      <Link to="/" aria-label="Quartile design system">
-        <Wordmark />
-      </Link>
+      <ExamplesBrand />
       <nav aria-label="Markdown and AI">
-        <Link to="/language" aria-current={current('language')}>
-          Markdown language
+        <Link to="/examples/playground" aria-current={current('playground')}>
+          Playground
         </Link>
         <Link to="/examples/ai-answer" aria-current={current('ai-answer')}>
           AI answer
@@ -39,7 +37,7 @@ function Header({ page }: { page: Page }) {
           Markdown report
         </Link>
         <Link to="/examples/ai-dashboard">JSON dashboard</Link>
-        <Link to="/studio">App Studio</Link>
+        <Link to="/examples/studio">App Studio</Link>
       </nav>
       <a href={links.github}>GitHub</a>
     </header>
@@ -61,7 +59,7 @@ function useTheme() {
 const f = '```';
 
 /* ------------------------------------------------------------------------------------------ */
-/* /language                                                                                  */
+/* /examples/playground                                                                       */
 /* ------------------------------------------------------------------------------------------ */
 
 const KIND_DOCS: [string, string, string][] = [
@@ -153,7 +151,7 @@ export function LanguagePage() {
   const kinds = Object.keys(KINDS).length;
   return (
     <QuartileProvider theme={theme} className="w-page md-page">
-      <Header page="language" />
+      <Header page="playground" />
       <main className="w-main">
         <div className="w-intro">
           <div>

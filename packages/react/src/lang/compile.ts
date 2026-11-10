@@ -2,8 +2,10 @@
  * Compiles a parsed Quartile block into the existing JSON spec (`QuartileSpec`) plus the datasets
  * it references, so the language and the JSON contract always render through the same SpecView.
  */
+import { derivedFrom } from '../data/origin';
 import { dataset, humanize, resolveData } from '../data/schema';
 import type { DataInput, Dataset, FieldDef, Formatter, Row } from '../data/types';
+import type { ViewAction } from '../spec/actions';
 import {
   type ComponentSpec,
   type DashboardSpec,
@@ -12,6 +14,7 @@ import {
   type SpecComponentName,
 } from '../spec/schema';
 import { type SpecError, validateSpec } from '../spec/validate';
+import { article, parseActions, supportedActions } from './actions';
 import { type Diagnostic, error, hasErrors, info, warning } from './diagnostics';
 import { readFormat } from './formats';
 import { KINDS, type KindDef, PROPERTY_ALIASES, type ViewKind } from './kinds';
@@ -24,6 +27,8 @@ import {
   parseFieldExpr,
   type ViewNode,
 } from './parse';
+import { checkSourceUrl, isProvenanceKey, legacyDataSource, readProvenance } from './provenance';
+import { readSourceSettings, SOURCE_KEYS, sourceDataset } from './source';
 import { finishStyle, isReferenceKey, readStyleSetting, styleJsonSpec, styleState } from './style';
 import { type FieldMeta, parseTable, wholeCurrency } from './table';
 
@@ -34,6 +39,11 @@ export interface CompileOptions extends ParseOptions {
   pendingDatasets?: readonly string[];
   /** Keep at most this many inline rows. Defaults to 5,000. */
   maxRows?: number;
+  /**
+   * The host's shortest refresh interval in seconds. A block asking for a shorter `refresh:` is
+   * raised to it with a note. Without it the block's value is recorded as written.
+   */
+  minRefresh?: number;
   /**
    * Let blocks set chart colors (`colors:`, `color: #2f45e8`). Defaults to true; false drops
    * them with a note, for hosts whose charts must keep the page's own palette.
@@ -49,8 +59,11 @@ export interface CompiledBlock {
   data: Record<string, DataInput>;
   /** A `data <name>` block's dataset. */
   defines?: { name: string; dataset: Dataset };
-  /** URLs the block asks the host to load (`src:`). Nothing is fetched by the compiler. */
-  sources: { name: string; url: string; line: number }[];
+  /**
+   * URLs the block asks the host to load (`src:`), with where the rows are in a JSON response
+   * (`path:`) and how often to reload, in seconds (`refresh:`). Nothing is fetched by the compiler.
+   */
+  sources: { name: string; url: string; line: number; path?: string; refresh?: number }[];
   /** Selection group shared with other blocks in a document; null when the block stands alone. */
   link: string | null;
   title?: string;
@@ -84,6 +97,7 @@ const SPANS: Record<ViewKind, number> = {
   funnel: 4,
   filters: 12,
   table: 12,
+  explorer: 12,
   calendar: 12,
   sankey: 12,
   line: 6,
@@ -418,6 +432,8 @@ interface ViewContext {
   inDashboard: boolean;
   complete: boolean;
   diagnostics: Diagnostic[];
+  /** A dashboard's `actions:`, the default for its views. */
+  actions?: ViewAction[];
   blockColors: boolean;
 }
 
@@ -607,15 +623,24 @@ function fieldsOfProp(value: unknown): string[] {
 function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
   const def = KINDS[view.kind];
   const component = def.component;
+  // Tables and explorers share their column, sort and grouping settings.
+  const tabular = component === 'DataTable' || component === 'DataExplorer';
   const schemaProps = componentProps(component);
   const diagnostics = ctx.diagnostics;
   const lines = new Map<string, number>();
   const spec: ComponentSpec = { component };
 
-  // 1. The dataset this view reads.
-  const dataProp = view.props.find(
-    (p) => p.norm === 'data' || p.norm === 'dataset' || p.norm === 'source',
-  );
+  // 1. The dataset this view reads. `source:` states provenance, except in a view without
+  // other data, where it may still name a dataset as it used to.
+  const dataProp =
+    view.props.find((p) => p.norm === 'data' || p.norm === 'dataset') ??
+    (ctx.defaultData === undefined
+      ? legacyDataSource(
+          view.props,
+          (name) => lookupDataset(ctx, name) !== undefined || ctx.pending.has(name),
+          diagnostics,
+        )
+      : undefined);
   let dataName = dataProp ? unquote(dataProp.value) : ctx.defaultData;
   if (!dataName) {
     const names = [...new Set([...Object.keys(ctx.local), ...Object.keys(ctx.datasets)])];
@@ -680,6 +705,7 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
     blockColors: ctx.blockColors,
   });
   for (const entry of view.props) {
+    if (isProvenanceKey(entry.norm)) continue;
     const p = readStyleSetting(entry, style);
     if (!p) continue;
     const dot = p.key.lastIndexOf('.');
@@ -714,8 +740,9 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
       }
       continue; // field metadata, handled above
     }
-    if (p.norm === 'data' || p.norm === 'dataset' || p.norm === 'source' || p.norm === 'src')
-      continue;
+    if (p.norm === 'data' || p.norm === 'dataset' || p.norm === 'src') continue;
+    // Read with the block's `src:`. A view inside a dashboard has no source of its own.
+    if (SOURCE_KEYS.has(p.norm) && !ctx.inDashboard) continue;
     if (p.norm === 'version') {
       checkVersion(p, diagnostics);
       continue;
@@ -723,6 +750,14 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
     if (p.norm === 'link') {
       const b = parseBool(p.value);
       link = b === false ? null : b === true ? undefined : unquote(p.value);
+      continue;
+    }
+    if (p.norm === 'actions') {
+      spec.actions = supportedActions(parseActions(p, diagnostics), component, {
+        kind: view.kind,
+        line: p.line,
+        diagnostics,
+      });
       continue;
     }
     if (
@@ -742,7 +777,15 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
       continue;
     }
     let key = canonicalProp(p.norm, component);
-    if (key === 'kind') continue;
+    if (key === 'kind') {
+      // `view: table` reaches a view only as a display choice; a table is already one.
+      if (p.norm === 'view' && !tabular && /^table$/i.test(p.value.trim())) {
+        diagnostics.push(
+          warning(`${article(view.kind)} has no table view; “view” was ignored.`, p.line),
+        );
+      }
+      continue;
+    }
     if (key === 'x.label' || key === 'y.label' || key === 'x.format') {
       const [channel, attr] = key.split('.');
       const target = channelProp(channel, def);
@@ -788,7 +831,7 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
       );
       continue;
     }
-    if (component === 'DataTable' && key === 'sort') {
+    if (tabular && key === 'sort') {
       const desc = /^-|\s+desc(ending)?$/i.test(p.value.trim());
       const name = p.value
         .trim()
@@ -826,6 +869,10 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
       lines.set(key, p.line);
       for (const f of fieldsOfProp(r.value)) if (resolver.columns.includes(f)) used.add(f);
     }
+  }
+  Object.assign(spec, readProvenance(view.props, diagnostics, dataProp));
+  if (spec.actions === undefined && ctx.actions) {
+    spec.actions = supportedActions(ctx.actions, component);
   }
   for (const [k, v] of Object.entries(view.implied)) if (spec[k] === undefined) spec[k] = v;
   finishStyle(style);
@@ -977,7 +1024,7 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
       // BarList, DonutChart, Heatmap and CalendarHeatmap count rows when `value` is omitted.
       delete spec[def.measure];
       if (component === 'Heatmap' || component === 'CalendarHeatmap') spec.countLabel ??= 'Rows';
-    } else if (component === 'DataTable') {
+    } else if (tabular) {
       const group = typeof spec.groupBy === 'string' ? spec.groupBy : undefined;
       spec.columns = (spec.columns as Record<string, unknown>[]).map((c) => {
         if (c.field !== '__count__') return c;
@@ -1099,7 +1146,7 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
   if (
     ctx.inDashboard &&
     spec.title === undefined &&
-    !['KPI', 'DataTable', 'FilterBar'].includes(component)
+    !['KPI', 'DataTable', 'DataExplorer', 'FilterBar'].includes(component)
   ) {
     const labelOf = (f: string) =>
       f === countName
@@ -1142,7 +1189,10 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
     }
     return m;
   };
-  if (def.measureType !== 'columns') spec[def.measure] = simplify(stripLabels(spec[def.measure]));
+  // Table columns and filter fields are lists of objects; only measures collapse to plain names.
+  if (def.measureType !== 'columns' && def.measureType !== 'fields') {
+    spec[def.measure] = simplify(stripLabels(spec[def.measure]));
+  }
   if (spec[def.measure] === undefined) delete spec[def.measure];
 
   if (viewFormat) {
@@ -1178,7 +1228,7 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
         };
       }
     }
-    viewInput = dataset(derivedRows ?? rows, base);
+    viewInput = derivedFrom(dataset(derivedRows ?? rows, base), input);
     const derivedName = freeName(`${dataName}__${view.kind}`, { ...ctx.local, ...ctx.datasets });
     ctx.local[derivedName] = viewInput;
     spec.data = derivedName;
@@ -1350,6 +1400,7 @@ function inferEncodings(
       pick('value', quantitative(), 'first numeric column');
       break;
     case 'table':
+    case 'explorer':
       if (spec.columns === undefined) {
         const columns =
           typeof spec.groupBy === 'string'
@@ -1509,6 +1560,11 @@ function compileJson(block: BlockNode, options: CompileOptions): CompiledBlock {
     inline(obj, 'data');
     spec = obj as unknown as ComponentSpec;
   }
+  // A link that is not http(s) is dropped with a warning instead of failing the whole spec.
+  checkSourceUrl(spec as Record<string, unknown>, diagnostics);
+  if (Array.isArray((spec as DashboardSpec).layout)) {
+    for (const item of (spec as DashboardSpec).layout) checkSourceUrl(item, diagnostics);
+  }
   const all = { ...options.datasets, ...data };
   for (const item of Array.isArray((spec as DashboardSpec).layout)
     ? (spec as DashboardSpec).layout
@@ -1573,6 +1629,11 @@ export function compileBlock(
   // Inline rows after `---`.
   const blockProps = block.type === 'view' ? (block.views[0]?.props ?? []) : block.props;
   const srcProp = blockProps.find((p) => p.norm === 'src' || p.norm === 'url');
+  const settings = readSourceSettings(
+    blockProps,
+    { inline: !!block.data, src: !!srcProp, minRefresh: options.minRefresh },
+    diagnostics,
+  );
   let inlineName: string | undefined;
   let sourceName: string | undefined;
   if (block.data) {
@@ -1580,6 +1641,8 @@ export function compileBlock(
       firstLine: block.data.line,
       partial: !complete,
       maxRows: options.maxRows,
+      path: settings.path,
+      pathLine: settings.pathLine,
     });
     diagnostics.push(...table.diagnostics);
     inlineName = block.type === 'data' && block.name ? block.name : 'data';
@@ -1596,9 +1659,16 @@ export function compileBlock(
   } else if (srcProp) {
     const url = unquote(srcProp.value);
     // A named dataset is registered under its name; a chart's own source under its URL.
-    const name = block.type === 'data' && block.name ? block.name : `url:${url}`;
+    const name =
+      block.type === 'data' && block.name ? block.name : sourceDataset(url, settings.path);
     sourceName = name;
-    sources.push({ name, url, line: srcProp.line });
+    sources.push({
+      name,
+      url,
+      line: srcProp.line,
+      ...(settings.path === undefined ? {} : { path: settings.path }),
+      ...(settings.refresh === undefined ? {} : { refresh: settings.refresh }),
+    });
     if (Object.hasOwn(datasets, name) && block.type === 'data') {
       // The host already loaded this source.
       const meta = fieldMetaFrom(
@@ -1631,6 +1701,7 @@ export function compileBlock(
         title: block.name,
         columns: columns.slice(0, 12).map((field) => ({ field })),
         pageSize: 10,
+        ...readProvenance(block.props, diagnostics),
       } as ComponentSpec;
       result.link = block.name;
     } else {
@@ -1644,7 +1715,14 @@ export function compileBlock(
   // Views.
   const dashboardData =
     block.type === 'dashboard'
-      ? block.props.find((p) => p.norm === 'data' || p.norm === 'dataset' || p.norm === 'source')
+      ? (block.props.find((p) => p.norm === 'data' || p.norm === 'dataset') ??
+        (block.data || srcProp
+          ? undefined
+          : legacyDataSource(
+              block.props,
+              (name) => Object.hasOwn(datasets, name) || pending.has(name),
+              diagnostics,
+            )))
       : undefined;
   const ctx: ViewContext = {
     // Inline rows already carry dashboard-level field settings.
@@ -1659,6 +1737,8 @@ export function compileBlock(
     diagnostics,
     blockColors: options.blockColors !== false,
   };
+  const dashboardActions = block.props.find((p) => p.norm === 'actions');
+  if (dashboardActions) ctx.actions = parseActions(dashboardActions, diagnostics);
 
   if (block.type === 'view') {
     const view = block.views[0];
@@ -1711,6 +1791,7 @@ export function compileBlock(
     const dash: DashboardSpec = { layout: items };
     if (title) dash.title = title;
     if (description) dash.description = description;
+    Object.assign(dash, readProvenance(block.props, diagnostics, dashboardData));
     result.spec = dash;
   }
   return result;

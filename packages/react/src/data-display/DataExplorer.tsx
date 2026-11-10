@@ -65,6 +65,10 @@ export interface DataExplorerProps<R extends Row = Row>
   csvFormat?: 'raw' | 'formatted';
   /** Overrides the browser download, useful for controlled export destinations. */
   onExport?: (result: DataExplorerExport) => void;
+  /** Show the search box. Defaults to true. */
+  searchable?: boolean;
+  /** Offer the CSV export button. Defaults to true. */
+  exportable?: boolean;
 }
 
 type Panel = 'filters' | 'sorts' | 'columns' | 'group' | 'view';
@@ -348,6 +352,8 @@ export function DataExplorer<R extends Row = Row>({
   exportFileName = 'rows.csv',
   csvFormat = 'raw',
   onExport,
+  searchable = true,
+  exportable = true,
   className,
   style,
   id,
@@ -500,15 +506,17 @@ export function DataExplorer<R extends Row = Row>({
         </div>
       )}
       <div className="q-explorer-toolbar">
-        <TextField
-          size="sm"
-          className="q-explorer-search"
-          icon={<IconSearch />}
-          aria-label="Search rows"
-          placeholder="Search rows…"
-          value={view.search}
-          onChange={(e) => update({ search: e.target.value })}
-        />
+        {searchable && (
+          <TextField
+            size="sm"
+            className="q-explorer-search"
+            icon={<IconSearch />}
+            aria-label="Search rows"
+            placeholder="Search rows…"
+            value={view.search}
+            onChange={(e) => update({ search: e.target.value })}
+          />
+        )}
         <Button
           size="sm"
           icon={<IconFilter />}
@@ -551,9 +559,11 @@ export function DataExplorer<R extends Row = Row>({
         >
           View
         </Button>
-        <Button size="sm" icon={<IconDownload />} onClick={exportRows}>
-          Export CSV
-        </Button>
+        {exportable && (
+          <Button size="sm" icon={<IconDownload />} onClick={exportRows}>
+            Export CSV
+          </Button>
+        )}
       </div>
       {panel && (
         <section id={panelId} className="q-explorer-panel" aria-label={PANEL_LABEL[panel]}>

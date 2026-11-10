@@ -10,8 +10,14 @@ const root = resolve(gallery, '../..');
 const library = join(root, 'packages/react');
 // A dev server or gallery-only build must export the current source, never stale dist files.
 execFileSync('pnpm', ['--filter', '@quartile/react', 'build'], { cwd: root, stdio: 'inherit' });
-// The standalone embed script, served next to the plain-HTML demo at /embed/demo.html.
-const embed = join(gallery, 'public/embed');
+// Everything the app serves lives under /examples, so generated files go to public/examples.
+// Files a build before that move left in public/embed and public/starter would be deployed at
+// the old paths; remove them.
+for (const stale of ['public/embed', 'public/starter']) {
+  rmSync(join(gallery, stale), { recursive: true, force: true });
+}
+// The standalone embed script, served next to the plain-HTML demo at /examples/embed/demo.
+const embed = join(gallery, 'public/examples/embed');
 mkdirSync(embed, { recursive: true });
 for (const file of ['quartile.global.js', 'quartile.js']) {
   writeFileSync(join(embed, file), readFileSync(join(library, 'dist/embed', file)));
@@ -25,7 +31,7 @@ try {
     }),
   );
   const bytes = readFileSync(join(temp, result[0].filename));
-  const output = join(gallery, 'public/starter');
+  const output = join(gallery, 'public/examples/starter');
   mkdirSync(output, { recursive: true });
   writeFileSync(join(output, 'quartile-react-0.1.0.tgz'), bytes);
   writeFileSync(

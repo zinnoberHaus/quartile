@@ -1,7 +1,7 @@
 import { LineChart, QuartileProvider, Selection } from '@quartile/react';
 import { daily, monthlyByChannel } from '../data/kestrel';
 
-/** Dev-only scratch page at /_dev for checking components in isolation. Not linked anywhere. */
+/** Dev-only scratch page at /examples/_dev for checking components in isolation. Not linked. */
 export function Scratch() {
   return (
     <QuartileProvider style={{ padding: 40, background: 'var(--q-bg)', minHeight: '100vh' }}>

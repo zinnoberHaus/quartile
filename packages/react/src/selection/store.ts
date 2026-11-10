@@ -9,6 +9,14 @@ export interface SelectionEvent {
   at: number;
 }
 
+/** What a host is told after a selection group changes. */
+export interface SelectionChange {
+  /** The group that changed: a dataset name, a `link:` name, or a standalone block's `block-<n>`. */
+  group: string;
+  /** Every predicate now active in the group; empty once the selection is cleared. */
+  predicates: Predicate[];
+}
+
 export interface SetOptions {
   /** Defaults to "eq" for a scalar, "in" for an array of values. */
   op?: Predicate['op'];

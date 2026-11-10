@@ -346,6 +346,42 @@ describe('reference', () => {
   });
 });
 
+describe('presentation settings beside actions, provenance and sources', () => {
+  it('keeps every setting when a block uses them together', () => {
+    const { spec, warnings, errors } = bar(
+      'actions: rows, download\nsource: Finance team\nsource.url: https://example.com/q3\nasof: 2026-09-30\ncolors: signal\nreference: 100\nreference.label: Plan\nlegend: none\ny.ticks: 3',
+    );
+    expect(errors).toEqual([]);
+    expect(warnings).toEqual([]);
+    expect(spec).toMatchObject({
+      actions: ['rows', 'download'],
+      source: 'Finance team',
+      sourceUrl: 'https://example.com/q3',
+      asOf: '2026-09-30',
+      colors: ['signal'],
+      reference: { value: 100, label: 'Plan' },
+      legend: 'none',
+      yTicks: 3,
+    });
+    // Colors can be refused without touching the other settings.
+    const strict = bar('actions: rows\nsource: Finance team\ncolors: signal', {
+      blockColors: false,
+    });
+    expect(strict.spec).toMatchObject({ actions: ['rows'], source: 'Finance team' });
+    expect(strict.spec.colors).toBeUndefined();
+  });
+
+  it('says so on kinds without presentation settings', () => {
+    const explorer = compile(`explorer\ncolors: signal\nmargin: 16\n${REGIONS}`);
+    expect(explorer.errors).toEqual([]);
+    expect(explorer.spec.component).toBe('DataExplorer');
+    const messages = explorer.warnings.map((w) => w.message);
+    expect(messages).toHaveLength(2);
+    expect(messages[0]).toMatch(/^“colors” is not .*explorer setting; it was ignored\.$/);
+    expect(messages[1]).toMatch(/^“margin” is not .*explorer setting; it was ignored\.$/);
+  });
+});
+
 describe('presentation settings in dashboards and JSON', () => {
   it('applies per view in a dashboard', () => {
     const compiled = compileBlock(

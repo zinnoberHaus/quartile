@@ -151,10 +151,25 @@ function formatObject(
   };
 }
 
+/** Where the data came from. Plain text and a checked link; nothing is fetched. */
+const PROVENANCE = {
+  source: str('Where the data came from, shown under the view as "Source: …". Plain text.'),
+  sourceUrl: str(
+    'An http or https link for the source, shown as a link and never fetched. Other schemes are ignored.',
+  ),
+  asOf: str('When the data was current, shown as "As of …": text, or an ISO date or date-time.'),
+};
 const META = {
   title: str('Card title. Charts render it above the plot and use it as their accessible name.'),
   description: str('One line under the title.'),
   span: int('Columns this item spans in a Dashboard layout (12-column grid).', 1, 12),
+  ...PROVENANCE,
+  actions: {
+    type: 'array',
+    items: { enum: ['table', 'rows', 'download'] },
+    description:
+      'Controls shown with the view: `table` switches the chart and its table, `rows` opens the rows the view is drawn from, `download` saves those rows as CSV. An empty list shows none. A host may set a default or turn them all off.',
+  },
 };
 const DATA = { data: str('Name of a dataset passed to SpecView in `data`.') };
 const CHART = {
@@ -286,6 +301,7 @@ function component(
             tooltipNote: str(
               'Plain-text chart context, included in accessible descriptions and supported hover tooltips.',
             ),
+            view: oneOfEnum(['chart', 'table'], 'Show the chart, or the same data as a table.'),
           }
         : {}),
       ...props,
@@ -649,6 +665,32 @@ const COMPONENT_DEFS: Record<string, JsonSchema> = {
     ['columns'],
     { chart: false },
   ),
+  DataExplorer: component(
+    'DataExplorer',
+    'A table readers can search, filter, sort, group and export. Its own filters stay local; the shared selection narrows its rows first.',
+    {
+      columns: {
+        type: 'array',
+        items: ref('Column'),
+        minItems: 1,
+        description: 'Columns in order.',
+      },
+      pageSize: int('Rows per page to start with.', 1, 1000),
+      sort: {
+        type: 'string',
+        pattern: '^-?[^-].*$',
+        description: 'Column key to sort by first; prefix "-" for descending.',
+      },
+      groupBy: field('Start grouped by this field; columns aggregate.'),
+      search: bool('Show the search box. Defaults to true.'),
+      export: bool('Offer CSV export of the matching rows. Defaults to true.'),
+      caption: str('Line under the title.'),
+      noun: str('Plural noun for the page label.'),
+      height: { type: 'number', minimum: 120, description: 'Scroller height in px.' },
+    },
+    ['columns'],
+    { chart: false },
+  ),
   FilterBar: component(
     'FilterBar',
     'Chips that mirror the selection, with menus to set values.',
@@ -709,6 +751,7 @@ export type SpecComponentName =
   | 'Sankey'
   | 'KPI'
   | 'DataTable'
+  | 'DataExplorer'
   | 'FilterBar';
 
 /** A field name, or a field with display overrides. */
@@ -740,6 +783,14 @@ export interface ComponentSpec {
   title?: string;
   description?: string;
   span?: number;
+  /** Where the data came from, shown as "Source: …". */
+  source?: string;
+  /** An http or https link for the source. */
+  sourceUrl?: string;
+  /** When the data was current, shown as "As of …". */
+  asOf?: string;
+  /** Controls shown with the view; see `ViewAction`. */
+  actions?: ('table' | 'rows' | 'download')[];
   [prop: string]: unknown;
 }
 
@@ -747,6 +798,9 @@ export interface DashboardSpec {
   title?: string;
   description?: string;
   selection?: string;
+  source?: string;
+  sourceUrl?: string;
+  asOf?: string;
   layout: ComponentSpec[];
 }
 
@@ -896,6 +950,7 @@ export const quartileSchema = {
           pattern: '^[A-Za-z][\\w-]*$',
           description: 'Selection id the components share.',
         },
+        ...PROVENANCE,
         layout: { type: 'array', items: ref('Spec'), minItems: 1, description: 'Items in order.' },
       },
       required: ['layout'],

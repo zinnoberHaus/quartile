@@ -10,6 +10,6 @@ coverage/
 artifacts/
 __pycache__/
 *.pyc
-apps/gallery/public/starter/
-apps/gallery/public/embed/quartile*.js
+apps/gallery/public/examples/starter/
+apps/gallery/public/examples/embed/quartile*.js
 examples/dbt/site/

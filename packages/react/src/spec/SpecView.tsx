@@ -18,7 +18,7 @@ import { IconAlertCircle } from '../icons';
 import { cx } from '../lib/cx';
 import { useQuartile } from '../provider/QuartileProvider';
 import { AppliedPredicatesContext } from '../selection/appliedPredicates';
-import { Selection, useSelection, useSourceId } from '../selection/Selection';
+import { Selection, useSelection } from '../selection/Selection';
 import type { SelectionChange } from '../selection/store';
 import { SelectionWatch } from '../selection/watch';
 import { csvFileName, resolveActions, type ViewAction } from './actions';
@@ -112,22 +112,6 @@ const META_KEYS = new Set([
   'sourceUrl',
   'asOf',
   'actions',
-]);
-
-/** Components that publish to the selection under the `id` they are given. */
-const PUBLISHERS = new Set<SpecComponentName>([
-  'LineChart',
-  'AreaChart',
-  'BarChart',
-  'BarList',
-  'DonutChart',
-  'Histogram',
-  'ScatterPlot',
-  'Heatmap',
-  'CalendarHeatmap',
-  'BoxPlot',
-  'Sankey',
-  'DataTable',
 ]);
 
 function isComponent(v: unknown): v is AnyComponent {
@@ -423,29 +407,19 @@ function SpecComponent({
   const shape = SHAPES[spec.component];
   const noteId = useId();
   const panelId = useId();
-  const publisher = useSourceId();
   // Both start as the spec says, on the server and on the first client render alike.
   const [tableChoice, setTableChoice] = useState<boolean | null>(null);
   const [rowsOpen, setRowsOpen] = useState(false);
   const actions =
     input === undefined ? [] : resolveActions(spec.component, spec.actions, hostActions);
   const asTable = tableChoice ?? spec.view === 'table';
-  const traced = actions.includes('rows') || actions.includes('download');
   const name =
     typeof spec.title === 'string' && spec.title
       ? spec.title
       : spec.component === 'KPI' && typeof spec.label === 'string'
         ? spec.label
         : undefined;
-  const shown =
-    actions.length === 0
-      ? props
-      : {
-          ...props,
-          ...(actions.includes('table') ? { view: asTable ? 'table' : 'chart' } : null),
-          // The view's publisher id, so the rows behind it can leave out its own selection.
-          ...(traced && PUBLISHERS.has(spec.component) ? { id: publisher } : null),
-        };
+  const shown = actions.includes('table') ? { ...props, view: asTable ? 'table' : 'chart' } : props;
   const note = provenanceText(spec) ? <SourceNote spec={spec} id={noteId} /> : null;
   const toolbar =
     actions.length > 0 && input !== undefined ? (
@@ -458,12 +432,11 @@ function SpecComponent({
         onRows={() => setRowsOpen((open) => !open)}
         panelId={panelId}
         input={input}
-        publisher={publisher}
       />
     ) : null;
   const panel =
     rowsOpen && input !== undefined && actions.includes('rows') ? (
-      <RowsPanel id={panelId} name={name} input={input} publisher={publisher} />
+      <RowsPanel id={panelId} name={name} input={input} />
     ) : null;
   const node = (
     <AppliedPredicatesContext.Provider value={appliedPredicates}>

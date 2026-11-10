@@ -104,10 +104,31 @@ describe('actions: rows', () => {
     expect(screen.getByRole('group', { name: 'Revenue' }).textContent).toContain('$80');
     expect(count(rowsPanel('Revenue'))).toBe('1 of 3 rows');
     expect(bodyRows(rowsPanel('Revenue'))).toEqual(['APACLamp$80.00']);
-    // A view is not filtered by its own selection, and neither are the rows behind it.
-    expect(count(rowsPanel('By region'))).toBe('3 rows');
+    // The ranking keeps every region to choose from; the rows behind it are the chosen one's.
+    expect(button(/^EMEA/)).toBeTruthy();
+    expect(count(rowsPanel('By region'))).toBe('1 of 3 rows');
+    expect(bodyRows(rowsPanel('By region'))).toEqual(['APACLamp$80.00']);
     fireEvent.click(button(/^APAC/));
     expect(count(rowsPanel('Revenue'))).toBe('3 rows');
+    expect(count(rowsPanel('By region'))).toBe('3 rows');
+  });
+
+  it('traces a bar of a lone chart to its rows', () => {
+    render(
+      <QuartileBlock
+        source={`barlist sum(amount) by region\ntitle: By region\nselect: true\nactions: rows\n---\n${csv}`}
+      />,
+    );
+    fireEvent.click(button(/^EMEA/));
+    fireEvent.click(button('Rows'));
+    expect(count(rowsPanel('By region'))).toBe('2 of 3 rows');
+    expect(bodyRows(rowsPanel('By region'))).toEqual(['EMEADesk$120', 'EMEAChair$40']);
+    // The chart is not filtered by its own selection: the other region stays on offer.
+    fireEvent.click(button(/^APAC/));
+    expect(count(rowsPanel('By region'))).toBe('1 of 3 rows');
+    expect(bodyRows(rowsPanel('By region'))).toEqual(['APACLamp$80']);
+    fireEvent.click(button(/^APAC/));
+    expect(count(rowsPanel('By region'))).toBe('3 rows');
   });
 
   it('traces a dashboard number back to its rows', () => {
@@ -187,6 +208,21 @@ describe('actions: download', () => {
     expect(screen.getByRole('status').textContent).toBe(
       'Downloaded 3 rows as revenue-by-region-q3.csv.',
     );
+  });
+
+  it('saves the rows of the bar a reader picked in a lone chart', async () => {
+    render(
+      <QuartileBlock
+        source={`barlist sum(amount) by region\ntitle: By region\nselect: true\nactions: download\n---\n${csv}`}
+      />,
+    );
+    fireEvent.click(button(/^EMEA/));
+    fireEvent.click(button('Download CSV'));
+    expect(saved[0].name).toBe('by-region.csv');
+    expect(await text(saved[0].blob)).toBe(
+      '"region","product","amount"\r\n"EMEA","Desk","120"\r\n"EMEA","Chair","40"',
+    );
+    expect(screen.getByRole('status').textContent).toBe('Downloaded 2 rows as by-region.csv.');
   });
 
   it('saves the same rows the panel shows: the selection of other views applies', async () => {

@@ -332,6 +332,19 @@
   letter-spacing: -0.015em;
 }
 
+/* The report's headings sit one level below the page's h1; they keep the sizes of a document. */
+.md-report > h2:first-child {
+  margin: 0 0 0.4em;
+  font-size: 30px;
+  letter-spacing: -0.03em;
+}
+
+.md-report h3 {
+  margin: 1.8em 0 0.4em;
+  font-size: 20px;
+  letter-spacing: -0.015em;
+}
+
 .md-report {
   max-width: 920px;
   padding: 32px 36px;

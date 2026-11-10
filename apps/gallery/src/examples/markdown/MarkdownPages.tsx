@@ -12,7 +12,7 @@ import {
   type SelectionChange,
 } from '@quartile/react';
 import { KINDS, quartilePrompt } from '@quartile/react/lang';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type ComponentProps, useEffect, useMemo, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import { Streamdown } from 'streamdown';
 import { Link } from '../../router';
@@ -595,7 +595,19 @@ export function AIAnswerPage() {
 /* /examples/markdown-report                                                                  */
 /* ------------------------------------------------------------------------------------------ */
 
-const reportComponents = { pre: QuartilePre };
+// The page already has an h1; the report's own headings sit one level below it.
+const reportComponents = {
+  pre: QuartilePre,
+  h1: (props: ComponentProps<'h1'>) => <h2 {...omitNode(props)} />,
+  h2: (props: ComponentProps<'h2'>) => <h3 {...omitNode(props)} />,
+  h3: (props: ComponentProps<'h3'>) => <h4 {...omitNode(props)} />,
+};
+
+/** react-markdown passes its syntax-tree node, which is not a DOM attribute. */
+function omitNode<P extends object>(props: P): P {
+  const { node: _node, ...rest } = props as P & { node?: unknown };
+  return rest as P;
+}
 
 export function MarkdownReportPage() {
   const { theme, toggle } = useTheme();

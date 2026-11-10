@@ -1,12 +1,15 @@
 import {
   Button,
   type CompiledBlock,
+  createSourceLoader,
   type Diagnostic,
+  predicateValueLabel,
   QuartileBlock,
   QuartileDocument,
   QuartilePre,
   QuartileProvider,
   quartileRenderer,
+  type SelectionChange,
 } from '@quartile/react';
 import { KINDS, quartilePrompt } from '@quartile/react/lang';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -82,8 +85,104 @@ const KIND_DOCS: [string, string, string][] = [
   ['sparkline', 'sparkline price by day', 'A small trend without axes'],
   ['kpi', 'kpi sum(revenue) as "Revenue" vs last_year', 'A headline number with its change'],
   ['table', 'table sum(revenue), count by region', 'Exact rows, or grouped totals'],
+  [
+    'explorer',
+    'explorer product, region, amount',
+    'A table to work in: search, filters, sorting and CSV export',
+  ],
   ['filters', 'filters region, channel', 'Chips that filter linked views'],
 ];
+
+/** Settings beyond the basics, as a block writes them. Each example compiles without a warning. */
+const SETTING_DOCS: { group: string; rows: [keys: string, example: string, meaning: string][] }[] =
+  [
+    {
+      group: 'Presentation',
+      rows: [
+        [
+          'margin',
+          'margin: 16 24 32 48',
+          'Space around the plot in px, in CSS order; margin.left: 72 sets one side.',
+        ],
+        [
+          'colors',
+          'colors: signal, #f26b3a',
+          'Series colors in order: a palette name (signal, positive, negative, warning, muted), 1 to 8, or a hex color. A page can keep its own palette instead.',
+        ],
+        [
+          'y.min, y.max',
+          'y.min: 2%',
+          'Bounds of the y axis. Bars and stacked areas keep their zero baseline.',
+        ],
+        ['x.ticks, y.ticks', 'y.ticks: 4', 'Approximate number of ticks on an axis.'],
+        ['grid', 'grid: none', 'Gridlines: y, x, both or none.'],
+        ['x.hide, y.hide', 'y.hide: yes', 'Hides the labels of an axis.'],
+        ['legend', 'legend: bottom', 'Where the legend sits: top, bottom, left, right or none.'],
+        ['labels', 'labels: yes', 'Series names and last values at the line ends; values on bars.'],
+        [
+          'reference, reference.label',
+          'reference: 4%',
+          'A labelled rule at a value. It is also read out in the chart’s summary.',
+        ],
+        ['y.scale', 'y.scale: log', 'A logarithmic y axis, for values above zero.'],
+        ['stroke width', 'stroke width: 3', 'Line width in px.'],
+        [
+          'radius, padding',
+          'radius: 6',
+          'Corner radius of bars in px; padding is the gap between bars, from 0 to 0.9.',
+        ],
+        [
+          'annotations',
+          'annotations: [{"x": "2026-03-01", "label": "Launch"}]',
+          'Labelled vertical markers on line and area charts.',
+        ],
+      ],
+    },
+    {
+      group: 'Data',
+      rows: [
+        ['data', 'data: sales', 'Reads a dataset that a data block or the page defines by name.'],
+        [
+          'src',
+          'src: sales.csv',
+          'A URL for the page to load. Nothing is fetched unless the page allows that origin.',
+        ],
+        [
+          'path',
+          'path: data.results',
+          'Where the rows are inside a JSON response, inline or loaded; $.data.results reads the same.',
+        ],
+        [
+          'refresh',
+          'refresh: 5m',
+          'Reloads a src URL at an interval. The page sets the shortest one it accepts.',
+        ],
+      ],
+    },
+    {
+      group: 'Provenance and interaction',
+      rows: [
+        [
+          'source, source.url, asof',
+          'source: Finance export',
+          'A line under the chart: where the data came from, an optional http(s) link and its date.',
+        ],
+        [
+          'actions',
+          'actions: rows, download',
+          'Buttons on a view: table, rows (the rows behind it) and download (those rows as CSV). On a dashboard, one toolbar for all its views.',
+        ],
+        [
+          'select, link',
+          'select: true',
+          'Views over one named dataset select and filter each other without it; a chart with its own rows needs select: true. select: no and link: no opt a view out.',
+        ],
+      ],
+    },
+  ];
+
+/** Loads `src:` URLs for the playground: this page's own origin and nothing else. */
+const loadSameOrigin = createSourceLoader({ origins: ['same-origin'] });
 
 function Notes({ diagnostics }: { diagnostics: Diagnostic[] }) {
   if (!diagnostics.length) {
@@ -198,11 +297,14 @@ export function LanguagePage() {
                 </Button>
                 {toggle}
               </div>
-              <QuartileBlock
-                source={replay.running ? replay.shown : source}
-                streaming={replay.running}
-                onDiagnostics={(d: Diagnostic[], _c: CompiledBlock) => setDiagnostics(d)}
-              />
+              {/* The document gives the block a loader for `src:`; without one nothing is fetched. */}
+              <QuartileDocument provider={false} loadSource={loadSameOrigin}>
+                <QuartileBlock
+                  source={replay.running ? replay.shown : source}
+                  streaming={replay.running}
+                  onDiagnostics={(d: Diagnostic[], _c: CompiledBlock) => setDiagnostics(d)}
+                />
+              </QuartileDocument>
               <div id="md-notes">
                 <h3 className="md-h3">Compiler notes</h3>
                 <Notes diagnostics={diagnostics} />
@@ -279,6 +381,47 @@ ${f}`}</pre>
           </div>
         </section>
 
+        <section className="md-section" aria-labelledby="settings">
+          <h2 id="settings">Settings beyond the basics</h2>
+          <div className="md-table-wrap">
+            <table className="md-table md-settings">
+              <thead>
+                <tr>
+                  <th scope="col">Setting</th>
+                  <th scope="col">Example line</th>
+                  <th scope="col">What it does</th>
+                </tr>
+              </thead>
+              {SETTING_DOCS.map(({ group, rows }) => (
+                <tbody key={group}>
+                  <tr>
+                    <th scope="colgroup" colSpan={3} className="md-settings-group">
+                      {group}
+                    </th>
+                  </tr>
+                  {rows.map(([keys, example, meaning]) => (
+                    <tr key={keys}>
+                      <th scope="row">
+                        <code>{keys}</code>
+                      </th>
+                      <td>
+                        <code>{example}</code>
+                      </td>
+                      <td>{meaning}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              ))}
+            </table>
+          </div>
+          <p className="md-muted">
+            The presets above put several of these to work. An unknown setting is ignored with a
+            warning that suggests the closest one; it appears under Compiler notes. In a project
+            with Quartile installed, <code>npx --no-install quartile check report.md</code> reports
+            the same errors and warnings for every block of a Markdown file.
+          </p>
+        </section>
+
         <section className="md-section" aria-labelledby="anywhere">
           <h2 id="anywhere">Render it anywhere</h2>
           <div className="md-cards">
@@ -334,6 +477,20 @@ export function AIAnswerPage() {
   const replay = useReplay(ANSWER_MARKDOWN);
   const [raw, setRaw] = useState(false);
   const prompt = useMemo(() => quartilePrompt(), []);
+  // What the reader selected in the answer's charts, and the follow-up they chose to ask.
+  const [picked, setPicked] = useState<SelectionChange | null>(null);
+  const [asked, setAsked] = useState<string | null>(null);
+  // Each replay is a new answer: its document starts without the previous selection.
+  const [run, setRun] = useState(0);
+  const stream = (speed: number) => {
+    setPicked(null);
+    setAsked(null);
+    setRun((n) => n + 1);
+    replay.start(speed);
+  };
+  const about = replay.running
+    ? ''
+    : (picked?.predicates ?? []).map((p) => `${p.field} ${predicateValueLabel(p)}`).join(' and ');
   return (
     <QuartileProvider theme={theme} className="w-page md-page">
       <Header page="ai-answer" />
@@ -346,16 +503,17 @@ export function AIAnswerPage() {
               The answer below is ordinary Markdown with <code>{`${f}quartile`}</code> blocks, as a
               model writes it. Vercel's Streamdown renders the prose; Quartile renders each fence,
               drawing complete lines while the rest is still arriving. Replay it to watch the charts
-              fill in.
+              fill in. Then select a plan in the last chart: the page is told about the selection
+              and offers a follow-up question about it.
             </p>
           </div>
           <a href={`${links.github}/blob/main/docs/guides/ai-responses.md`}>Integration guide</a>
         </div>
         <div className="w-toolbar">
-          <Button variant="primary" onClick={() => replay.start(1)} disabled={replay.running}>
+          <Button variant="primary" onClick={() => stream(1)} disabled={replay.running}>
             {replay.running ? 'Streaming…' : 'Stream the answer'}
           </Button>
-          <Button onClick={() => replay.start(3)} disabled={replay.running}>
+          <Button onClick={() => stream(3)} disabled={replay.running}>
             Stream faster
           </Button>
           <Button aria-pressed={raw} onClick={() => setRaw((r) => !r)}>
@@ -370,7 +528,15 @@ export function AIAnswerPage() {
           </div>
           <div className="md-turn md-turn-assistant" aria-busy={replay.running || undefined}>
             <span className="md-role">Assistant</span>
-            <QuartileDocument provider={false} streaming={replay.running}>
+            <QuartileDocument
+              key={run}
+              provider={false}
+              streaming={replay.running}
+              onSelectionChange={(change) => {
+                setPicked(change);
+                setAsked(null);
+              }}
+            >
               <Streamdown
                 className="md-prose"
                 isAnimating={replay.running}
@@ -380,11 +546,32 @@ export function AIAnswerPage() {
                 {replay.shown}
               </Streamdown>
             </QuartileDocument>
+            {/* Always present, so assistive technology announces a suggestion when it arrives. */}
+            <div className="md-followup" aria-live="polite">
+              {about ? (
+                <>
+                  <span className="md-role">Suggested from your selection</span>
+                  <Button onClick={() => setAsked(`Tell me more about ${about}.`)}>
+                    Ask about {about}
+                  </Button>
+                </>
+              ) : null}
+            </div>
           </div>
           {raw ? (
             <div className="md-raw">
               <span className="md-role">What the model wrote</span>
               <pre className="md-code">{replay.shown}</pre>
+            </div>
+          ) : null}
+          {asked ? (
+            <div className="md-turn md-turn-user md-turn-demo">
+              <span className="md-role">User · local demo, nothing is sent</span>
+              <p>{asked}</p>
+              <p className="md-muted">
+                An app would send this question to its model, with the selection as context. This
+                page calls no model, so no answer follows.
+              </p>
             </div>
           ) : null}
         </div>
@@ -423,8 +610,9 @@ export function MarkdownReportPage() {
             <p>
               One Markdown file: prose, four Quartile blocks and a dataset defined once. Blocks that
               read the same dataset share a selection, so the whole document behaves like a
-              dashboard. Rendered here with react-markdown; the same file renders statically with
-              the remark or markdown-it plugin.
+              dashboard. The first block states its source and offers the rows behind its numbers,
+              on screen or as a CSV file. Rendered here with react-markdown; the same file renders
+              statically with the remark or markdown-it plugin.
             </p>
           </div>
           <a href={`${links.github}/blob/main/apps/gallery/src/examples/markdown/content.ts`}>

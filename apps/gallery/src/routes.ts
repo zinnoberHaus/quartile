@@ -113,7 +113,7 @@ export const routes: readonly GalleryRoute[] = [
     name: 'Quartile examples',
     title: 'Quartile examples: charts and dashboards in Markdown, AI answers and web pages',
     description:
-      'Runnable examples of Quartile, an open-source React toolkit in preview: a Markdown chart playground, a streamed AI answer, a Markdown report, a script-tag embed, dashboards, data-science workspaces and App Studio.',
+      'Runnable examples of Quartile, an open-source chart block for Markdown, AI answers and web pages: a playground, a streamed AI answer, a Markdown report, a script-tag embed, dashboards, data-science workspaces and App Studio. A 0.1 preview, not on npm yet.',
     heading: 'Examples',
     render: 'hydrate',
     sources: [`${gallery}/examples/index`, `${gallery}/routes.ts`],
@@ -311,7 +311,10 @@ export const staticPages: readonly StaticPage[] = [
     name: 'Charts on a plain HTML page',
     description:
       'A plain HTML page with one script tag: Quartile turns quartile code blocks into interactive charts that take the page’s own colors and fonts.',
-    sources: ['apps/gallery/public/examples/embed/demo.html'],
+    sources: [
+      'apps/gallery/public/examples/embed/demo.html',
+      'apps/gallery/public/examples/embed/tickets.json',
+    ],
   },
 ];
 

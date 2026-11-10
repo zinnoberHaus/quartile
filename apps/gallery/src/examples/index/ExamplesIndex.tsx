@@ -42,9 +42,10 @@ export function ExamplesIndex() {
         <div className="xi-intro">
           <h1>Examples</h1>
           <p>
-            Pages built with Quartile, an open-source React toolkit for charts, tables and
-            dashboards. Each one renders from the public repository and runs in your browser. They
-            start from fictional sample data; App Studio requests public APIs.
+            Quartile is an open-source chart block for Markdown, AI answers and web pages. These
+            pages show the block at work and the React components it renders through. Each one
+            renders from the public repository and runs in your browser. They start from fictional
+            sample data; App Studio requests public APIs.
           </p>
           <nav className="xi-jump" aria-label="Sections">
             {GROUPS.map((group) => (
@@ -76,7 +77,10 @@ export function ExamplesIndex() {
           </section>
         ))}
         <footer className="g-footer">
-          <span>Quartile · Apache-2.0 · 0.1 preview, not yet published to npm</span>
+          <span>
+            Quartile · Apache-2.0 · 0.1 preview, not on npm yet ·{' '}
+            <a href={`${links.docs}/docs/installation`}>Install the preview build</a>
+          </span>
           <a href={links.github}>Source on GitHub</a>
         </footer>
       </main>

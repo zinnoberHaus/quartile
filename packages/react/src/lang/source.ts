@@ -8,6 +8,7 @@ import { dataset, isDataset } from '../data/schema';
 import type { DataInput, Row } from '../data/types';
 import { type Diagnostic, info, warning } from './diagnostics';
 import type { PropEntry } from './parse';
+import { parseDataPath, pathNote } from './path';
 import { parseTable } from './table';
 
 /* ------------------------------------------------------------------------------------------ */
@@ -81,8 +82,18 @@ export function readSourceSettings(
   const pathProp = props.find((p) => PATH_KEYS.has(p.norm));
   if (pathProp) {
     if (context.inline || context.src) {
-      out.path = unquote(pathProp.value);
-      out.pathLine = pathProp.line;
+      // Another spelling of a dotted path (`$.a[0]`) is recorded in dotted form, so every block
+      // naming the same place shares one source. A text that is no path is reported where the
+      // data is read.
+      const written = unquote(pathProp.value);
+      const parsed = parseDataPath(written);
+      const note = 'segments' in parsed ? pathNote(parsed) : undefined;
+      if (note) diagnostics.push(info(note, pathProp.line));
+      const path = 'segments' in parsed ? parsed.dotted : written;
+      if (path !== '') {
+        out.path = path;
+        out.pathLine = pathProp.line;
+      }
     } else {
       diagnostics.push(
         warning(

@@ -59,13 +59,104 @@ describe('JSON envelopes', () => {
     expect(notes(t)).toContain('Read rows from `values`.');
   });
 
-  it('refuses to guess between several lists of rows', () => {
-    const t = parseTable(JSON.stringify({ results: rows, errors: [{ code: 1 }], total: 2 }));
+  it('refuses to guess between several lists of rows that have no conventional name', () => {
+    const t = parseTable(JSON.stringify({ current: rows, previous: [{ code: 1 }], total: 2 }));
     expect(t.rows).toEqual([]);
     const [problem] = of('error', t);
-    expect(problem.message).toBe('Several keys hold rows: `results`, `errors`.');
-    expect(problem.hint).toBe('Choose one with `path:`, e.g. `path: results`.');
-    expect(errors(parseTable(JSON.stringify({ results: rows, errors: [] })))).toEqual([]);
+    expect(problem.message).toBe('Several keys hold rows: `current`, `previous`.');
+    expect(problem.hint).toBe('Choose one with `path:`, e.g. `path: current`.');
+    expect(errors(parseTable(JSON.stringify({ current: rows, previous: [] })))).toEqual([]);
+  });
+
+  it('prefers the key APIs conventionally keep their rows under', () => {
+    // Redash and many query APIs: column descriptions beside the rows.
+    const redash = parseTable({
+      columns: [
+        { name: 'region', type: 'string' },
+        { name: 'revenue', type: 'integer' },
+      ],
+      rows,
+    });
+    expect(errors(redash)).toEqual([]);
+    expect(redash.rows).toEqual(rows);
+    expect(notes(redash)).toEqual(['Read rows from `rows`.']);
+
+    const withErrors = parseTable(
+      JSON.stringify({ results: rows, errors: [{ code: 429, message: 'slow down' }] }),
+    );
+    expect(withErrors.rows).toEqual(rows);
+    expect(notes(withErrors)).toEqual(['Read rows from `results`.']);
+
+    // rows, then data, results, items, records; the name is matched whatever its case.
+    const other = [{ other: 1 }];
+    const pick = (doc: Record<string, unknown>) =>
+      notes(parseTable(doc)).find((n) => n.startsWith('Read rows from'));
+    expect(pick({ records: rows, items: other, results: other, data: other, rows: other })).toBe(
+      'Read rows from `rows`.',
+    );
+    expect(pick({ records: rows, items: other, results: other, data: other })).toBe(
+      'Read rows from `data`.',
+    );
+    expect(pick({ records: rows, items: other, results: other })).toBe('Read rows from `results`.');
+    expect(pick({ records: rows, items: other, extra: other })).toBe('Read rows from `items`.');
+    expect(pick({ records: rows, extra: other })).toBe('Read rows from `records`.');
+    expect(pick({ Extra: other, Results: rows })).toBe('Read rows from `Results`.');
+    // Only the whole name counts.
+    expect(errors(parseTable({ row_data: rows, results_v2: other }))).toEqual([
+      'Several keys hold rows: `row_data`, `results_v2`.',
+    ]);
+  });
+
+  it('applies the same preference inside the object a path resolves to', () => {
+    const doc = { query_result: { data: { columns: [{ name: 'region' }], rows } } };
+    const t = parseTable(doc, { path: 'query_result.data' });
+    expect(errors(t)).toEqual([]);
+    expect(t.rows).toEqual(rows);
+    expect(notes(t)).toEqual(['Read rows from `query_result.data.rows`.']);
+  });
+
+  it('keeps the conventional key when it is empty, instead of charting its neighbour', () => {
+    const none = parseTable({ results: [], errors: [{ code: 404, message: 'nothing found' }] });
+    expect(errors(none)).toEqual([]);
+    expect(none.rows).toEqual([]);
+    expect(notes(none)).toEqual(['Read rows from `results`.']);
+
+    const emptyQuery = parseTable({ rows: [], columns: [{ name: 'region' }, { name: 'revenue' }] });
+    expect(emptyQuery.rows).toEqual([]);
+    expect(notes(emptyQuery)).toEqual(['Read rows from `rows`.']);
+
+    const several = parseTable({ data: [], warnings: [], meta: { total: 0 } });
+    expect(errors(several)).toEqual([]);
+    expect(notes(several)).toEqual(['Read rows from `data`.']);
+
+    const beside = parseTable({ data: [], tags: ['a', 'b'] });
+    expect(beside.rows).toEqual([]);
+    expect(beside.diagnostics.map((d) => d.message)).toEqual(['Read rows from `data`.']);
+  });
+
+  it('does not take a list of arrays on its name alone, since its header may be elsewhere', () => {
+    // Metabase: `cols` describes the columns and `rows` holds bare arrays.
+    const metabase = parseTable({
+      cols: [{ name: 'region' }, { name: 'revenue' }],
+      rows: [
+        ['EMEA', 120],
+        ['APAC', 80],
+      ],
+    });
+    expect(metabase.rows).toEqual([]);
+    expect(of('error', metabase)[0]).toMatchObject({
+      message: 'Several keys hold rows: `cols`, `rows`.',
+      hint: 'Choose one with `path:`, e.g. `path: rows`. A list of arrays is read with its first array as the header.',
+    });
+    // On its own, a list of arrays is still read under its header row.
+    const sheet = parseTable({
+      rows: [
+        ['region', 'revenue'],
+        ['EMEA', 120],
+      ],
+      total: 1,
+    });
+    expect(sheet.rows).toEqual([{ region: 'EMEA', revenue: 120 }]);
   });
 
   it('still reads an object of equal-length column arrays as columns', () => {
@@ -197,27 +288,95 @@ describe('path', () => {
     });
   });
 
-  it('has no wildcards, filters, brackets or expressions', () => {
+  it('reads the JSONPath spellings of a lookup, with a note', () => {
+    const read = (path: string) => {
+      const t = parseTable(api, { path, firstLine: 6, pathLine: 3 });
+      return { rows: t.rows, notes: of('info', t), errors: errors(t) };
+    };
+    const second = [{ region: 'LATAM', revenue: 5 }];
+    const cases: [string, string, unknown[]][] = [
+      ['$.data.items', 'data.items', rows],
+      ['$.results[1].series', 'results.1.series', second],
+      ['results[1].series', 'results.1.series', second],
+      ['$["results"][1]["series"]', 'results.1.series', second],
+      ["data['items']", 'data.items', rows],
+      ['data["items"]', 'data.items', rows],
+      ["$['data'].items", 'data.items', rows],
+      ['results[ 0 ].series', 'results.0.series', rows],
+    ];
+    for (const [written, dotted, expected] of cases) {
+      const out = read(written);
+      expect(out.errors, written).toEqual([]);
+      expect(out.rows, written).toEqual(expected);
+      expect(out.notes, written).toEqual([
+        { severity: 'info', message: `Read \`${written}\` as \`${dotted}\`.`, line: 3 },
+      ]);
+    }
+    // A position at the end selects one item, which must itself hold rows.
+    expect(
+      parseTable({ data: { items: [{ series: rows }] } }, { path: 'data.items[0]' }).rows,
+    ).toEqual(rows);
+    // `$` alone is the document.
+    const whole = parseTable({ data: rows, meta: {} }, { path: '$' });
+    expect(whole.rows).toEqual(rows);
+    expect(notes(whole)).toEqual(['Read `$` as the whole document.', 'Read rows from `data`.']);
+    // The dotted form needs no note, and a key may itself start with `$`.
+    expect(parseTable(api, { path: 'data.items' }).diagnostics).toEqual([]);
+    expect(parseTable({ $values: rows, $id: '1' }, { path: '$values' }).diagnostics).toEqual([]);
+  });
+
+  it('reports a normalized path that does not resolve in its dotted form', () => {
+    const t = parseTable(api, { path: '$.results[5].series' });
+    expect(notes(t)).toEqual(['Read `$.results[5].series` as `results.5.series`.']);
+    expect(of('error', t)[0]).toMatchObject({
+      message: 'The path `results.5.series` stops at `5`: `results` has 2 items.',
+      hint: 'Positions run from 0 to 1.',
+    });
+  });
+
+  it('has no wildcards, recursive descent, filters, slices or unions', () => {
+    const hint =
+      'A path is keys and positions separated by dots, e.g. `data.items` or `results.0`. Wildcards and filters are not supported.';
     for (const path of [
       'data.*',
+      '*',
       'data[*].items',
+      '$.results[*].series',
       '$..items',
-      'data.items[?(@.x>1)]',
       'a..b',
+      'data.items[?(@.revenue>100)]',
+      'results[0:2]',
+      'results[0,1].series',
+      'results[-1].series',
+      'results[first]',
+      "data['a.b']",
+      'data[0',
+      'data.',
+      '$.',
+      'results[0]series',
       '',
     ]) {
       const result = resolveDataPath(api, path);
       expect(result.ok, path).toBe(false);
+      expect(parseDataPath(path), path).toEqual({
+        message: `\`${path}\` is not a path this language reads.`,
+        hint,
+      });
     }
-    const jsonPath = parseDataPath('$.results[0].series');
-    expect(jsonPath).toEqual({
-      message: '`$.results[0].series` is not a path this language reads.',
-      hint: 'Write `path: results.0.series`.',
+    // jq's leading dot is not read, but the hint gives the form that is.
+    expect(parseDataPath('.data.items[0]')).toEqual({
+      message: '`.data.items[0]` is not a path this language reads.',
+      hint: 'Write `path: data.items.0`.',
     });
-    expect(parseDataPath('data.*')).toMatchObject({
-      hint: 'A path is keys and positions separated by dots, e.g. `data.items` or `results.0`. Wildcards and filters are not supported.',
+    expect(parseDataPath('data.items')).toEqual({
+      segments: ['data', 'items'],
+      dotted: 'data.items',
     });
-    expect(parseDataPath('data.items')).toEqual(['data', 'items']);
+    expect(parseDataPath('$.results[0].series')).toEqual({
+      segments: ['results', '0', 'series'],
+      dotted: 'results.0.series',
+      written: '$.results[0].series',
+    });
   });
 
   it('reads own keys only', () => {
@@ -323,6 +482,58 @@ describe('compileBlock with path and refresh', () => {
     });
     expect(limited.sources[0].path).toBeUndefined();
     expect(limited.spec).toMatchObject({ limit: 5 });
+  });
+
+  it('records another spelling of a path in dotted form, with the note at the setting', () => {
+    const chart = compileBlock(
+      'line sum(value) by time\nsrc: https://api.example.com/v1/metrics\npath: $.data.items[0].series\n',
+    );
+    expect(chart.sources).toEqual([
+      {
+        name: 'url:https://api.example.com/v1/metrics path:data.items.0.series',
+        url: 'https://api.example.com/v1/metrics',
+        line: 2,
+        path: 'data.items.0.series',
+      },
+    ]);
+    expect(chart.diagnostics).toEqual([
+      {
+        severity: 'info',
+        message: 'Read `$.data.items[0].series` as `data.items.0.series`.',
+        line: 3,
+        hint: undefined,
+      },
+    ]);
+    // The same place written two ways is one source.
+    const plain = compileBlock(
+      'line sum(value) by time\nsrc: https://api.example.com/v1/metrics\npath: data.items.0.series\n',
+    );
+    expect(plain.sources[0].name).toBe(chart.sources[0].name);
+
+    const inline = compileBlock(
+      `bar sum(revenue) by region\npath: $.data["items"]\n---\n${JSON.stringify({ data: { items: rows } })}\n`,
+    );
+    expect(errors(inline)).toEqual([]);
+    expect(notes(inline)).toEqual(['Read `$.data["items"]` as `data.items`.']);
+    expect(inline.spec).toMatchObject({ component: 'BarChart', x: 'region' });
+
+    // `$` is the whole document, so nothing is recorded as a path.
+    const whole = compileBlock('table\nsrc: /rows.json\npath: $\n');
+    expect(whole.sources).toEqual([{ name: 'url:/rows.json', url: '/rows.json', line: 2 }]);
+    expect(notes(whole)).toEqual(['Read `$` as the whole document.']);
+
+    // A wildcard is still an error, reported once at the setting.
+    const wild = compileBlock(
+      `bar sum(revenue) by region\npath: $.data[*]\n---\n${JSON.stringify({ data: rows })}\n`,
+    );
+    expect(of('error', wild).filter((d) => d.message.includes('is not a path'))).toEqual([
+      {
+        severity: 'error',
+        message: '`$.data[*]` is not a path this language reads.',
+        line: 2,
+        hint: 'A path is keys and positions separated by dots, e.g. `data.items` or `results.0`. Wildcards and filters are not supported.',
+      },
+    ]);
   });
 
   it('keeps charts of one URL with different paths apart', () => {

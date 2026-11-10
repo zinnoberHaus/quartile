@@ -1,7 +1,8 @@
 /**
  * `path:` names where the rows are inside a JSON document: keys and array positions separated
  * by dots (`data.items`, `results.0.series`). It is a lookup, not a query language: there are no
- * wildcards, filters or expressions, so a block cannot compute over a response.
+ * wildcards, filters or expressions, so a block cannot compute over a response. The JSONPath
+ * spellings of the same lookup (`$.results[0].series`, `data['items']`) are read with a note.
  */
 
 export interface PathProblem {
@@ -9,7 +10,17 @@ export interface PathProblem {
   hint?: string;
 }
 
-export type PathResult = { ok: true; value: unknown } | { ok: false; problem: PathProblem };
+export interface ParsedPath {
+  segments: string[];
+  /** The path in dotted form, e.g. `results.0.series`. Empty for the whole document (`$`). */
+  dotted: string;
+  /** The text as written, when it was another spelling of the dotted form. */
+  written?: string;
+}
+
+export type PathResult =
+  | { ok: true; value: unknown; path: ParsedPath }
+  | { ok: false; problem: PathProblem; path?: ParsedPath };
 
 const SYNTAX = 'A path is keys and positions separated by dots, e.g. `data.items` or `results.0`.';
 
@@ -22,35 +33,80 @@ function list(keys: string[], max = 12): string {
   return keys.length > max ? `${shown.join(', ')} and ${keys.length - max} more` : shown.join(', ');
 }
 
-/** `$.data.items[0]` → `data.items.0`, for the hint of a path written as JSONPath. */
-function plainForm(path: string): string | undefined {
-  const plain = path
-    .replace(/^\$\.?/, '')
-    .replace(/\[\s*(\d+)\s*\]/g, '.$1')
-    .replace(/\[\s*(["'])([^"'\]]+)\1\s*\]/g, '.$2')
-    .replace(/^\./, '');
-  return plain !== path && plain !== '' && segmentsOf(plain) ? plain : undefined;
-}
-
-function segmentsOf(path: string): string[] | undefined {
-  if (/[*[\]?]/.test(path)) return undefined;
-  const segments = path.split('.').map((s) => s.trim());
-  if (segments.some((s) => s === '') || segments[0] === '$') return undefined;
-  return segments;
+/**
+ * Splits a path into segments. Besides the dotted form it reads a leading `$`, positions in
+ * brackets (`[0]`) and quoted keys in brackets (`['items']`). Anything that would select more
+ * than one place (`*`, `..`, filters, slices, unions) is not a path and returns undefined.
+ */
+function segmentsOf(text: string): { segments: string[]; dotted: boolean } | undefined {
+  const segments: string[] = [];
+  let dotted = true;
+  let i = 0;
+  // A key may start here without a dot before it: only at the very start.
+  let keyNext = true;
+  if (/^\$(?=$|[.[])/.test(text)) {
+    dotted = false;
+    keyNext = false;
+    i = 1;
+  }
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === '[') {
+      const close = text.indexOf(']', i);
+      if (close < 0) return undefined;
+      const inner = text.slice(i + 1, close).trim();
+      const quoted = /^(["'])(.*)\1$/.exec(inner);
+      if (/^\d+$/.test(inner)) segments.push(inner);
+      // A quoted key the dotted form cannot spell (it holds a dot) stays out of reach.
+      else if (quoted && quoted[2].trim() !== '' && !/[.*?[\]"']/.test(quoted[2]))
+        segments.push(quoted[2].trim());
+      else return undefined;
+      dotted = false;
+      keyNext = false;
+      i = close + 1;
+    } else if (ch === '.') {
+      // A leading dot, `..`, or a dot at the end.
+      if (keyNext || i === text.length - 1) return undefined;
+      keyNext = true;
+      i++;
+    } else {
+      if (!keyNext) return undefined;
+      let end = i;
+      while (end < text.length && text[end] !== '.' && text[end] !== '[') end++;
+      const key = text.slice(i, end).trim();
+      if (key === '' || /[*?\]]/.test(key)) return undefined;
+      segments.push(key);
+      keyNext = false;
+      i = end;
+    }
+  }
+  return segments.length === 0 && dotted ? undefined : { segments, dotted };
 }
 
 /** The path's segments, or why it is not a path. */
-export function parseDataPath(path: string): string[] | PathProblem {
+export function parseDataPath(path: string): ParsedPath | PathProblem {
   const text = path.trim();
-  const segments = text === '' ? undefined : segmentsOf(text);
-  if (segments) return segments;
-  const plain = plainForm(text);
+  const read = segmentsOf(text);
+  if (read) {
+    const dotted = read.segments.join('.');
+    return { segments: read.segments, dotted, ...(read.dotted ? {} : { written: text }) };
+  }
+  // jq writes the root as a leading dot: `.data.items`.
+  const plain = text.startsWith('.') ? segmentsOf(text.slice(1)) : undefined;
   return {
     message: `\`${text}\` is not a path this language reads.`,
-    hint: plain
-      ? `Write \`path: ${plain}\`.`
+    hint: plain?.segments.length
+      ? `Write \`path: ${plain.segments.join('.')}\`.`
       : `${SYNTAX} Wildcards and filters are not supported.`,
   };
+}
+
+/** The note for a path that was written in another spelling than the dotted one. */
+export function pathNote(path: ParsedPath | undefined): string | undefined {
+  if (path?.written === undefined) return undefined;
+  return path.dotted === ''
+    ? `Read \`${path.written}\` as the whole document.`
+    : `Read \`${path.written}\` as \`${path.dotted}\`.`;
 }
 
 function describe(value: unknown): string {
@@ -66,9 +122,10 @@ function describe(value: unknown): string {
  * that is missing and what exists at that level.
  */
 export function resolveDataPath(root: unknown, path: string): PathResult {
-  const segments = parseDataPath(path);
-  if (!Array.isArray(segments)) return { ok: false, problem: segments };
-  const written = segments.join('.');
+  const parsed = parseDataPath(path);
+  if (!('segments' in parsed)) return { ok: false, problem: parsed };
+  const { segments, dotted: written } = parsed;
+  const fail = (problem: PathProblem): PathResult => ({ ok: false, problem, path: parsed });
   let current = root;
   for (let i = 0; i < segments.length; i++) {
     const segment = segments[i];
@@ -77,51 +134,39 @@ export function resolveDataPath(root: unknown, path: string): PathResult {
     if (Array.isArray(current)) {
       const count = current.length;
       if (!/^\d+$/.test(segment)) {
-        return {
-          ok: false,
-          problem: {
-            message: `${stops}: ${where} is a list, which takes a position, not a key.`,
-            hint: count
-              ? `Use a position from 0 to ${count - 1}, or end the path at ${where} to read its items as rows.`
-              : 'That list is empty.',
-          },
-        };
+        return fail({
+          message: `${stops}: ${where} is a list, which takes a position, not a key.`,
+          hint: count
+            ? `Use a position from 0 to ${count - 1}, or end the path at ${where} to read its items as rows.`
+            : 'That list is empty.',
+        });
       }
       if (Number(segment) >= count) {
-        return {
-          ok: false,
-          problem: {
-            message: `${stops}: ${where} has ${count} ${count === 1 ? 'item' : 'items'}.`,
-            hint: count ? `Positions run from 0 to ${count - 1}.` : undefined,
-          },
-        };
+        return fail({
+          message: `${stops}: ${where} has ${count} ${count === 1 ? 'item' : 'items'}.`,
+          hint: count ? `Positions run from 0 to ${count - 1}.` : undefined,
+        });
       }
       current = current[Number(segment)];
     } else if (isRecord(current)) {
       if (!Object.hasOwn(current, segment)) {
         const keys = Object.keys(current);
         const near = keys.find((k) => k.toLowerCase() === segment.toLowerCase());
-        return {
-          ok: false,
-          problem: {
-            message: `${stops}: there is no such key at ${where}.`,
-            hint: keys.length
-              ? `${near ? `Did you mean \`${near}\`? ` : ''}Keys there: ${list(keys)}.`
-              : 'That object is empty.',
-          },
-        };
+        return fail({
+          message: `${stops}: there is no such key at ${where}.`,
+          hint: keys.length
+            ? `${near ? `Did you mean \`${near}\`? ` : ''}Keys there: ${list(keys)}.`
+            : 'That object is empty.',
+        });
       }
       current = current[segment];
     } else {
-      return {
-        ok: false,
-        problem: {
-          message: `${stops}: ${where} is ${describe(current)}, not an object or a list.`,
-        },
-      };
+      return fail({
+        message: `${stops}: ${where} is ${describe(current)}, not an object or a list.`,
+      });
     }
   }
-  return { ok: true, value: current };
+  return { ok: true, value: current, path: parsed };
 }
 
 /** Keys of a JSON object for a hint, e.g. after "no rows found". */

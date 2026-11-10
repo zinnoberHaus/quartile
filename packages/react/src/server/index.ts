@@ -27,6 +27,8 @@ export interface StaticRenderOptions {
   initialWidth?: number;
   /** How `data` blocks render. Default `summary`. */
   dataDisplay?: 'summary' | 'table' | 'hidden';
+  /** Let blocks set chart colors. Default true; false keeps the page's palette. */
+  blockColors?: boolean;
   /** Receives each block's diagnostics, e.g. to fail a docs build on errors. */
   onDiagnostics?: (diagnostics: Diagnostic[], source: string) => void;
 }
@@ -57,7 +59,10 @@ export function escapeHtml(value: string): string {
  * the embed script can replace the static drawing with the interactive one.
  */
 export function renderBlockToHTML(source: string, options: StaticRenderOptions = {}): string {
-  const compiled: CompiledBlock = compileBlock(source, { datasets: options.datasets });
+  const compiled: CompiledBlock = compileBlock(source, {
+    datasets: options.datasets,
+    blockColors: options.blockColors,
+  });
   options.onDiagnostics?.(compiled.diagnostics, source);
   const markup = renderToStaticMarkup(
     createElement(
@@ -70,6 +75,7 @@ export function renderBlockToHTML(source: string, options: StaticRenderOptions =
         timeZone: options.timeZone,
         initialWidth: options.initialWidth,
         dataDisplay: options.dataDisplay,
+        blockColors: options.blockColors,
         // Buttons need script: the embed adds them when it upgrades this markup.
         actions: false,
       },

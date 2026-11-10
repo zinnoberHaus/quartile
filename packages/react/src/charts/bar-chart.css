@@ -16,7 +16,8 @@
   transition: opacity var(--q-duration) var(--q-ease);
 }
 
-.q-bar-labels g[data-dim] {
+.q-bar-labels g[data-dim],
+.q-chart-value-labels text[data-dim] {
   opacity: 0.45;
 }
 

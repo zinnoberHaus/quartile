@@ -19,7 +19,13 @@ export interface ParsedPath {
 }
 
 export type PathResult =
-  | { ok: true; value: unknown; path: ParsedPath }
+  | {
+      ok: true;
+      value: unknown;
+      path: ParsedPath;
+      /** The object or list the last segment was read from; absent for the whole document. */
+      parent?: unknown;
+    }
   | { ok: false; problem: PathProblem; path?: ParsedPath };
 
 const SYNTAX = 'A path is keys and positions separated by dots, e.g. `data.items` or `results.0`.';
@@ -127,6 +133,7 @@ export function resolveDataPath(root: unknown, path: string): PathResult {
   const { segments, dotted: written } = parsed;
   const fail = (problem: PathProblem): PathResult => ({ ok: false, problem, path: parsed });
   let current = root;
+  let parent: unknown;
   for (let i = 0; i < segments.length; i++) {
     const segment = segments[i];
     const where = i === 0 ? 'the top level' : `\`${segments.slice(0, i).join('.')}\``;
@@ -147,6 +154,7 @@ export function resolveDataPath(root: unknown, path: string): PathResult {
           hint: count ? `Positions run from 0 to ${count - 1}.` : undefined,
         });
       }
+      parent = current;
       current = current[Number(segment)];
     } else if (isRecord(current)) {
       if (!Object.hasOwn(current, segment)) {
@@ -159,6 +167,7 @@ export function resolveDataPath(root: unknown, path: string): PathResult {
             : 'That object is empty.',
         });
       }
+      parent = current;
       current = current[segment];
     } else {
       return fail({
@@ -166,7 +175,7 @@ export function resolveDataPath(root: unknown, path: string): PathResult {
       });
     }
   }
-  return { ok: true, value: current, path: parsed };
+  return { ok: true, value: current, path: parsed, parent };
 }
 
 /** Keys of a JSON object for a hint, e.g. after "no rows found". */

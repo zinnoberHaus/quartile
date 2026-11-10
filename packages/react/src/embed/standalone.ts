@@ -5,6 +5,7 @@
  *
  * `data-sources` lists what `src:` may fetch: `none`, `same-origin` and exact origins such as
  * `https://api.example.com`. `data-min-refresh` is the shortest `refresh:` interval in seconds.
+ * `data-block-colors="off"` keeps every chart on the page's palette: blocks cannot set colors.
  *
  * On load it defines `<quartile-chart>`, upgrades ```quartile code blocks and statically
  * rendered blocks, and keeps watching for new ones (single-page docs, streaming chat).
@@ -34,6 +35,8 @@ interface GlobalConfig {
   languages?: string[];
   /** Actions views show by default (`rows`, `download`, `table`), or false for none. */
   actions?: readonly ('table' | 'rows' | 'download')[] | false;
+  /** False keeps every chart on the page's palette: blocks cannot set colors. */
+  blockColors?: boolean;
 }
 
 declare global {
@@ -59,6 +62,7 @@ function fromScript(script: HTMLScriptElement | null): GlobalConfig {
   if (d.accent) out.accent = d.accent;
   if (d.languages) out.languages = d.languages.split(/[\s,]+/).filter(Boolean);
   if (d.actions) out.actions = readActionsSetting(d.actions);
+  if (d.blockColors) out.blockColors = !['off', 'false', 'no', '0'].includes(d.blockColors);
   return out;
 }
 

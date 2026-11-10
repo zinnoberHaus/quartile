@@ -136,6 +136,11 @@
   --q-control-font: 14px;
   --q-row-h: 44px;
   --q-card-pad: 20px;
+
+  /* Charts: line weight, bar corner radius and axis label size, for every chart at once */
+  --q-chart-stroke-width: 2px;
+  --q-chart-bar-radius: 2px;
+  --q-chart-axis-font-size: 11px;
 }
 
 [data-density="compact"] {

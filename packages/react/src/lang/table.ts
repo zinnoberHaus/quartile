@@ -568,6 +568,8 @@ interface JsonRows {
   hint?: string;
   /** The key the rows were read from, when the document wraps them. */
   key?: string;
+  /** The key beside the rows that their column names were read from. */
+  header?: string;
   warning?: string;
 }
 
@@ -598,6 +600,48 @@ function conventionalKey(entries: [string, unknown][]): string | undefined {
   return undefined;
 }
 
+/** Keys that hold a table's column names beside its rows, in the order they are tried. */
+const HEADER_KEYS = ['columns', 'cols', 'fields', 'schema'];
+
+/** A column's name as an API lists it: the name itself, or the `name` of its description. */
+function headerName(entry: unknown): string | undefined {
+  // `name` first; the other spellings only for a description that has no `name` at all.
+  const name = !isRecord(entry)
+    ? entry
+    : Object.hasOwn(entry, 'name')
+      ? entry.name
+      : (entry.display_name ?? entry.field ?? entry.label);
+  if (typeof name === 'string') return name;
+  return typeof name === 'number' && Number.isFinite(name) ? String(name) : undefined;
+}
+
+/**
+ * Column names kept beside a list of bare arrays, as query APIs return them
+ * (`{ "cols": [...], "rows": [[...]] }`). They count only when there are exactly as many as the
+ * first array has values; otherwise the list is read under its own first array, as before.
+ */
+function headerBeside(
+  holder: Record<string, unknown>,
+  own: string | undefined,
+  width: number,
+): { names: string[]; key: string } | undefined {
+  const entries = Object.entries(holder);
+  for (const wanted of HEADER_KEYS) {
+    const hit = entries.find(([k]) => k !== own && k.toLowerCase() === wanted);
+    if (!hit) continue;
+    let [key, list] = hit;
+    // `schema: { fields: [...] }`
+    if (wanted === 'schema' && isRecord(list)) {
+      key = `${key}.fields`;
+      list = list.fields;
+    }
+    if (!Array.isArray(list) || list.length !== width) continue;
+    const names = list.map(headerName);
+    if (names.every((n) => n !== undefined)) return { names: names as string[], key };
+  }
+  return undefined;
+}
+
 function rowsFromColumns(entries: [string, unknown[]][]): Row[] {
   const length = Math.max(0, ...entries.map(([, v]) => v.length));
   return Array.from({ length }, (_, i) =>
@@ -605,15 +649,28 @@ function rowsFromColumns(entries: [string, unknown[]][]): Row[] {
   );
 }
 
-/** Rows of a parsed JSON value; `at` is the path already followed to it, for hints. */
-function rowsFromJson(value: unknown, at?: string): JsonRows {
+/**
+ * Rows of a parsed JSON value. `at` is the path already followed to it, for hints; `holder` is
+ * the object a list was found in, under the key `own`, where its column names may be kept.
+ */
+function rowsFromJson(
+  value: unknown,
+  at?: string,
+  holder?: Record<string, unknown>,
+  own?: string,
+): JsonRows {
   if (Array.isArray(value)) {
     if (value.every(isRecord)) return { rows: value as Row[] };
     if (value.every((v) => Array.isArray(v)) && value.length > 0) {
-      const [head, ...body] = value as unknown[][];
-      const names = columnNames(head.map(String));
+      const lists = value as unknown[][];
+      const beside = holder ? headerBeside(holder, own, lists[0].length) : undefined;
+      // Names kept beside the list leave every array a row; otherwise the first is the header.
+      const names = columnNames(beside ? beside.names : lists[0].map(String));
       return {
-        rows: body.map((r) => Object.fromEntries(names.map((n, i) => [n, r[i] ?? null]))),
+        rows: (beside ? lists : lists.slice(1)).map((r) =>
+          Object.fromEntries(names.map((n, i) => [n, r[i] ?? null])),
+        ),
+        header: beside?.key,
       };
     }
     return { rows: [], problem: 'Expected an array of objects or an array of arrays.' };
@@ -638,15 +695,20 @@ function rowsFromJson(value: unknown, at?: string): JsonRows {
     const namedList = named === undefined ? [] : (value[named] as unknown[]);
     const namedEmpty = named !== undefined && namedList.length === 0;
     if (candidates.length === 1 && !namedEmpty) {
-      return { ...rowsFromJson(value[candidates[0]]), key: candidates[0] };
+      const key = candidates[0];
+      return { ...rowsFromJson(value[key], undefined, value, key), key };
     }
     if (candidates.length >= 1) {
-      // Among several lists, objects under a conventional key are taken. Arrays are not: they
-      // need a header row, which a document with several lists may keep in another of them.
-      if (named !== undefined && namedList.every(isRecord)) {
-        return { rows: namedList as Row[], key: named };
+      // Among several lists, objects under a conventional key are taken. Arrays are taken only
+      // with their column names beside them: without, the header row they need may be one of
+      // the other lists.
+      if (named !== undefined) {
+        const read = rowsFromJson(namedList, undefined, value, named);
+        if (namedList.every(isRecord) || read.header !== undefined) return { ...read, key: named };
       }
-      const pick = named ?? candidates[0];
+      // The example names a list of rows rather than the descriptions of its columns.
+      const pick =
+        named ?? candidates.find((k) => !HEADER_KEYS.includes(k.toLowerCase())) ?? candidates[0];
       const example = at === undefined ? pick : `${at}.${pick}`;
       return {
         rows: [],
@@ -748,6 +810,10 @@ export function parseTable(input: unknown, options: TableOptions = {}): ParsedTa
     const pathLine = options.pathLine ?? firstLine;
     let value: unknown = input;
     let path = options.path;
+    // The object that holds the list of rows, the list's key in it, and the path to that object.
+    let holder: Record<string, unknown> | undefined;
+    let own: string | undefined;
+    let holderPath: string | undefined;
     if (typeof input === 'string') {
       try {
         value = JSON.parse(input);
@@ -780,8 +846,14 @@ export function parseTable(input: unknown, options: TableOptions = {}): ParsedTa
       value = resolved.value;
       // From here on the path is its dotted form; `$` alone is the document, like no path.
       path = resolved.path.dotted || undefined;
+      // A path that ends at the list itself: its column names may be kept beside it.
+      if (Array.isArray(value) && isRecord(resolved.parent)) {
+        holder = resolved.parent;
+        own = resolved.path.segments.at(-1);
+        holderPath = resolved.path.segments.slice(0, -1).join('.') || undefined;
+      }
     }
-    const read = rowsFromJson(value, path);
+    const read = rowsFromJson(value, path, holder, own);
     const { rows } = read;
     if (read.problem) {
       diagnostics.push(
@@ -794,6 +866,11 @@ export function parseTable(input: unknown, options: TableOptions = {}): ParsedTa
     if (read.key !== undefined) {
       const at = path === undefined ? read.key : `${path}.${read.key}`;
       diagnostics.push(info(`Read rows from \`${at}\`.`, firstLine));
+      holderPath = path;
+    }
+    if (read.header !== undefined) {
+      const at = holderPath === undefined ? read.header : `${holderPath}.${read.header}`;
+      diagnostics.push(info(`Read column names from \`${at}\`.`, firstLine));
     }
     const typed = typeJsonRows(rows.slice(0, maxRows));
     if (rows.length > maxRows) {

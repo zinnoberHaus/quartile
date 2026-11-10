@@ -86,9 +86,14 @@
 
 .q-chart-axis text {
   font-family: var(--q-font-mono);
-  font-size: 11px;
+  font-size: var(--q-chart-axis-font-size, 11px);
   fill: var(--q-text-3);
   font-variant-numeric: tabular-nums;
+}
+
+/* Series lines. The token wins over the width written on the element for pages without CSS. */
+.q-chart-line {
+  stroke-width: var(--q-chart-stroke-width, 2px);
 }
 
 .q-chart-baseline {
@@ -466,4 +471,94 @@ button.q-legend-item:focus-visible {
   margin-top: 8px;
   padding-top: 6px;
   border-top: 1px solid color-mix(in srgb, var(--q-inverse-text) 20%, transparent);
+}
+
+/* Reference rules: a dashed hairline at a value, with its text at the end. */
+.q-chart-reference line {
+  stroke: var(--q-text-2);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+  shape-rendering: crispEdges;
+}
+
+.q-chart-reference text {
+  font: 500 var(--q-chart-axis-font-size, 11px) var(--q-font-mono);
+  fill: var(--q-text-2);
+  paint-order: stroke;
+  stroke: var(--q-surface);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+/* Direct labels: values on bars, names and last values at line ends. */
+.q-chart-end-labels text,
+.q-chart-value-labels text {
+  font: 500 var(--q-chart-axis-font-size, 11px) var(--q-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A halo in the surface color keeps a value readable where a rule or gridline crosses it. */
+.q-chart-value-labels text {
+  fill: var(--q-text);
+  paint-order: stroke;
+  stroke: var(--q-surface);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.q-chart-note {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  max-width: 100%;
+  padding: 2px 6px;
+  border-radius: var(--q-radius-xs);
+  background: var(--q-subtle);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--q-text-2);
+  pointer-events: none;
+}
+
+/* A legend beside the plot: one column, long names cut with an ellipsis. */
+.q-chart-side {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.q-chart-side > .q-legend {
+  flex: none;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 6px;
+  height: auto;
+  min-width: 0;
+  padding-top: 8px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.q-chart-side > .q-legend .q-legend-item {
+  max-width: 100%;
+}
+
+.q-chart-side > .q-legend .q-legend-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.q-chart-side > .q-legend .q-legend-swatch {
+  flex: none;
+}
+
+.q-legend[data-position="bottom"] {
+  align-items: flex-end;
+  align-content: flex-end;
+}
+
+.q-legend[data-position="top"] {
+  align-items: flex-start;
+  align-content: flex-start;
 }

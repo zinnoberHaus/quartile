@@ -35,6 +35,8 @@ export interface QuartileDocumentContextValue {
   loaded: Readonly<Record<string, DataInput>>;
   streaming: boolean;
   dataDisplay: DataDisplay;
+  /** Whether blocks may set chart colors. */
+  blockColors: boolean;
   languages: readonly string[];
   /**
    * Registers a `data` block's rows under its name; `key` identifies the definition and `basis`
@@ -112,6 +114,11 @@ export interface QuartileDocumentProps extends Omit<QuartileProviderProps, 'chil
   pending?: readonly string[];
   /** How `data` blocks render: a collapsed summary (default), an open table, or nothing. */
   dataDisplay?: DataDisplay;
+  /**
+   * Let blocks set chart colors (`colors:`, `color: #2f45e8`). Defaults to true. Pass false to
+   * keep every chart on the page's own palette; the setting is then dropped with a note.
+   */
+  blockColors?: boolean;
   /** Fence languages read as Quartile blocks. Defaults to `quartile`. */
   languages?: readonly string[];
   /** Wrap children in a QuartileProvider (default). Pass false inside an existing provider. */
@@ -174,6 +181,7 @@ function DocumentScope({
   streaming = false,
   pending: hostPending,
   dataDisplay = 'summary',
+  blockColors = true,
   languages = DEFAULT_LANGUAGES,
   provider = true,
   stores: externalStores,
@@ -351,6 +359,7 @@ function DocumentScope({
       loaded,
       streaming,
       dataDisplay,
+      blockColors,
       languages,
       register,
       unregister,
@@ -372,6 +381,7 @@ function DocumentScope({
       loaded,
       streaming,
       dataDisplay,
+      blockColors,
       languages,
       register,
       unregister,

@@ -594,6 +594,7 @@ function viewWords(): string {
     'sparkline',
     'kpi',
     'table',
+    'explorer',
     'filters',
   ]
     .filter((k) => kindWords().includes(k))

@@ -5,6 +5,11 @@ import type { PropEntry } from './parse';
 
 const NONE = new Set(['none', 'no', 'off', 'false']);
 
+/** "A bar", "An area": a kind with its article, to start a message. */
+export function article(kind: string): string {
+  return `${/^[aeiou]/i.test(kind) ? 'An' : 'A'} ${kind}`;
+}
+
 /** The actions a setting names, in toolbar order. Words that are not actions are reported. */
 export function parseActions(prop: PropEntry, diagnostics: Diagnostic[]): ViewAction[] {
   const words = prop.value
@@ -45,7 +50,7 @@ export function supportedActions(
       if (possible.includes(action)) continue;
       report.diagnostics.push(
         warning(
-          `A ${report.kind} has no “${action}” action; it was ignored.`,
+          `${article(report.kind)} has no “${action}” action; it was ignored.`,
           report.line,
           possible.length ? `It can show: ${possible.join(', ')}.` : undefined,
         ),

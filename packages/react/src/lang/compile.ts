@@ -14,7 +14,7 @@ import {
   type SpecComponentName,
 } from '../spec/schema';
 import { type SpecError, validateSpec } from '../spec/validate';
-import { parseActions, supportedActions } from './actions';
+import { article, parseActions, supportedActions } from './actions';
 import { type Diagnostic, error, hasErrors, info, warning } from './diagnostics';
 import { readFormat } from './formats';
 import { KINDS, type KindDef, PROPERTY_ALIASES, type ViewKind } from './kinds';
@@ -82,6 +82,7 @@ const SPANS: Record<ViewKind, number> = {
   funnel: 4,
   filters: 12,
   table: 12,
+  explorer: 12,
   calendar: 12,
   sankey: 12,
   line: 6,
@@ -604,6 +605,8 @@ function fieldsOfProp(value: unknown): string[] {
 function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
   const def = KINDS[view.kind];
   const component = def.component;
+  // Tables and explorers share their column, sort and grouping settings.
+  const tabular = component === 'DataTable' || component === 'DataExplorer';
   const schemaProps = componentProps(component);
   const diagnostics = ctx.diagnostics;
   const lines = new Map<string, number>();
@@ -744,8 +747,10 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
     let key = canonicalProp(p.norm, component);
     if (key === 'kind') {
       // `view: table` reaches a view only as a display choice; a table is already one.
-      if (p.norm === 'view' && component !== 'DataTable' && /^table$/i.test(p.value.trim())) {
-        diagnostics.push(warning(`A ${view.kind} has no table view; “view” was ignored.`, p.line));
+      if (p.norm === 'view' && !tabular && /^table$/i.test(p.value.trim())) {
+        diagnostics.push(
+          warning(`${article(view.kind)} has no table view; “view” was ignored.`, p.line),
+        );
       }
       continue;
     }
@@ -794,7 +799,7 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
       );
       continue;
     }
-    if (component === 'DataTable' && key === 'sort') {
+    if (tabular && key === 'sort') {
       const desc = /^-|\s+desc(ending)?$/i.test(p.value.trim());
       const name = p.value
         .trim()
@@ -986,7 +991,7 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
       // BarList, DonutChart, Heatmap and CalendarHeatmap count rows when `value` is omitted.
       delete spec[def.measure];
       if (component === 'Heatmap' || component === 'CalendarHeatmap') spec.countLabel ??= 'Rows';
-    } else if (component === 'DataTable') {
+    } else if (tabular) {
       const group = typeof spec.groupBy === 'string' ? spec.groupBy : undefined;
       spec.columns = (spec.columns as Record<string, unknown>[]).map((c) => {
         if (c.field !== '__count__') return c;
@@ -1103,7 +1108,7 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
   if (
     ctx.inDashboard &&
     spec.title === undefined &&
-    !['KPI', 'DataTable', 'FilterBar'].includes(component)
+    !['KPI', 'DataTable', 'DataExplorer', 'FilterBar'].includes(component)
   ) {
     const labelOf = (f: string) =>
       f === countName
@@ -1357,6 +1362,7 @@ function inferEncodings(
       pick('value', quantitative(), 'first numeric column');
       break;
     case 'table':
+    case 'explorer':
       if (spec.columns === undefined) {
         const columns =
           typeof spec.groupBy === 'string'

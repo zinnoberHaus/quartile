@@ -489,6 +489,32 @@ const COMPONENT_DEFS: Record<string, JsonSchema> = {
     ['columns'],
     { chart: false },
   ),
+  DataExplorer: component(
+    'DataExplorer',
+    'A table readers can search, filter, sort, group and export. Its own filters stay local; the shared selection narrows its rows first.',
+    {
+      columns: {
+        type: 'array',
+        items: ref('Column'),
+        minItems: 1,
+        description: 'Columns in order.',
+      },
+      pageSize: int('Rows per page to start with.', 1, 1000),
+      sort: {
+        type: 'string',
+        pattern: '^-?[^-].*$',
+        description: 'Column key to sort by first; prefix "-" for descending.',
+      },
+      groupBy: field('Start grouped by this field; columns aggregate.'),
+      search: bool('Show the search box. Defaults to true.'),
+      export: bool('Offer CSV export of the matching rows. Defaults to true.'),
+      caption: str('Line under the title.'),
+      noun: str('Plural noun for the page label.'),
+      height: { type: 'number', minimum: 120, description: 'Scroller height in px.' },
+    },
+    ['columns'],
+    { chart: false },
+  ),
   FilterBar: component(
     'FilterBar',
     'Chips that mirror the selection, with menus to set values.',
@@ -549,6 +575,7 @@ export type SpecComponentName =
   | 'Sankey'
   | 'KPI'
   | 'DataTable'
+  | 'DataExplorer'
   | 'FilterBar';
 
 /** A field name, or a field with display overrides. */

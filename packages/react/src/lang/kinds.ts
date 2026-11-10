@@ -20,6 +20,7 @@ export type ViewKind =
   | 'box'
   | 'kpi'
   | 'table'
+  | 'explorer'
   | 'filters';
 
 export type BlockKind = ViewKind | 'data' | 'dashboard';
@@ -170,6 +171,13 @@ export const KINDS: Record<ViewKind, KindDef> = {
     measureType: 'columns',
     dims: ['groupBy'],
   },
+  explorer: {
+    kind: 'explorer',
+    component: 'DataExplorer',
+    measure: 'columns',
+    measureType: 'columns',
+    dims: ['groupBy'],
+  },
   filters: {
     kind: 'filters',
     component: 'FilterBar',
@@ -202,6 +210,7 @@ alias('sankey', ['sankey', 'flow', 'flows', 'alluvial']);
 alias('box', ['box', 'boxplot', 'boxes', 'boxandwhisker', 'whisker']);
 alias('kpi', ['kpi', 'kpis', 'metric', 'stat', 'number', 'bignumber', 'bigvalue', 'scorecard']);
 alias('table', ['table', 'datatable', 'grid']);
+alias('explorer', ['explorer', 'dataexplorer', 'explore']);
 alias('filters', ['filters', 'filter', 'filterbar']);
 alias('data', ['data', 'dataset']);
 alias('dashboard', ['dashboard', 'board', 'report']);

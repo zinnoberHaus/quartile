@@ -13,6 +13,7 @@ import { dataset, resolveData } from '../data/schema';
 import type { DataInput, FieldOverride, Row } from '../data/types';
 import * as DataDisplay from '../data-display';
 import { aggregateRows } from '../data-display/shared';
+import { parseSort } from '../data-display/table-model';
 import { IconAlertCircle } from '../icons';
 import { cx } from '../lib/cx';
 import { useQuartile } from '../provider/QuartileProvider';
@@ -20,7 +21,7 @@ import { AppliedPredicatesContext } from '../selection/appliedPredicates';
 import { Selection, useSelection, useSourceId } from '../selection/Selection';
 import type { SelectionChange } from '../selection/store';
 import { SelectionWatch } from '../selection/watch';
-import { resolveActions, type ViewAction } from './actions';
+import { csvFileName, resolveActions, type ViewAction } from './actions';
 import { formatAsOf, hostOf, httpUrl, type Provenance, provenanceText } from './provenance';
 import type { ComponentSpec, DashboardSpec, SpecComponentName } from './schema';
 import { RowsPanel, ViewToolbar } from './ViewActions';
@@ -97,6 +98,7 @@ const SHAPES: Record<
     span: 3,
   },
   DataTable: { dims: ['groupBy', 'select'], measures: [], frame: 'bare', span: 12 },
+  DataExplorer: { dims: ['groupBy'], measures: [], frame: 'bare', span: 12 },
   FilterBar: { dims: [], measures: [], frame: 'bare', span: 12 },
 };
 
@@ -263,7 +265,26 @@ function useSpecProps(spec: ComponentSpec, input: DataInput | undefined) {
       rows = dataset(raw, fields);
     }
     if (rows !== undefined) props.data = rows;
-    if (spec.component === 'DataTable') {
+    if (spec.component === 'DataExplorer') {
+      // The explorer keeps its state itself: what a spec sets is where a reader starts.
+      const { pageSize, sort, groupBy, search, export: exportable, ...rest } = props;
+      for (const key of Object.keys(props)) delete props[key];
+      const first = parseSort(typeof sort === 'string' ? sort : null);
+      const order = new Map(resolveData(input).rows.map((row, index) => [row as object, index]));
+      Object.assign(props, rest, {
+        defaultView: {
+          ...(typeof pageSize === 'number' ? { pageSize } : null),
+          ...(first ? { sorts: [first] } : null),
+          ...(typeof groupBy === 'string' ? { groupBy } : null),
+        },
+        searchable: search !== false,
+        exportable: exportable !== false,
+        exportFileName: csvFileName(spec.title),
+        // Rows carry no key of their own in a block: their place in the dataset identifies them.
+        rowKey: (row: Row, index: number) => String(order.get(row) ?? index),
+      });
+    }
+    if (spec.component === 'DataTable' || spec.component === 'DataExplorer') {
       if (spec.title !== undefined) props.title = spec.title;
       if (spec.description !== undefined && props.caption === undefined)
         props.caption = spec.description;

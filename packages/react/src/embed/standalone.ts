@@ -18,6 +18,7 @@ import {
   upgradeBlocks,
 } from './element';
 import type { SourcePolicy } from './scope';
+import { embedGroups, embedSelection } from './selection';
 
 interface GlobalConfig {
   auto?: boolean;
@@ -72,6 +73,8 @@ if (typeof document !== 'undefined' && config.auto !== false) {
 
 export {
   configureEmbed as configure,
+  embedGroups as groups,
+  embedSelection as selection,
   observeBlocks as observe,
   QuartileChartElement,
   upgradeBlocks as upgrade,

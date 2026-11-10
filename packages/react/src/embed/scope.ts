@@ -117,6 +117,11 @@ export class PageScope {
     return s;
   };
 
+  /** Names of the selection groups used so far, in the order they were first used. */
+  groups(): string[] {
+    return [...this.stores.keys()];
+  }
+
   /** The loader elements receive, honoring the page's source policy. Undefined when off. */
   loader(): ((url: string, signal: AbortSignal) => Promise<DataInput | string>) | undefined {
     if (this.options.loadSource) return this.options.loadSource;

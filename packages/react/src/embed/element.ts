@@ -16,7 +16,15 @@ import {
   type HostTheme,
   type ThemeSetting,
 } from '../provider/QuartileProvider';
+import type { SelectionChange, SelectionStore } from '../selection/store';
 import { type EmbedOptions, pageScope } from './scope';
+import { actingElement, elementStore, type QuartileSelectDetail } from './selection';
+
+declare global {
+  interface GlobalEventHandlersEventMap {
+    'quartile-select': CustomEvent<QuartileSelectDetail>;
+  }
+}
 
 let cssText = '';
 let sheet: CSSStyleSheet | null | undefined;
@@ -94,7 +102,11 @@ export class QuartileChartElement extends HTMLElement {
   #mount: HTMLDivElement | null = null;
   #source: string | null = null;
   #unsubscribe: (() => void) | null = null;
-  #owner = `qe${++counter}`;
+  #number = ++counter;
+  #owner = `qe${this.#number}`;
+  /** The selection group of a block that stands alone: elements are numbered as created. */
+  #group = `block-${this.#number}`;
+  #stores = new Map<string, SelectionStore>();
   #defined: string | null = null;
   /** The loaded rows this element last described, so a reload re-registers exactly once. */
   #described: unknown = null;
@@ -196,6 +208,32 @@ export class QuartileChartElement extends HTMLElement {
     return dedent(this.textContent ?? '');
   }
 
+  /** The page's store for a group, with this element recorded as the place the reader acted. */
+  #store = (group: string): SelectionStore => {
+    let store = this.#stores.get(group);
+    if (!store) {
+      // The element's own group was named by the page, not the author: give it an unnamed id.
+      store = elementStore(group, this, group === this.#group ? `selection:${group}` : undefined);
+      this.#stores.set(group, store);
+    }
+    return store;
+  };
+
+  /**
+   * Tells the page that this element's selection group changed. Every element of the group
+   * dispatches the event; `origin` is true only where the reader acted, so a listener on the
+   * document can handle each action once.
+   */
+  #announce = (change: SelectionChange) => {
+    this.dispatchEvent(
+      new CustomEvent<QuartileSelectDetail>('quartile-select', {
+        bubbles: true,
+        composed: true,
+        detail: { ...change, origin: actingElement() === this },
+      }),
+    );
+  };
+
   /** Page data changed: describe newly loaded rows of this element's data block, then render. */
   #onScope() {
     const name = this.#sourceName;
@@ -244,7 +282,8 @@ export class QuartileChartElement extends HTMLElement {
         {
           data: scope.datasets,
           pending: scope.pending,
-          stores: scope.store,
+          stores: this.#store,
+          onSelectionChange: this.#announce,
           loadSource: scope.loader() ? (url: string) => scope.load(url) : undefined,
           languages: scope.options.languages ?? DEFAULT_LANGUAGES,
           theme: theme && THEMES.has(theme) ? theme : defaults.theme,
@@ -264,6 +303,7 @@ export class QuartileChartElement extends HTMLElement {
         createElement(QuartileBlock, {
           source: this.source,
           streaming: this.#streaming || undefined,
+          group: this.#group,
         }),
       ),
     );

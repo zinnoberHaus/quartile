@@ -1,4 +1,13 @@
-import { type CSSProperties, type ReactNode, useEffect, useId, useMemo, useRef } from 'react';
+import {
+  type CSSProperties,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { ChartState } from '../charts/core/ChartFrame';
 import { resolveData } from '../data/schema';
 import type { DataInput } from '../data/types';
@@ -6,7 +15,9 @@ import { type CompiledBlock, compileBlock } from '../lang/compile';
 import { type Diagnostic, hasErrors } from '../lang/diagnostics';
 import { parseBlock } from '../lang/parse';
 import { cx } from '../lib/cx';
-import { SelectionStoreProvider } from '../selection/Selection';
+import { Selection, SelectionStoreProvider, useSelectionStore } from '../selection/Selection';
+import { type SelectionChange, type SelectionEvent, SelectionStore } from '../selection/store';
+import { SelectionWatch } from '../selection/watch';
 import { SpecView } from '../spec/SpecView';
 import { type DataDisplay, useQuartileDocument } from './QuartileDocument';
 
@@ -23,6 +34,14 @@ export interface QuartileBlockProps {
   onDiagnostics?: (diagnostics: Diagnostic[], compiled: CompiledBlock) => void;
   /** Replaces the default view of a block that cannot be drawn. */
   renderError?: (props: { source: string; diagnostics: Diagnostic[] }) => ReactNode;
+  /**
+   * Names the block's selection group when it stands alone (its own rows, or `link: no`).
+   * Defaults to `block-<n>`, n being the block's number in its document. Blocks that link by
+   * `link:` or by a named dataset keep that name.
+   */
+  group?: string;
+  /** Called after every change of the selection group this block takes part in. */
+  onSelectionChange?: (change: SelectionChange) => void;
   className?: string;
   style?: CSSProperties;
 }
@@ -41,11 +60,14 @@ export function QuartileBlock({
   dataDisplay: dataDisplayProp,
   onDiagnostics,
   renderError,
+  group,
+  onSelectionChange,
   className,
   style,
 }: QuartileBlockProps) {
   const doc = useQuartileDocument();
   const owner = useId();
+  const standalone = group ?? `block-${doc?.blockNumber(owner) ?? 1}`;
   const streaming = streamingProp ?? doc?.streaming ?? false;
   const dataDisplay = dataDisplayProp ?? doc?.dataDisplay ?? 'summary';
   const datasets = useMemo(
@@ -128,16 +150,16 @@ export function QuartileBlock({
     );
   } else if (failed && compiled.type === 'dashboard' && compiled.spec) {
     // Valid views still render; the broken ones are listed under the dashboard.
-    const view = (
-      <SpecView spec={compiled.spec} data={compiled.data} linked={!!(compiled.link && doc)} />
-    );
     body = (
       <>
-        {compiled.link && doc ? (
-          <SelectionStoreProvider store={doc.store(compiled.link)}>{view}</SelectionStoreProvider>
-        ) : (
-          view
-        )}
+        <BlockSelection
+          compiled={compiled}
+          standalone={standalone}
+          anonymous={group === undefined}
+          onChange={onSelectionChange}
+        >
+          <SpecView spec={compiled.spec} data={compiled.data} linked />
+        </BlockSelection>
         <BlockError title="Some views could not be drawn" diagnostics={errors} source={source} />
       </>
     );
@@ -152,15 +174,16 @@ export function QuartileBlock({
   } else if (compiled.type === 'data') {
     body = <DataBlock compiled={compiled} display={dataDisplay} />;
   } else {
-    const view = (
-      <SpecView spec={compiled.spec} data={compiled.data} linked={!!(compiled.link && doc)} />
+    body = (
+      <BlockSelection
+        compiled={compiled}
+        standalone={standalone}
+        anonymous={group === undefined}
+        onChange={onSelectionChange}
+      >
+        <SpecView spec={compiled.spec} data={compiled.data} linked />
+      </BlockSelection>
     );
-    body =
-      compiled.link && doc ? (
-        <SelectionStoreProvider store={doc.store(compiled.link)}>{view}</SelectionStoreProvider>
-      ) : (
-        view
-      );
   }
   if (body === null) return null;
   return (
@@ -173,6 +196,78 @@ export function QuartileBlock({
     >
       {body}
     </div>
+  );
+}
+
+/**
+ * Puts a block's views in their selection group and reports the group's changes. A block linked
+ * by `link:` or a named dataset shares the document's store for that name; one that stands alone
+ * gets a store of its own under `standalone`, which the document can still reach by name. A lone
+ * chart inside a host's `<Selection>` keeps using it.
+ */
+function BlockSelection({
+  compiled,
+  standalone,
+  anonymous,
+  onChange,
+  children,
+}: {
+  compiled: CompiledBlock;
+  standalone: string;
+  anonymous: boolean;
+  onChange?: (change: SelectionChange) => void;
+  children: ReactNode;
+}) {
+  const doc = useQuartileDocument();
+  const nearest = useSelectionStore();
+  const id = useId();
+  const [own] = useState(() => new SelectionStore(`selection:${id}`));
+  const listener = useRef(onChange);
+  listener.current = onChange;
+  const notify = doc?.selectionChanged;
+  const report = useCallback(
+    (change: SelectionChange, event: SelectionEvent) => {
+      listener.current?.(change);
+      notify?.(change, event);
+    },
+    [notify],
+  );
+  const dashboard = compiled.type === 'dashboard';
+  // A JSON dashboard that names its selection keeps that id, registered for `useSelection(id)`.
+  const named = dashboard
+    ? (compiled.spec as { selection?: unknown } | undefined)?.selection
+    : null;
+  let name: string | undefined;
+  let store: SelectionStore | null = null;
+  if (compiled.link && doc) {
+    name = compiled.link;
+    store = doc.store(name);
+  } else if (typeof named !== 'string' && (dashboard || !nearest)) {
+    name = doc ? standalone : (compiled.link ?? standalone);
+    store = doc ? doc.store(name, anonymous) : own;
+  }
+  const watch = <SelectionWatch group={name} onChange={report} />;
+  if (store) {
+    return (
+      <SelectionStoreProvider store={store}>
+        {watch}
+        {children}
+      </SelectionStoreProvider>
+    );
+  }
+  if (typeof named === 'string') {
+    return (
+      <Selection id={named}>
+        {watch}
+        {children}
+      </Selection>
+    );
+  }
+  return (
+    <>
+      {watch}
+      {children}
+    </>
   );
 }
 

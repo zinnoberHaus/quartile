@@ -14,7 +14,7 @@ import type { DataInput } from '../data/types';
 import { DEFAULT_LANGUAGES, findFencedBlocks, scanDocument } from '../lang/document';
 import { parseTable } from '../lang/table';
 import { QuartileProvider, type QuartileProviderProps } from '../provider/QuartileProvider';
-import { SelectionStore } from '../selection/store';
+import { type SelectionChange, type SelectionEvent, SelectionStore } from '../selection/store';
 
 export type DataDisplay = 'summary' | 'table' | 'hidden';
 
@@ -35,8 +35,15 @@ export interface QuartileDocumentContextValue {
   requestSource(name: string, url: string): void;
   /** True when the host supplied a loader. */
   canLoad: boolean;
-  /** The shared selection for blocks that link on `group`. */
-  store(group: string): SelectionStore;
+  /**
+   * The selection store of `group`, created on first use: a dataset name, a `link:` name, or a
+   * standalone block's `block-<n>`. `anonymous` marks a group the document named itself.
+   */
+  store(group: string, anonymous?: boolean): SelectionStore;
+  /** 1-based number of a block among the document's blocks, in the order they first render. */
+  blockNumber(owner: string): number;
+  /** Passes a block's selection change to `onSelectionChange`, once per store event. */
+  selectionChanged(change: SelectionChange, event: SelectionEvent): void;
   /**
    * Whether the document's Markdown closes the fence holding `source`: true for finished
    * blocks of a streaming answer, undefined when the document was not given its Markdown.
@@ -82,6 +89,12 @@ export interface QuartileDocumentProps extends Omit<QuartileProviderProps, 'chil
    * example separate embedded elements on one page) so they share selections.
    */
   stores?: (group: string) => SelectionStore;
+  /**
+   * Called after every change of a selection group the document's blocks take part in, once per
+   * change however many blocks share the group. Groups are named by `link:`, else by the
+   * dataset, else `block-<n>` for a block with its own rows.
+   */
+  onSelectionChange?: (change: SelectionChange) => void;
   children?: ReactNode;
 }
 
@@ -114,6 +127,7 @@ export function QuartileDocument({
   languages = DEFAULT_LANGUAGES,
   provider = true,
   stores: externalStores,
+  onSelectionChange,
   children,
   ...providerProps
 }: QuartileDocumentProps) {
@@ -216,17 +230,40 @@ export function QuartileDocument({
   }, [scanned, data, requestSource]);
 
   const store = useCallback(
-    (group: string) => {
+    (group: string, anonymous = false) => {
       if (externalStores) return externalStores(group);
       let s = stores.current.get(group);
       if (!s) {
-        s = new SelectionStore(`doc${docId.replace(/[^a-zA-Z0-9]/g, '')}-${group}`);
+        const id = `${docId.replace(/[^a-zA-Z0-9]/g, '')}-${group}`;
+        // Components that print a store's id treat "selection" plus a separator as unnamed.
+        s = new SelectionStore(anonymous ? `selection:${id}` : `doc${id}`);
         stores.current.set(group, s);
       }
       return s;
     },
     [docId, externalStores],
   );
+
+  // Numbers are handed out during render, so server and client count blocks in the same order.
+  const numbers = useRef(new Map<string, number>());
+  const blockNumber = useCallback((owner: string) => {
+    let n = numbers.current.get(owner);
+    if (n === undefined) {
+      n = numbers.current.size + 1;
+      numbers.current.set(owner, n);
+    }
+    return n;
+  }, []);
+
+  const selectionListener = useRef(onSelectionChange);
+  selectionListener.current = onSelectionChange;
+  const lastSelectionEvent = useRef<SelectionEvent | null>(null);
+  // Every block over a group reports the same store event; the host hears it once.
+  const selectionChanged = useCallback((change: SelectionChange, event: SelectionEvent) => {
+    if (lastSelectionEvent.current === event) return;
+    lastSelectionEvent.current = event;
+    selectionListener.current?.(change);
+  }, []);
 
   const value = useMemo<QuartileDocumentContextValue>(
     () => ({
@@ -241,6 +278,8 @@ export function QuartileDocument({
       requestSource,
       canLoad: !!loadSource,
       store,
+      blockNumber,
+      selectionChanged,
       isClosed: (source: string) => closedSources?.has(source.trimEnd()),
     }),
     [
@@ -255,6 +294,8 @@ export function QuartileDocument({
       requestSource,
       loadSource,
       store,
+      blockNumber,
+      selectionChanged,
       closedSources,
     ],
   );

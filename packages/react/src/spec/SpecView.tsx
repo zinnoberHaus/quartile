@@ -9,6 +9,8 @@ import { IconAlertCircle } from '../icons';
 import { cx } from '../lib/cx';
 import { AppliedPredicatesContext } from '../selection/appliedPredicates';
 import { Selection, useSelection } from '../selection/Selection';
+import type { SelectionChange } from '../selection/store';
+import { SelectionWatch } from '../selection/watch';
 import type { ComponentSpec, DashboardSpec, SpecComponentName } from './schema';
 import { isDashboardSpec, type SpecError, validateSpec } from './validate';
 
@@ -22,6 +24,12 @@ export interface SpecViewProps {
    * nearest enclosing Selection instead, sharing filters with views outside the spec.
    */
   linked?: boolean;
+  /**
+   * Called after every change of the selection the spec's views use: a Dashboard's own
+   * selection, or the nearest enclosing one (with `linked`, and for a single component).
+   * `group` is that selection's id; name a Dashboard's with `selection` to keep it stable.
+   */
+  onSelectionChange?: (change: SelectionChange) => void;
   className?: string;
   style?: CSSProperties;
 }
@@ -336,11 +344,20 @@ function errorsUnder(errors: SpecError[], prefix: string): SpecError[] {
  * validated first; invalid items, unknown components and missing datasets render an inline
  * error card in their place instead of throwing.
  */
-export function SpecView({ spec, data, linked, className, style }: SpecViewProps) {
+export function SpecView({
+  spec,
+  data,
+  linked,
+  onSelectionChange,
+  className,
+  style,
+}: SpecViewProps) {
   const result = useMemo(() => validateSpec(spec), [spec]);
+  const watch = onSelectionChange ? <SelectionWatch onChange={onSelectionChange} /> : null;
   if (!isDashboardSpec(spec)) {
     return (
       <div className={cx('q-spec', className)} style={style}>
+        {watch}
         <SpecItem spec={spec as ComponentSpec} data={data} errors={result.errors} />
       </div>
     );
@@ -384,9 +401,13 @@ export function SpecView({ spec, data, linked, className, style }: SpecViewProps
         </div>
       )}
       {linked ? (
-        body
+        <>
+          {watch}
+          {body}
+        </>
       ) : (
         <Selection id={typeof dash.selection === 'string' ? dash.selection : undefined}>
+          {watch}
           {body}
         </Selection>
       )}

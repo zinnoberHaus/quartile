@@ -5,7 +5,6 @@
 import { derivedFrom } from '../data/origin';
 import { dataset, humanize, resolveData } from '../data/schema';
 import type { DataInput, Dataset, FieldDef, Formatter, Row } from '../data/types';
-import type { ViewAction } from '../spec/actions';
 import {
   type ComponentSpec,
   type DashboardSpec,
@@ -432,8 +431,6 @@ interface ViewContext {
   inDashboard: boolean;
   complete: boolean;
   diagnostics: Diagnostic[];
-  /** A dashboard's `actions:`, the default for its views. */
-  actions?: ViewAction[];
   blockColors: boolean;
 }
 
@@ -871,9 +868,6 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
     }
   }
   Object.assign(spec, readProvenance(view.props, diagnostics, dataProp));
-  if (spec.actions === undefined && ctx.actions) {
-    spec.actions = supportedActions(ctx.actions, component);
-  }
   for (const [k, v] of Object.entries(view.implied)) if (spec[k] === undefined) spec[k] = v;
   finishStyle(style);
 
@@ -1165,7 +1159,16 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
       spec.title = dims.length ? `${what} by ${dims.join(' and ')}` : what;
     }
   }
-  if (ctx.inDashboard && def.link && spec[def.link] === undefined && def.link in schemaProps) {
+  // The view's selection group: `link: name`, else its named dataset; null when it stands alone.
+  const group =
+    link === null
+      ? null
+      : (link ??
+        (Object.hasOwn(ctx.datasets, dataName) || ctx.pending.has(dataName) ? dataName : null));
+  // A view in a named group publishes like one in a dashboard, so blocks over one dataset
+  // filter each other. A block with its own rows publishes only when it asks.
+  const publishes = ctx.inDashboard || group !== null;
+  if (publishes && def.link && spec[def.link] === undefined && def.link in schemaProps) {
     if (!(def.link === 'brush' && spec.brush === false)) spec[def.link] = true;
   }
 
@@ -1245,13 +1248,7 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
   for (const e of result.errors) diagnostics.push(specError(e, lines, view.line, view.kind));
   if (!result.valid) return { pending: false, dataName, link: null };
 
-  const named = Object.hasOwn(ctx.datasets, dataName) || ctx.pending.has(dataName);
-  return {
-    spec,
-    dataName,
-    pending: false,
-    link: link === null ? null : (link ?? (named ? dataName : null)),
-  };
+  return { spec, dataName, pending: false, link: group };
 }
 
 /** Drops undefined keys and writes `{ field }` as the plain field name. */
@@ -1737,8 +1734,6 @@ export function compileBlock(
     diagnostics,
     blockColors: options.blockColors !== false,
   };
-  const dashboardActions = block.props.find((p) => p.norm === 'actions');
-  if (dashboardActions) ctx.actions = parseActions(dashboardActions, diagnostics);
 
   if (block.type === 'view') {
     const view = block.views[0];
@@ -1792,6 +1787,15 @@ export function compileBlock(
     if (title) dash.title = title;
     if (description) dash.description = description;
     Object.assign(dash, readProvenance(block.props, diagnostics, dashboardData));
+    // Written before the first view, actions are the dashboard's own: one toolbar for its rows.
+    const actionsProp = block.props.find((p) => p.norm === 'actions');
+    if (actionsProp) {
+      dash.actions = supportedActions(parseActions(actionsProp, diagnostics), 'Dashboard', {
+        kind: 'dashboard',
+        line: actionsProp.line,
+        diagnostics,
+      }).filter((action) => action !== 'table');
+    }
     result.spec = dash;
   }
   return result;

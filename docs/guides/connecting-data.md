@@ -1,6 +1,8 @@
 # Bring your data to linked charts
 
-Start with the dataset explorer at `/examples/explore` in the local gallery (`pnpm dev`). Import a CSV/JSON file or open **Load from a data URL**. Choose a numeric measure and a categorical group; selecting a category updates the distribution, field profile and records. Search and table filters also refine the charts. Clear the selection or restore the sample to start again.
+This page covers the dataset explorer example and React components. For the rows of a `quartile` block (`data:`, `src:`, `path:`, `refresh:`), see [data sources](data-sources.md).
+
+Start with the dataset explorer at `/examples/explore` in the local examples app (`pnpm dev`), or [open the published one](https://docs.usequartile.com/examples/explore). Import a CSV/JSON file or open **Load from a data URL**. Choose a numeric measure and a categorical group; selecting a category updates the distribution, field profile and records. Search and table filters also refine the charts. Clear the selection or restore the sample to start again.
 
 ## Choose a data path
 
@@ -33,7 +35,7 @@ The explorer accepts a nonempty JSON row array or a metadata envelope:
 
 Use a public HTTP(S) URL or a browser-accessible application endpoint returning that shape. Choose CSV or JSON explicitly when an endpoint's extension and content type do not describe its response. URL imports send no cookies, authorization headers or referrer. Cross-origin sources must allow access through CORS; Quartile does not proxy around a source's access policy. Keep database passwords and service keys on your server.
 
-Use HTTPS on the deployed gallery: browsers normally block an insecure remote response from a secure page. HTTP is accepted by the loader for environments whose browser policy permits it. Auto format checks the response content type, then a CSV filename suffix, otherwise trying JSON. A receipt timestamp describes the browser's successful load, not when the provider published the data.
+Use HTTPS on the deployed examples app: browsers normally block an insecure remote response from a secure page. HTTP is accepted by the loader for environments whose browser policy permits it. Auto format checks the response content type, then a CSV filename suffix, otherwise trying JSON. A receipt timestamp describes the browser's successful load, not when the provider published the data.
 
 Both file and URL imports accept up to 5 MB, 10,000 rows and 64 fields. URL responses are checked while streaming, including when the server omits Content-Length; requests time out after 15 seconds. Cells must be scalar values or null. Nested API envelopes, pagination and database protocols need an application adapter. CSV numeric inference preserves leading-zero IDs and oversized integers as strings; represent large integer IDs as strings in JSON too. Use field metadata for numeric IDs that should be categories and ambiguous dates.
 

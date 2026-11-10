@@ -6,7 +6,7 @@ For answers written as Markdown, the [Quartile language](../language.md) is usua
 
 For visual composition without a model, use [Studio](studio.md). It connects public API data, edits six view types and exports native React code. Its versioned project includes source configuration and editor blocks; it is a separate document from a bare Dashboard spec.
 
-For an existing workspace where a user asks for a filter, sort, chart or table change, use the separate optional [analysis-assistance API](ai-assistance.md). `AnalysisPlan` and `analysisPlanSchema` describe reviewed actions; `QuartileSpec` and `schema.json` describe dashboard layouts. They are distinct contracts. The [assistant demo](https://quartile-design.vercel.app/examples/assistant) starts with a labeled deterministic planner and can connect an application-owned model backend. The JSON editor below remains a local spec editor.
+For an existing workspace where a user asks for a filter, sort, chart or table change, use the separate optional [analysis-assistance API](ai-assistance.md). `AnalysisPlan` and `analysisPlanSchema` describe reviewed actions; `QuartileSpec` and `schema.json` describe dashboard layouts. They are distinct contracts. The [assistant demo](https://docs.usequartile.com/examples/assistant) starts with a labeled deterministic planner and can connect an application-owned model backend. The JSON editor below remains a local spec editor.
 
 ```tsx
 import { SpecView, validateSpec } from '@quartile/react';
@@ -48,4 +48,4 @@ Never evaluate model-generated JavaScript, forward arbitrary dataset URLs, or tr
 
 An encoding such as `y: { field: 'amount', aggregate: 'sum' }` asks the spec renderer to aggregate the measure by the view's dimensions. Filtering occurs before that aggregation. Use matching field names across views, and supply raw rows when selections need dimensions not present in preaggregated data.
 
-Try the [editable playground](https://quartile-design.vercel.app/examples/ai-dashboard). It provides a complete local example of validation success, invalid JSON, unknown components, and linked aggregation without a model dependency.
+Try the [editable playground](https://docs.usequartile.com/examples/ai-dashboard). It provides a complete local example of validation success, invalid JSON, unknown components, and linked aggregation without a model dependency.

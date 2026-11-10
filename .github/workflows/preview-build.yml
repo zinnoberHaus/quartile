@@ -30,17 +30,21 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
+      - name: Stamp the preview version
+        # Only in this build: the package then reports the preview version it was published as.
+        env:
+          TAG: ${{ inputs.tag }}
+        run: npm pkg set version="${TAG#v}"
+        working-directory: packages/react
       - name: Build, pack and verify the package
         run: |
           pnpm build:lib
           pnpm --filter @quartile/react test:package
       - name: Collect the files
-        env:
-          TAG: ${{ inputs.tag }}
         run: |
-          mkdir -p artifacts pack
-          pnpm --dir packages/react pack --pack-destination "$PWD/pack"
-          cp pack/*.tgz "artifacts/quartile-react-${TAG#v}.tgz"
+          mkdir -p artifacts
+          pnpm --dir packages/react pack --pack-destination "$PWD/artifacts"
+          ls artifacts
           cp packages/react/dist/embed/quartile.global.js packages/react/dist/embed/quartile.js artifacts/
           (cd artifacts && sha256sum -- * > SHA256SUMS.txt && cat SHA256SUMS.txt)
       - name: Create the pre-release

@@ -1,3 +1,4 @@
+export type { SelectionHandle } from './handle';
 export type { LinkedDataOptions, SelectionApi, SelectionProps } from './Selection';
 export {
   Selection,

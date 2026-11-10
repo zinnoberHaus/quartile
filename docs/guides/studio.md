@@ -1,10 +1,10 @@
 # Visual Studio
 
-[Open Quartile Studio](https://quartile-design.vercel.app/studio) to connect a public API, arrange charts and tables, and export the result into your codebase. It is a bounded example application built with Quartile, with no account requirement. Use [React components directly](installation.md) when your application needs a custom workflow.
+[Open Quartile Studio](https://docs.usequartile.com/examples/studio) to connect a public API, arrange charts and tables, and export the result into your codebase. It is a bounded example application built with Quartile, with no account requirement. Use [React components directly](installation.md) when your application needs a custom workflow.
 
 ## Start with an API
 
-Choose [weather](https://quartile-design.vercel.app/studio?source=weather), [earthquakes](https://quartile-design.vercel.app/studio?source=earthquakes) or [development](https://quartile-design.vercel.app/studio?source=development). Each template makes a real browser request to its named provider. Loading, failure, cancellation and empty responses are visible; errors never become fabricated records. Retry or refresh starts another request. There is no automatic polling.
+Choose [weather](https://docs.usequartile.com/examples/studio?source=weather), [earthquakes](https://docs.usequartile.com/examples/studio?source=earthquakes) or [development](https://docs.usequartile.com/examples/studio?source=development). Each template makes a real browser request to its named provider. Loading, failure, cancellation and empty responses are visible; errors never become fabricated records. Retry or refresh starts another request. There is no automatic polling.
 
 The source information includes the requested URL, receipt time, row count, attribution and interpretation warnings. Read [API data](api-data.md) for the endpoints, units, missing-value semantics and provider terms. Open-Meteo's free endpoint is for non-commercial use; its data license and service-access terms are separate.
 

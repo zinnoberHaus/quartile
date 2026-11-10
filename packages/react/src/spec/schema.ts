@@ -801,6 +801,8 @@ export interface DashboardSpec {
   source?: string;
   sourceUrl?: string;
   asOf?: string;
+  /** The dashboard's own controls: the rows of its dataset, and their download. */
+  actions?: ('rows' | 'download')[];
   layout: ComponentSpec[];
 }
 
@@ -951,6 +953,12 @@ export const quartileSchema = {
           description: 'Selection id the components share.',
         },
         ...PROVENANCE,
+        actions: {
+          type: 'array',
+          items: { enum: ['rows', 'download'] },
+          description:
+            'Controls of the dashboard itself, one toolbar in its header: `rows` opens the rows of the dataset its views share, under the current selection, and `download` saves them as CSV. When the views read several datasets, the list is the default for each view instead. A chart’s `table` switch is set on the chart.',
+        },
         layout: { type: 'array', items: ref('Spec'), minItems: 1, description: 'Items in order.' },
       },
       required: ['layout'],

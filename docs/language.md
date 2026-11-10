@@ -1,6 +1,6 @@
 # The Quartile Markdown language
 
-**Version 1 · preview.** A Quartile block is a fenced code block with the language `quartile`. It describes a chart, a dashboard or a dataset in a few lines of text that people and language models can write, and that any page can render: in React, on a server for search engines, or with one script tag. In a Markdown renderer that does not know Quartile, the block stays a readable code block, so the data is never lost.
+**Version 1 · preview.** A Quartile block is a fenced code block with the language `quartile`. It describes a chart, a KPI, a table, a dashboard or a dataset in a few lines of text that people and language models can write. A page renders it in React, on a server for search engines, or with one script tag. In a Markdown renderer that does not know Quartile, the block stays a readable code block, so the data stays readable.
 
 ````markdown
 ```quartile
@@ -15,7 +15,7 @@ Americas,2100000
 ```
 ````
 
-This page is the reference. To render blocks, see [Markdown and documentation sites](guides/markdown.md), [AI answers](guides/ai-responses.md), [embedding](guides/embedding.md), [server rendering](guides/server-rendering.md) and [dbt](guides/dbt.md). The design rationale is [ADR 0007](decisions/0007-markdown-language-and-embedding.md); the evidence is the [November research](research/markdown-ai-embedding-2026-11.md). Try blocks in the [live playground](https://quartile-design.vercel.app/language).
+This page is the reference. To render blocks, see [Markdown and documentation sites](guides/markdown.md), [AI answers](guides/ai-responses.md), [embedding](guides/embedding.md), [server rendering](guides/server-rendering.md) and [dbt](guides/dbt.md). Where a block's rows come from is covered in depth in [data sources](guides/data-sources.md). To check blocks from the command line, see [`quartile check`](guides/coding-agents.md#quartile-check). The design rationale is [ADR 0007](decisions/0007-markdown-language-and-embedding.md); the evidence is the [November research](research/markdown-ai-embedding-2026-11.md). Try blocks in the [live playground](https://docs.usequartile.com/examples/playground).
 
 ## 1. Shape of a block
 
@@ -122,8 +122,10 @@ A setting is `key: value`. Keys ignore case, spaces, hyphens and underscores (`x
 | `subtitle` | `description`, `caption`, `desc`, `summary` | One line under the title. |
 | `note` | `footnote`, `tooltip` | Plain-text context in tooltips and the accessible description. |
 | `format` | `yformat`, `valueformat`, `numberformat` | Display format of the measure field (section 5). Axes keep compact ticks. |
-| `data` | `dataset`, `source` | Name of a dataset (section 6). |
+| `data` | `dataset` | Name of a dataset (section 6). |
 | `src` | `url` | A URL the host may load (section 6). |
+| `path` | `rowspath`, `datapath`, `jsonpath` | Where the rows are inside JSON: keys and positions separated by dots, such as `data.items` (section 6). |
+| `refresh` | | How often to reload a `src:` URL: `30s`, `5m`, `1h` or a number of seconds; `off` for none (section 6). |
 | `span` | `cols`, `colspan` | Columns (1–12) in a dashboard. |
 | `link` | | `no` to keep a view out of its dataset's shared selection, or a group name. |
 | `version` | | The language version; `1` today. Others render with a warning. |
@@ -169,7 +171,7 @@ After `---`, the first non-blank line decides the format:
 
 | Starts with | Read as |
 |---|---|
-| `[` or `{` | JSON: an array of objects, an array of arrays with a header row, an object of column arrays, or `{ "rows": [...] }` |
+| `[` or `{` | JSON: an array of objects, an array of arrays with a header row, an object of column arrays, or an object that wraps one of those (see [JSON envelopes](#json-envelopes-and-path)) |
 | `\|` | A Markdown table; alignment rows are skipped and `**emphasis**` and `` `code` `` are unwrapped |
 | anything else | Delimited text with a header row: tabs when tabs are at least as common as commas, semicolons when more common than commas, otherwise commas (RFC 4180 quoting) |
 
@@ -182,6 +184,32 @@ Each column is typed from all its values:
 - **Text:** anything else.
 
 In CSV, a row with too many values caused by an unquoted thousands separator (`Europe,1,200`) is repaired when joining digit groups restores the column count, with a note. Other extra values are dropped with a warning. Duplicate column names get a suffix (`amount_2`). A block keeps at most 5,000 rows by default.
+
+### JSON envelopes and `path:`
+
+JSON from an API usually wraps its rows. `path:` names where they are: keys and list positions separated by dots, counted from 0.
+
+````markdown
+```quartile
+bar sum(revenue) by region
+path: data.items
+---
+{"status": "ok", "data": {"items": [{"region": "EMEA", "revenue": 1200000}, {"region": "APAC", "revenue": 860000}], "total": 2}}
+```
+````
+
+- `path:` applies to JSON after `---` and to the JSON response of a `src:` URL. On CSV or a Markdown table it is ignored with a warning.
+- The JSONPath spellings of the same lookup are read, with a note that gives the dotted form: `$.data.items`, `results[0].series`, `data['items']`. `$` alone is the whole document.
+- A path selects one place. Wildcards, `..`, filters, slices, unions and negative positions are errors, so a block cannot query or compute over a response.
+- A path that does not resolve is an error that names the first missing segment and the keys at that level: ``The path `data.itemz` stops at `itemz`: there is no such key at `data`. Keys there: `items`, `total`.``
+
+Without a path, these shapes are read as they are, each with a note such as ``Read rows from `data`.``:
+
+- An object in which one key holds a list of rows beside metadata: `{ "data": [...], "meta": {...} }`.
+- An object in which several keys hold lists of rows, when one of them is named `rows`, `data`, `results`, `items` or `records`. That key is read, first match in that order, in any letter case.
+- A list of bare arrays beside a key named `columns`, `cols`, `fields` or `schema` that names the columns, as strings or as objects with a `name`: `{ "columns": ["region", "revenue"], "rows": [["EMEA", 1200000]] }`. The names are used when there are as many as the first array has values.
+
+Otherwise the block does not guess: ``Several keys hold rows: `current`, `previous`.`` with the hint to choose one with `path:`. The [data sources guide](guides/data-sources.md#5-json-apis-and-path) has more examples and the full list of messages.
 
 ### Named datasets
 
@@ -200,9 +228,26 @@ month,region,revenue
 
 Any block in the same document reads it with `data: sales`, before or after the definition. Hosts may also provide datasets by name (React `QuartileDocument data`, server `datasets`). When a document has exactly one dataset, views without `data:` use it.
 
-### Remote data
+### Remote data and refresh
 
-`src: sales.csv` asks the host to load a URL; in a `data` block the rows are registered under the block's name. Nothing is fetched by the language. React pages load only through a `loadSource` function they supply; the embed script fetches only when the page allows it (`data-sources="same-origin"`), and then only from the page's own origin. Without permission the block says that the page does not load remote data. Hosts may define their own URL schemes for their loaders, for example a warehouse query name.
+`src: sales.csv` asks the host to load a URL (`url:` is the same setting). The response may be CSV, TSV, a Markdown table or JSON, and `path:` applies to JSON. In a `data` block the rows are registered under the block's name; in a dashboard, `src:` is written before the first view.
+
+```text
+line sum(visitors) by day
+src: https://api.example.com/v1/analytics/visitors?range=7d
+path: data.results
+refresh: 5m
+```
+
+`refresh:` reloads the URL on a timer: `30s`, `5m`, `1h`, or a number of seconds; `off` switches it off. The host sets the shortest interval (10 seconds by default), and a shorter value is raised to it with a note. `refresh:` needs `src:` in the same block; elsewhere it is ignored with a warning. Static output loads a source once.
+
+Nothing is fetched by the language. A block only names the URL:
+
+- React pages load only through a `loadSource` function they supply, such as the one `createSourceLoader({ origins })` returns.
+- The embed script fetches only from what the page lists in `data-sources`: `same-origin` and exact origins such as `https://api.example.com`. The default is `none`.
+- Without permission the block says that the page does not load remote data.
+
+A loader that the host writes itself receives the `src:` text as written, so it may define its own names, for example a warehouse query name. The packaged loader reads `http:` and `https:` URLs only. See [data sources](guides/data-sources.md) for the loader, authentication, limits and error messages.
 
 ## 7. Compilation
 
@@ -241,14 +286,27 @@ A block may be rendered while it is still being written:
 - The last line is held back until the next line starts or the block completes, because Markdown renderers append a newline to code blocks while the fence is open.
 - The chart appears as soon as the header, the needed settings and the first complete row are present, and grows with each row. Before that, a placeholder keeps the block's space.
 - Errors are reported only when the block is complete, so a half-written column name is never shown as a mistake.
+- JSON rows read through `path:` wait for the whole JSON document, because a path cannot be followed through half of one.
+- A `src:` URL is requested once its block is complete.
 
 ## 11. Diagnostics
 
 Every problem carries a severity, a message, the 1-based line within the block and, where useful, a hint (the real columns, the closest setting). **Errors** stop a view from rendering: the block shows the messages and its source instead of a wrong chart. In a dashboard, valid views still render. **Warnings** (a corrected spelling, an ignored setting) and **notes** (an inferred encoding, a parsed percentage) render normally and are available to hosts through `onDiagnostics` and `compileBlock`.
 
+The [`quartile check`](guides/coding-agents.md#quartile-check) command prints the same diagnostics for the blocks in Markdown files, with their line in the file, so a docs build, a CI job or a coding agent can validate blocks without rendering them.
+
 ## 12. Safety
 
-Blocks are data. The language has no expressions, scripts, HTML, styles, SQL, imports or event handlers; text renders as text. Remote data is loaded only by a host that opts in (section 6). Inline rows are capped. Colors and fonts come from the page, so a block cannot imitate a page's interface beyond its charts.
+Blocks are data. The language has no expressions, scripts, HTML, styles, SQL, imports or event handlers; text renders as text.
+
+- **Remote data needs the host's permission.** A block can name a URL; it cannot make a page fetch it. A host opts in with a loader or a list of exact origins (section 6), and the default is none. The packaged loader reads `http:` and `https:` URLs only, sends cookies to the page's own origin only, and limits the size and time of a response.
+- **A block cannot set request headers.** Headers such as an API key come from host code.
+- **`path:` is a lookup.** It has no wildcards, filters or expressions, and it reads own keys only.
+- **`refresh:` has a floor** that the host sets.
+- **Rows are capped.** A block keeps 5,000 inline rows by default.
+- **Colors and fonts come from the page**, so a block cannot imitate a page's interface beyond its charts.
+
+The reasons are in the [security model](guides/data-sources.md#12-security-model) of the data sources guide.
 
 ## 13. Versions
 

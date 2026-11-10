@@ -1,8 +1,8 @@
 # Connect API data
 
-For CSV/JSON files or an application-provided snapshot URL, start with [connecting data](connecting-data.md). The recipes below use Studio's distinct JSON adapter and its smaller, explicitly bounded response contract.
+For the rows of a `quartile` block (`data:`, `src:`, `path:`, `refresh:`), see [data sources](data-sources.md). For CSV/JSON files or an application-provided snapshot URL in the dataset explorer, start with [connecting data](connecting-data.md). The recipes below use Studio's distinct JSON adapter and its smaller, explicitly bounded response contract.
 
-Quartile accepts rows and field metadata. Your application owns the request, authorization, caching and refresh policy. The public [Studio](https://quartile-design.vercel.app/studio) demonstrates three real, unauthenticated API requests and a custom JSON source. It displays request failures; it never replaces a failed response with sample records.
+Quartile accepts rows and field metadata. Your application owns the request, authorization, caching and refresh policy. The public [Studio](https://docs.usequartile.com/examples/studio) demonstrates three real, unauthenticated API requests and a custom JSON source. It displays request failures; it never replaces a failed response with sample records.
 
 Use the [Studio guide](studio.md) to build visually and download a React starter. For an existing React app, [install the preview](installation.md) and copy the standalone [source helper](../../apps/gallery/src/examples/studio/sources.ts) into your app as `quartile-data.ts`. This is example application code, not an export from `@quartile/react`.
 
@@ -43,7 +43,7 @@ The caller must distinguish idle, loading, success, empty, error and cancellatio
 
 ## Weather
 
-[Open the weather template](https://quartile-design.vercel.app/studio?source=weather). The preset requests seven days of hourly model forecasts for New York (`40.7128, -74.0060`) from [Open-Meteo's Forecast API](https://open-meteo.com/en/docs), explicitly choosing UTC, Celsius, mm and km/h. It validates the returned units and aligned column lengths before producing rows.
+[Open the weather template](https://docs.usequartile.com/examples/studio?source=weather). The preset requests seven days of hourly model forecasts for New York (`40.7128, -74.0060`) from [Open-Meteo's Forecast API](https://open-meteo.com/en/docs), explicitly choosing UTC, Celsius, mm and km/h. It validates the returned units and aligned column lengths before producing rows.
 
 | Field | Meaning |
 | --- | --- |
@@ -60,7 +60,7 @@ Attribute Open-Meteo and retain the CC BY 4.0 data credit. The free endpoint's [
 
 ## Earthquakes
 
-[Open the earthquakes template](https://quartile-design.vercel.app/studio?source=earthquakes). The [USGS past-day GeoJSON summary](https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php) supplies one row per reported event. The preset calls `https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson` and preserves event identity and type.
+[Open the earthquakes template](https://docs.usequartile.com/examples/studio?source=earthquakes). The [USGS past-day GeoJSON summary](https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php) supplies one row per reported event. The preset calls `https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson` and preserves event identity and type.
 
 | Fields | Meaning |
 | --- | --- |
@@ -75,7 +75,7 @@ The provider updates the daily feed every minute; Studio requests it on load or 
 
 ## Development
 
-[Open the development template](https://quartile-design.vercel.app/studio?source=development). The World Bank v2 API provides [life expectancy at birth, total, in years](https://data.worldbank.org/indicator/SP.DYN.LE00.IN), indicator `SP.DYN.LE00.IN`. The bounded query selects twelve countries and 2014–2023:
+[Open the development template](https://docs.usequartile.com/examples/studio?source=development). The World Bank v2 API provides [life expectancy at birth, total, in years](https://data.worldbank.org/indicator/SP.DYN.LE00.IN), indicator `SP.DYN.LE00.IN`. The bounded query selects twelve countries and 2014–2023:
 
 ```text
 https://api.worldbank.org/v2/country/USA;CAN;BRA;GBR;DEU;FRA;IND;CHN;JPN;AUS;ZAF;NGA/indicator/SP.DYN.LE00.IN?date=2014:2023&format=json&per_page=5000

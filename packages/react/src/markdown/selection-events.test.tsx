@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { useState } from 'react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { createRef, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import { describe, expect, it, vi } from 'vitest';
 import { predicateValueLabel } from '../data/predicates';
@@ -7,7 +7,11 @@ import { Selection, useSelection } from '../selection/Selection';
 import { type SelectionChange, SelectionStore } from '../selection/store';
 import { SpecView } from '../spec/SpecView';
 import { QuartileBlock } from './QuartileBlock';
-import { QuartileDocument, useQuartileDocument } from './QuartileDocument';
+import {
+  QuartileDocument,
+  type QuartileDocumentHandle,
+  useQuartileDocument,
+} from './QuartileDocument';
 import { QuartilePre } from './renderers';
 
 const orders = [
@@ -171,6 +175,154 @@ describe('onSelectionChange', () => {
       group: 'regions',
       predicates: [{ field: 'region', op: 'in', value: ['APAC'] }],
     });
+  });
+});
+
+describe('the document handle', () => {
+  it('reads, sets, clears and watches a group by name through a ref', () => {
+    const ref = createRef<QuartileDocumentHandle>();
+    const onDocument = vi.fn();
+    render(
+      <QuartileDocument ref={ref} data={{ orders }} onSelectionChange={onDocument}>
+        <QuartileBlock source={list} />
+        <QuartileBlock source={kpi} />
+        <QuartileBlock source={inlineDashboard} />
+      </QuartileDocument>,
+    );
+    const doc = ref.current!;
+    expect(doc.groups()).toEqual(['orders', 'block-3']);
+    const selection = doc.selection('orders');
+    const seen: number[] = [];
+    const stop = selection.subscribe((predicates) => seen.push(predicates.length));
+    expect(selection.get()).toEqual([]);
+
+    act(() => selection.set('region', 'APAC'));
+    expect(total('Revenue')).toContain('$80');
+    expect(selection.get()).toMatchObject([{ field: 'region', op: 'eq', value: 'APAC' }]);
+    // The host is told about its own change like any other, once.
+    expect(onDocument).toHaveBeenCalledTimes(1);
+    expect(onDocument.mock.calls[0][0]).toMatchObject({ group: 'orders' });
+    // The standalone dashboard is another group: untouched.
+    expect(total('Sales total')).toContain('$240');
+
+    act(() => selection.set('region', ['EMEA', 'APAC']));
+    act(() => selection.set('amount', [100, 500], { op: 'between' }));
+    expect(selection.get().map((p) => p.op)).toEqual(['in', 'between']);
+    expect(total('Revenue')).toContain('$120');
+    act(() => selection.clear('amount'));
+    expect(total('Revenue')).toContain('$240');
+    act(() => selection.clear());
+    expect(selection.get()).toEqual([]);
+    expect(seen).toEqual([1, 1, 2, 1, 0]);
+    stop();
+
+    // A reader's click is visible through the handle, and the handle can undo it.
+    fireEvent.click(screen.getAllByRole('button', { name: /^APAC/ })[1]);
+    expect(doc.selection('block-3').get()).toMatchObject([{ field: 'region', value: ['APAC'] }]);
+    expect(total('Sales total')).toContain('$80');
+    act(() => doc.selection('block-3').clear());
+    expect(total('Sales total')).toContain('$240');
+    expect(seen).toHaveLength(5);
+    expect(() => doc.selection('')).toThrow(TypeError);
+    expect(() => selection.set('amount', 1, { op: 'between' })).toThrow(/\[min, max\]/);
+  });
+
+  it('lets a button outside the document clear a selection', () => {
+    function Page() {
+      const doc = useRef<QuartileDocumentHandle>(null);
+      return (
+        <>
+          <button type="button" onClick={() => doc.current?.selection('orders').clear()}>
+            Show all regions
+          </button>
+          <QuartileDocument ref={doc} data={{ orders }}>
+            <QuartileBlock source={list} />
+            <QuartileBlock source={kpi} />
+          </QuartileDocument>
+        </>
+      );
+    }
+    render(<Page />);
+    apac();
+    expect(total('Revenue')).toContain('$80');
+    fireEvent.click(screen.getByRole('button', { name: 'Show all regions' }));
+    expect(total('Revenue')).toContain('$240');
+  });
+
+  it('names the groups of a host stores factory too', () => {
+    const ref = createRef<QuartileDocumentHandle>();
+    const stores = new Map<string, SelectionStore>();
+    const store = (group: string) => {
+      let s = stores.get(group);
+      if (!s) {
+        s = new SelectionStore(group);
+        stores.set(group, s);
+      }
+      return s;
+    };
+    render(
+      <QuartileDocument ref={ref} data={{ orders }} stores={store}>
+        <QuartileBlock source={list} />
+        <QuartileBlock source={kpi} />
+      </QuartileDocument>,
+    );
+    expect(ref.current?.groups()).toEqual(['orders']);
+    act(() => ref.current?.selection('orders').set('region', 'EMEA'));
+    expect(stores.get('orders')?.getSnapshot()).toHaveLength(1);
+    expect(total('Revenue')).toContain('$160');
+  });
+});
+
+describe('blocks over one dataset', () => {
+  const data = `data sales\n---\n${csv}`;
+
+  it('filter each other without a select: line', () => {
+    const onDocument = vi.fn();
+    render(
+      <QuartileDocument onSelectionChange={onDocument}>
+        <QuartileBlock source={'barlist sum(amount) by region\ndata: sales\n'} />
+        <QuartileBlock source={'kpi sum(amount) as "Revenue"\ndata: sales\n'} />
+        <QuartileBlock source={data} dataDisplay="hidden" />
+      </QuartileDocument>,
+    );
+    expect(total('Revenue')).toContain('$240');
+    apac();
+    expect(total('Revenue')).toContain('$80');
+    expect(onDocument).toHaveBeenCalledTimes(1);
+    expect(onDocument.mock.calls[0][0]).toMatchObject({
+      group: 'sales',
+      predicates: [{ field: 'region', op: 'in', value: ['APAC'] }],
+    });
+  });
+
+  it('stay still for a view that opts out', () => {
+    const onDocument = vi.fn();
+    render(
+      <QuartileDocument onSelectionChange={onDocument}>
+        <QuartileBlock source={'barlist sum(amount) by region\nselect: no\ndata: sales\n'} />
+        <QuartileBlock source={'kpi sum(amount) as "Revenue"\ndata: sales\n'} />
+        <QuartileBlock source={data} dataDisplay="hidden" />
+      </QuartileDocument>,
+    );
+    expect(screen.getAllByText('APAC').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: /^APAC/ })).toBeNull();
+    fireEvent.click(screen.getAllByText('APAC')[0]);
+    expect(total('Revenue')).toContain('$240');
+    expect(onDocument).not.toHaveBeenCalled();
+  });
+
+  it('leave a lone chart with its own rows as it was: not clickable unless it asks', () => {
+    const onChange = vi.fn();
+    render(
+      <QuartileBlock
+        source={`barlist sum(amount) by region\n---\n${csv}`}
+        onSelectionChange={onChange}
+      />,
+    );
+    expect(screen.getAllByText('APAC').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button')).toBeNull();
+    fireEvent.click(screen.getAllByText('APAC')[0]);
+    expect(onChange).not.toHaveBeenCalled();
   });
 });
 

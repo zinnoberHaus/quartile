@@ -4,10 +4,10 @@ Quartile supplies an inspectable React surface around data preparation and model
 
 | Task | Runnable example | Implementation |
 | --- | --- | --- |
-| Profile and explore a dataset | [Dataset explorer](https://quartile-design.vercel.app/examples/explore) | [Science workspace](../../apps/gallery/src/examples/science) |
-| Compare return activity by cohort | [Cohort retention](https://quartile-design.vercel.app/examples/cohorts) | [Exact calculations](../../apps/gallery/src/examples/science/analysis.ts) |
-| Inspect model thresholds and errors | [Model evaluation](https://quartile-design.vercel.app/examples/model-evaluation) | [Fixtures and calculations](../../apps/gallery/src/examples/science) |
-| Review a proposed analysis view | [Assistant](https://quartile-design.vercel.app/examples/assistant) | [Optional AI entry](../../packages/react/src/ai) |
+| Profile and explore a dataset | [Dataset explorer](https://docs.usequartile.com/examples/explore) | [Science workspace](../../apps/gallery/src/examples/science) |
+| Compare return activity by cohort | [Cohort retention](https://docs.usequartile.com/examples/cohorts) | [Exact calculations](../../apps/gallery/src/examples/science/analysis.ts) |
+| Inspect model thresholds and errors | [Model evaluation](https://docs.usequartile.com/examples/model-evaluation) | [Fixtures and calculations](../../apps/gallery/src/examples/science) |
+| Review a proposed analysis view | [Assistant](https://docs.usequartile.com/examples/assistant) | [Optional AI entry](../../packages/react/src/ai) |
 
 ## Profiling and exploratory analysis
 

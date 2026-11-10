@@ -9,6 +9,7 @@ import {
 import * as Charts from '../charts';
 import { specColors } from '../charts/core/colors';
 import { FigureDescriptionContext } from '../charts/core/figure-context';
+import { originOf } from '../data/origin';
 import { applyPredicates, type Predicate } from '../data/predicates';
 import { dataset, resolveData } from '../data/schema';
 import type { DataInput, FieldOverride, Row } from '../data/types';
@@ -19,10 +20,10 @@ import { IconAlertCircle } from '../icons';
 import { cx } from '../lib/cx';
 import { useQuartile } from '../provider/QuartileProvider';
 import { AppliedPredicatesContext } from '../selection/appliedPredicates';
-import { Selection, useSelection, useSourceId } from '../selection/Selection';
+import { Selection, useSelection } from '../selection/Selection';
 import type { SelectionChange } from '../selection/store';
 import { SelectionWatch } from '../selection/watch';
-import { csvFileName, resolveActions, type ViewAction } from './actions';
+import { csvFileName, knownActions, resolveActions, type ViewAction } from './actions';
 import { formatAsOf, hostOf, httpUrl, type Provenance, provenanceText } from './provenance';
 import type { ComponentSpec, DashboardSpec, SpecComponentName } from './schema';
 import { RowsPanel, ViewToolbar } from './ViewActions';
@@ -113,22 +114,6 @@ const META_KEYS = new Set([
   'sourceUrl',
   'asOf',
   'actions',
-]);
-
-/** Components that publish to the selection under the `id` they are given. */
-const PUBLISHERS = new Set<SpecComponentName>([
-  'LineChart',
-  'AreaChart',
-  'BarChart',
-  'BarList',
-  'DonutChart',
-  'Histogram',
-  'ScatterPlot',
-  'Heatmap',
-  'CalendarHeatmap',
-  'BoxPlot',
-  'Sankey',
-  'DataTable',
 ]);
 
 function isComponent(v: unknown): v is AnyComponent {
@@ -425,29 +410,19 @@ function SpecComponent({
   const shape = SHAPES[spec.component];
   const noteId = useId();
   const panelId = useId();
-  const publisher = useSourceId();
   // Both start as the spec says, on the server and on the first client render alike.
   const [tableChoice, setTableChoice] = useState<boolean | null>(null);
   const [rowsOpen, setRowsOpen] = useState(false);
   const actions =
     input === undefined ? [] : resolveActions(spec.component, spec.actions, hostActions);
   const asTable = tableChoice ?? spec.view === 'table';
-  const traced = actions.includes('rows') || actions.includes('download');
   const name =
     typeof spec.title === 'string' && spec.title
       ? spec.title
       : spec.component === 'KPI' && typeof spec.label === 'string'
         ? spec.label
         : undefined;
-  const shown =
-    actions.length === 0
-      ? props
-      : {
-          ...props,
-          ...(actions.includes('table') ? { view: asTable ? 'table' : 'chart' } : null),
-          // The view's publisher id, so the rows behind it can leave out its own selection.
-          ...(traced && PUBLISHERS.has(spec.component) ? { id: publisher } : null),
-        };
+  const shown = actions.includes('table') ? { ...props, view: asTable ? 'table' : 'chart' } : props;
   const note = provenanceText(spec) ? <SourceNote spec={spec} id={noteId} /> : null;
   const toolbar =
     actions.length > 0 && input !== undefined ? (
@@ -460,12 +435,11 @@ function SpecComponent({
         onRows={() => setRowsOpen((open) => !open)}
         panelId={panelId}
         input={input}
-        publisher={publisher}
       />
     ) : null;
   const panel =
     rowsOpen && input !== undefined && actions.includes('rows') ? (
-      <RowsPanel id={panelId} name={name} input={input} publisher={publisher} />
+      <RowsPanel id={panelId} name={name} input={input} />
     ) : null;
   const node = (
     <AppliedPredicatesContext.Provider value={appliedPredicates}>
@@ -509,6 +483,83 @@ function SpecComponent({
   );
 }
 
+/**
+ * The dataset every view of a dashboard is drawn from, or undefined when they read several.
+ * Views drawn from working copies of one dataset share it.
+ */
+function sharedDataset(
+  layout: readonly ComponentSpec[],
+  data: Record<string, DataInput>,
+): DataInput | undefined {
+  let shared: DataInput | undefined;
+  for (const item of layout) {
+    const name = item?.data;
+    if (typeof name !== 'string' || !Object.hasOwn(data, name)) continue;
+    const origin = originOf(data[name]);
+    if (shared !== undefined && shared !== origin) return undefined;
+    shared = origin;
+  }
+  return shared;
+}
+
+/**
+ * A dashboard's heading, its views and, when it has actions of its own, one toolbar beside the
+ * heading and one rows panel under the grid: the rows of the dataset its views share, under
+ * the dashboard's selection. Rendered inside that selection.
+ */
+function DashboardFrame({
+  title,
+  description,
+  actions,
+  input,
+  children,
+}: {
+  title?: string;
+  description?: string;
+  actions: readonly ViewAction[];
+  input: DataInput | undefined;
+  children: ReactNode;
+}) {
+  const panelId = useId();
+  // Closed on the server and on the first client render alike.
+  const [rowsOpen, setRowsOpen] = useState(false);
+  const head =
+    title || description ? (
+      <div className="q-spec-head">
+        {title && <h2 className="q-spec-title">{title}</h2>}
+        {description && <p className="q-spec-desc">{description}</p>}
+      </div>
+    ) : null;
+  if (actions.length === 0 || input === undefined) {
+    return (
+      <>
+        {head}
+        {children}
+      </>
+    );
+  }
+  return (
+    <>
+      <div className="q-spec-top">
+        {head}
+        <ViewToolbar
+          name={title}
+          kind="dashboard"
+          actions={actions}
+          rows={rowsOpen}
+          onRows={() => setRowsOpen((open) => !open)}
+          panelId={panelId}
+          input={input}
+        />
+      </div>
+      {children}
+      {rowsOpen && actions.includes('rows') ? (
+        <RowsPanel id={panelId} name={title} kind="dashboard" input={input} />
+      ) : null}
+    </>
+  );
+}
+
 function errorsUnder(errors: SpecError[], prefix: string): SpecError[] {
   return errors
     .filter((e) => e.path === prefix || e.path.startsWith(`${prefix}/`))
@@ -549,6 +600,19 @@ export function SpecView({
   const description = typeof dash.description === 'string' ? dash.description : undefined;
   const layout = Array.isArray(dash.layout) ? dash.layout : [];
   const topErrors = result.errors.filter((e) => !/^\/layout\/\d+(\/|$)/.test(e.path));
+  // Over one dataset, its rows and their download belong to the dashboard: one toolbar, and a
+  // view shows its own only when its spec asks. Over several, there is no one set of rows, so
+  // the dashboard's list (or the host's) is the default for each view instead.
+  const shared = topErrors.length === 0 ? sharedDataset(layout, data) : undefined;
+  const ownActions = shared ? resolveActions('Dashboard', dash.actions, actions) : [];
+  const viewActions =
+    actions === false
+      ? false
+      : shared
+        ? []
+        : Array.isArray(dash.actions)
+          ? knownActions(dash.actions)
+          : actions;
   let body: ReactNode;
   if (topErrors.length > 0 || layout.length === 0) {
     body = <ErrorCard title="This dashboard spec is not valid" errors={topErrors} />;
@@ -567,7 +631,7 @@ export function SpecView({
                 spec={item as ComponentSpec}
                 data={data}
                 errors={errorsUnder(result.errors, `/layout/${i}`)}
-                actions={actions}
+                actions={viewActions}
               />
             </div>
           );
@@ -575,23 +639,22 @@ export function SpecView({
       </div>
     );
   }
+  const frame = (
+    <DashboardFrame title={title} description={description} actions={ownActions} input={shared}>
+      {body}
+    </DashboardFrame>
+  );
   return (
     <div className={cx('q-spec', 'q-spec-dashboard', className)} style={style}>
-      {(title || description) && (
-        <div className="q-spec-head">
-          {title && <h2 className="q-spec-title">{title}</h2>}
-          {description && <p className="q-spec-desc">{description}</p>}
-        </div>
-      )}
       {linked ? (
         <>
           {watch}
-          {body}
+          {frame}
         </>
       ) : (
         <Selection id={typeof dash.selection === 'string' ? dash.selection : undefined}>
           {watch}
-          {body}
+          {frame}
         </Selection>
       )}
       <SourceNote spec={dash} />

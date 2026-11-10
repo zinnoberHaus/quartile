@@ -282,5 +282,6 @@ Each page has a Markdown rendition at the same URL with `.md` added.
 - Script tag, `<quartile-chart>`, theming and host presets: https://docs.usequartile.com/docs/embedding.md
 - Server rendering: https://docs.usequartile.com/docs/server-rendering.md
 - Installation: https://docs.usequartile.com/docs/installation.md
+- Coding agents (this skill, the AGENTS.md snippet, the check command): https://docs.usequartile.com/docs/ai-coding-agents.md
 - Index of pages: https://docs.usequartile.com/llms.txt
 - Source and issues: https://github.com/zinnoberHaus/quartile

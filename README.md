@@ -295,6 +295,7 @@ The [design coverage audit](docs/design-coverage.md) maps the original design to
 - **npm release.** `@quartile/react` is not on the npm registry. The name, npm scope and domain need clearance first. Until then there are preview builds on GitHub Releases.
 - **Markdown hosts without scripts.** GitHub and stock repository viewers show Quartile blocks as text; a pre-rendered image route is not built. Semantic Layer metric queries and a Preact-sized standalone build are not built either.
 - **Databases and SQL.** Blocks do not run SQL or connect to a warehouse. `src:` reads CSV, TSV and JSON over HTTP from origins the host allows.
+- **Writing back.** Selecting, opening rows and downloading read data. A block cannot change data or call your server, and a selection is not stored unless your code stores it. [What interaction does not do](docs/guides/interaction.md#7-what-is-not-built).
 - **Renderer coverage.** Canvas and WebGL currently cover scatter plots. Other charts do not expose accelerated renderer selection; automatic renderer thresholds are not established.
 - **Scale.** The [worker explorer](https://docs.usequartile.com/examples/scale) reports actual bounded-query timings. [Measurement guidance](docs/guides/performance.md) describes their limits; no universal row-count or device-performance guarantee is claimed.
 - **Screen-reader testing.** The keyboard model, summaries and table fallbacks exist, but they have not been tested with NVDA, JAWS or VoiceOver yet.

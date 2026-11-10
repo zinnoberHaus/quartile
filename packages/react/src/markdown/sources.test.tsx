@@ -51,6 +51,30 @@ describe('QuartileDocument sources', () => {
     await waitFor(() => expect(screen.getByText('41')).toBeTruthy());
   });
 
+  it('reads a JSONPath spelling and a conventional row key from a loaded response', async () => {
+    const loadSource = vi.fn(async (url: string) =>
+      url === '/api/query'
+        ? { columns: [{ name: 'revenue', type: 'integer' }], rows: [{ revenue: 64 }] }
+        : api(27),
+    );
+    const seen: string[] = [];
+    render(
+      <QuartileDocument loadSource={loadSource}>
+        <QuartileBlock source={'kpi sum(revenue) as "Query"\nsrc: /api/query\nformat: integer\n'} />
+        <QuartileBlock
+          source={
+            'kpi sum(revenue) as "Path"\nsrc: /api/jsonpath\npath: $.data["items"]\nformat: integer\n'
+          }
+          onDiagnostics={(diagnostics) => seen.push(...diagnostics.map((d) => d.message))}
+        />
+      </QuartileDocument>,
+    );
+    await waitFor(() => expect(screen.getByText('64')).toBeTruthy());
+    expect(screen.getByText('27')).toBeTruthy();
+    expect(seen).toContain('Read `$.data["items"]` as `data.items`.');
+    expect(loadSource).toHaveBeenCalledTimes(2);
+  });
+
   it('shows why a path did not resolve', async () => {
     const loadSource = vi.fn(async () => api(1));
     render(

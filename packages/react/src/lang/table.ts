@@ -5,7 +5,7 @@
  */
 import type { FieldOverride, Row } from '../data/types';
 import { type Diagnostic, error, info, warning } from './diagnostics';
-import { keyList, resolveDataPath } from './path';
+import { keyList, pathNote, resolveDataPath } from './path';
 
 export type TableFormat = 'csv' | 'tsv' | 'semicolon' | 'markdown' | 'json';
 export type FieldMeta = Exclude<FieldOverride, string>;
@@ -584,6 +584,20 @@ function isRowList(value: unknown): value is unknown[] {
   );
 }
 
+/** Keys APIs keep their rows under, in the order they are preferred when several lists exist. */
+const ROW_KEYS = ['rows', 'data', 'results', 'items', 'records'];
+
+/** The first conventional key that holds a list of rows, or an empty list. */
+function conventionalKey(entries: [string, unknown][]): string | undefined {
+  for (const name of ROW_KEYS) {
+    const hit = entries.find(
+      ([k, v]) => k.toLowerCase() === name && Array.isArray(v) && (v.length === 0 || isRowList(v)),
+    );
+    if (hit) return hit[0];
+  }
+  return undefined;
+}
+
 function rowsFromColumns(entries: [string, unknown[]][]): Row[] {
   const length = Math.max(0, ...entries.map(([, v]) => v.length));
   return Array.from({ length }, (_, i) =>
@@ -618,17 +632,33 @@ function rowsFromJson(value: unknown, at?: string): JsonRows {
       return { rows: rowsFromColumns(entries as [string, unknown[]][]) };
     }
     const candidates = entries.filter(([, v]) => isRowList(v)).map(([k]) => k);
-    if (candidates.length === 1) {
+    // The key an API conventionally keeps its rows under is the table, whether or not it has
+    // rows right now: an empty `results` beside `errors` is no rows, not the errors.
+    const named = conventionalKey(entries);
+    const namedList = named === undefined ? [] : (value[named] as unknown[]);
+    const namedEmpty = named !== undefined && namedList.length === 0;
+    if (candidates.length === 1 && !namedEmpty) {
       return { ...rowsFromJson(value[candidates[0]]), key: candidates[0] };
     }
-    if (candidates.length > 1) {
-      const example = at === undefined ? candidates[0] : `${at}.${candidates[0]}`;
+    if (candidates.length >= 1) {
+      // Among several lists, objects under a conventional key are taken. Arrays are not: they
+      // need a header row, which a document with several lists may keep in another of them.
+      if (named !== undefined && namedList.every(isRecord)) {
+        return { rows: namedList as Row[], key: named };
+      }
+      const pick = named ?? candidates[0];
+      const example = at === undefined ? pick : `${at}.${pick}`;
       return {
         rows: [],
         problem: `Several keys hold rows: ${candidates.map((k) => `\`${k}\``).join(', ')}.`,
-        hint: `Choose one with \`path:\`, e.g. \`path: ${example}\`.`,
+        hint:
+          `Choose one with \`path:\`, e.g. \`path: ${example}\`.` +
+          (named === undefined
+            ? ''
+            : ' A list of arrays is read with its first array as the header.'),
       };
     }
+    if (named !== undefined) return { rows: [], key: named };
     if (columns) {
       return {
         rows: rowsFromColumns(entries as [string, unknown[]][]),
@@ -741,24 +771,28 @@ export function parseTable(input: unknown, options: TableOptions = {}): ParsedTa
     }
     if (path !== undefined) {
       const resolved = resolveDataPath(value, path);
+      const note = pathNote(resolved.path);
+      if (note) diagnostics.push(info(note, pathLine));
       if (!resolved.ok) {
         diagnostics.push(error(resolved.problem.message, pathLine, resolved.problem.hint));
         return { format, columns: [], rows: [], fields: {}, diagnostics, truncated };
       }
       value = resolved.value;
+      // From here on the path is its dotted form; `$` alone is the document, like no path.
+      path = resolved.path.dotted || undefined;
     }
-    const read = rowsFromJson(value, path?.trim());
+    const read = rowsFromJson(value, path);
     const { rows } = read;
     if (read.problem) {
       diagnostics.push(
         path === undefined
           ? error(read.problem, firstLine, read.hint)
-          : error(`\`${path.trim()}\` does not hold rows. ${read.problem}`, pathLine, read.hint),
+          : error(`\`${path}\` does not hold rows. ${read.problem}`, pathLine, read.hint),
       );
     }
     if (read.warning) diagnostics.push(warning(read.warning, firstLine));
     if (read.key !== undefined) {
-      const at = path === undefined ? read.key : `${path.trim()}.${read.key}`;
+      const at = path === undefined ? read.key : `${path}.${read.key}`;
       diagnostics.push(info(`Read rows from \`${at}\`.`, firstLine));
     }
     const typed = typeJsonRows(rows.slice(0, maxRows));

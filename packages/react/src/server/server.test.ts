@@ -210,6 +210,19 @@ describe('sources at build time', () => {
     expect(out[2].html).toContain('15');
   });
 
+  it('reads JSONPath spellings and conventional row keys at build time', async () => {
+    const jsonPath = page.replace('path: data.items', "path: $['data'].items");
+    const loadSource = vi.fn(async (url: string) =>
+      url === 'plans.json'
+        ? { columns: [{ name: 'plan' }, { name: 'seats' }], rows: api.data.items }
+        : api,
+    );
+    const out = await renderMarkdownBlocks(jsonPath, { loadSource });
+    expect(out[0].html).toContain('<svg');
+    expect(out[0].html).not.toContain('q-block-error');
+    expect(out[2].html).toContain('15');
+  });
+
   it('stops the build when a path does not resolve', async () => {
     const loadSource = async () => ({ data: { rows: [] } });
     await expect(renderMarkdownBlocks(page, { loadSource })).rejects.toThrow(

@@ -1,6 +1,6 @@
 import { bisectCenter } from 'd3-array';
 import { area as d3area, line as d3line } from 'd3-shape';
-import { type PointerEvent, useId, useMemo, useRef, useState } from 'react';
+import { type PointerEvent, useId, useMemo, useState } from 'react';
 import { makeFieldFormatter } from '../data/format';
 import type { Predicate } from '../data/predicates';
 import { fieldOf, resolveData } from '../data/schema';
@@ -8,6 +8,7 @@ import type { DataInput, Formatter, Row } from '../data/types';
 import { useQuartile } from '../provider/QuartileProvider';
 import { useLinkedRows, useSourceId } from '../selection/Selection';
 import { summarizeSeries, useChartKeyboard } from './core/a11y';
+import { useRangeBrush } from './core/brush';
 import { type ChartBaseProps, ChartFrame, type ChartTable, statusOf } from './core/ChartFrame';
 import { type ChartColor, seriesColors } from './core/colors';
 import {
@@ -218,15 +219,8 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
   const side = legendPlacement(legend, series.length > 1, 'bottom');
   const plotHeight = side === 'top' || side === 'bottom' ? height - LEGEND_H : height;
 
-  const brushPredicate = sel?.get(x);
-  const ownBrush =
-    brushPredicate?.source === source && brushPredicate.op === 'between' ? brushPredicate : null;
-
-  const select = (p: Predicate | null) => {
-    if (p) sel?.set(x, p.value as never, { op: p.op, source });
-    else sel?.clear(x);
-    onSelect?.(p);
-  };
+  const brushing = useRangeBrush(sel, x, source, { enabled: canBrush, onSelect });
+  const select = brushing.select;
 
   const { active, setActive, keyboardProps } = useChartKeyboard(xsRaw.length, (i) =>
     canBrush
@@ -234,8 +228,6 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
       : undefined,
   );
   const [hover, setHover] = useState<number | null>(null);
-  const [drag, setDrag] = useState<{ a: number; b: number } | null>(null);
-  const dragStart = useRef<number | null>(null);
   const focusIndex = hover ?? active;
 
   const summary = useMemo(() => {
@@ -382,45 +374,17 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
 
         const indexAt = (clientX: number, rect: DOMRect) =>
           Math.max(0, Math.min(px.length - 1, bisectCenter(px, clientX - rect.left)));
-        const clampX = (v: number) => Math.max(x0, Math.min(x1, v));
+        const dragging = brushing.handlers(x0, x1, (at) => xsRaw[bisectCenter(px, at)]);
         const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
           const rect = e.currentTarget.getBoundingClientRect();
           const i = indexAt(e.clientX, rect);
           if (i !== hover) setHover(i);
-          if (dragStart.current != null)
-            setDrag({ a: dragStart.current, b: clampX(e.clientX - rect.left) });
-        };
-        const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
-          if (!canBrush) return;
-          const rect = e.currentTarget.getBoundingClientRect();
-          e.currentTarget.setPointerCapture(e.pointerId);
-          dragStart.current = clampX(e.clientX - rect.left);
-          setDrag(null);
-        };
-        const onPointerUp = (e: PointerEvent<HTMLDivElement>) => {
-          if (!canBrush || dragStart.current == null) return;
-          const rect = e.currentTarget.getBoundingClientRect();
-          const a = dragStart.current;
-          const b = clampX(e.clientX - rect.left);
-          dragStart.current = null;
-          setDrag(null);
-          if (Math.abs(b - a) < 4) {
-            select(null);
-            return;
-          }
-          const i0 = bisectCenter(px, Math.min(a, b));
-          const i1 = bisectCenter(px, Math.max(a, b));
-          select({
-            field: x,
-            op: 'between',
-            value: [xsRaw[i0] as never, xsRaw[i1] as never],
-            source,
-          });
+          dragging.onPointerMove(e);
         };
 
-        let brushRect: { a: number; b: number } | null = drag;
-        if (!brushRect && ownBrush && xs) {
-          const [lo, hi] = ownBrush.value;
+        let brushRect: { a: number; b: number } | null = brushing.drag;
+        if (!brushRect && brushing.range && xs) {
+          const [lo, hi] = brushing.range;
           brushRect = { a: xs.value(lo), b: xs.value(hi) };
         }
 
@@ -655,8 +619,8 @@ export function AreaChart<R extends Row = Row>(props: AreaChartProps<R>) {
                 }}
                 onPointerMove={onPointerMove}
                 onPointerLeave={() => setHover(null)}
-                onPointerDown={onPointerDown}
-                onPointerUp={onPointerUp}
+                onPointerDown={dragging.onPointerDown}
+                onPointerUp={dragging.onPointerUp}
               />
               {tip != null && tipRows.length > 0 && (
                 <ChartTooltip

@@ -7,7 +7,7 @@
 import { max, min } from 'd3-array';
 import { type ScaleContinuousNumeric, scaleLog } from 'd3-scale';
 import { warnOnce } from './colors';
-import { valueScale } from './scales';
+import { monoTextWidth, valueScale } from './scales';
 
 export interface Sides {
   top: number;
@@ -129,6 +129,36 @@ export function referenceLines(reference: ReferenceSetting | undefined): Referen
     out.push(typeof label === 'string' && label.trim() ? { value, label } : { value });
   }
   return out;
+}
+
+/**
+ * Room in px a chart keeps beside its plot for the text of its reference rules, so the text
+ * never lands on a mark. Zero without rules.
+ */
+export function referenceRoom(texts: readonly string[]): number {
+  return texts.length ? Math.ceil(Math.max(...texts.map((t) => monoTextWidth(t)))) + 14 : 0;
+}
+
+/**
+ * Moves a label clear of a rule that would run through it: `at` is the label's position along
+ * the axis the rule crosses, `before` and `after` how far its box reaches each way. Returns the
+ * position just past the rule on the side given by `toward`.
+ */
+export function clearOfRules(
+  at: number,
+  rules: readonly number[],
+  before: number,
+  after: number,
+  toward: -1 | 1,
+): number {
+  let position = at;
+  // Nearest rule first in the direction of travel, so one pass clears a run of close rules.
+  for (const rule of [...rules].sort((a, b) => (a - b) * toward)) {
+    if (rule > position - before && rule < position + after) {
+      position = toward < 0 ? rule - after - 1 : rule + before + 1;
+    }
+  }
+  return position;
 }
 
 /** "Reference line Target at $1,000,000." for the chart's accessible summary. */

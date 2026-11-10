@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { act, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { DonutChart } from '../charts/DonutChart';
@@ -138,6 +140,64 @@ describe('documented examples', () => {
       'Reference line Target at $1,000,000.',
     );
     expect(renderBlockToHTML(EXAMPLES.reference)).toContain('q-chart-reference');
+  });
+});
+
+describe('labels beside a reference rule, from a block', () => {
+  const source = `bar sum(revenue) by region
+labels: yes
+reference: 1000000
+reference.label: Target
+---
+region,revenue
+EMEA,1200000
+APAC,860000
+Americas,2100000
+`;
+
+  it('draws the rule text beside the plot and keeps the rule off the value labels', () => {
+    expect(compileBlock(source).diagnostics.filter((d) => d.severity !== 'info')).toEqual([]);
+    const root = block(source);
+    // Right edge of each bar, from its path: `M x,bottom v … q0,-r r,-r h (w - 2r) …`.
+    const barRights = Array.from(root.querySelectorAll('.q-bar-marks path')).map((path) => {
+      const d = path.getAttribute('d') ?? '';
+      const x = Number(/^M([\d.]+)/.exec(d)![1]);
+      const r = Number(/q0,-([\d.]+)/.exec(d)![1]);
+      return x + Number(/h([\d.]+)/.exec(d)![1]) + 2 * r;
+    });
+    const rule = root.querySelector('.q-chart-reference line')!;
+    const text = root.querySelector('.q-chart-reference text')!;
+    expect(text.textContent).toBe('Target');
+    expect(barRights).toHaveLength(3);
+    // The text starts past the last bar and ends inside the chart: it cannot be on a bar.
+    expect(num(text, 'x')).toBeGreaterThan(Math.max(...barRights));
+    expect(num(text, 'x') + 'Target'.length * 6.6).toBeLessThanOrEqual(640);
+
+    const labels = Array.from(root.querySelectorAll('.q-chart-value-labels text'));
+    expect(labels.map((l) => l.textContent)).toEqual(['$1.2M', '$860K', '$2.1M']);
+    const ruleY = num(rule, 'y1');
+    for (const label of labels) {
+      // An 11px label reaches about 10px above its baseline and 3px below.
+      const y = num(label, 'y');
+      expect(ruleY < y - 10 || ruleY > y + 3).toBe(true);
+    }
+  });
+
+  it('gives labels and rule text a halo in the surface color', () => {
+    const css = readFileSync(join(__dirname, '../charts/core/chart.css'), 'utf8');
+    const haloed = css
+      .split('}')
+      .filter((rule) => /paint-order: stroke;[^}]*stroke: var\(--q-surface\);/.test(rule))
+      .map((rule) => rule.slice(0, rule.indexOf('{')))
+      .join(' ');
+    for (const selector of [
+      '.q-chart-reference text',
+      '.q-chart-value-labels text',
+      '.q-chart-end-labels text',
+      '.q-chart-haloed text',
+    ]) {
+      expect(haloed).toContain(selector);
+    }
   });
 });
 

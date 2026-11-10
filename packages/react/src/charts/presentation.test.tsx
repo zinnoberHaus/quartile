@@ -479,6 +479,200 @@ describe('BarChart presentation', () => {
   });
 });
 
+describe('labels and reference rules together', () => {
+  type Box = { x0: number; x1: number; y0: number; y1: number };
+  const overlap = (a: Box, b: Box) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+  /** Mono text at the axis size is about 6.6px a character and 11px tall. */
+  const textBox = (el: Element): Box => {
+    const x = num(el, 'x');
+    const y = num(el, 'y');
+    const w = (el.textContent ?? '').length * 6.6;
+    const anchor = el.getAttribute('text-anchor') ?? 'start';
+    const x0 = anchor === 'middle' ? x - w / 2 : anchor === 'end' ? x - w : x;
+    // `dy="0.32em"` centers the text on y; otherwise y is the baseline.
+    const centered = el.getAttribute('dy') === '0.32em';
+    return { x0, x1: x0 + w, y0: centered ? y - 6 : y - 10, y1: centered ? y + 6 : y + 3 };
+  };
+  /** A vertical bar's path: `M x,bottom v -(h - r) q … h (w - 2r) q … v … z`. */
+  const barBox = (path: Element): Box => {
+    const d = path.getAttribute('d') ?? '';
+    const [, x, bottom] = /^M([\d.-]+),([\d.-]+)/.exec(d)!.map(Number);
+    const rise = Number(/v(-[\d.]+)/.exec(d)![1]);
+    const r = Number(/q0,-([\d.]+)/.exec(d)![1]);
+    const across = Number(/h([\d.]+)/.exec(d)![1]);
+    return { x0: x, x1: x + across + 2 * r, y0: bottom + rise - r, y1: bottom };
+  };
+  const boxes = (root: ParentNode, selector: string, of: (el: Element) => Box) =>
+    Array.from(root.querySelectorAll(selector)).map(of);
+
+  // The case that showed the problem: a rule at 1M across bars of 1.2M, 860K and 2.1M. Its text
+  // landed on the tallest bar, and the rule ran through the 860K label just under it.
+  const revenue = [
+    { region: 'EMEA', revenue: 1200000 },
+    { region: 'APAC', revenue: 860000 },
+    { region: 'Americas', revenue: 2100000 },
+  ];
+  const target = { value: 1000000, label: 'Target' };
+
+  it('keeps the text of a rule off the bars and the rule off the value labels', () => {
+    const root = draw(<BarChart data={revenue} x="region" y="revenue" labels reference={target} />);
+    const bars = boxes(root, '.q-bar-marks path', barBox);
+    const rule = root.querySelector('.q-chart-reference line')!;
+    const ruleText = root.querySelector('.q-chart-reference text')!;
+    const values = Array.from(root.querySelectorAll('.q-chart-value-labels text'));
+    expect(bars).toHaveLength(3);
+    expect(values.map((v) => v.textContent)).toEqual(['$1.2M', '$860K', '$2.1M']);
+    expect(ruleText.textContent).toBe('Target');
+
+    // The text is beside the plot, past the last bar, so no bar can be under it.
+    const label = textBox(ruleText);
+    for (const bar of bars) expect(overlap(label, bar)).toBe(false);
+    expect(label.x0).toBeGreaterThan(Math.max(...bars.map((b) => b.x1)));
+    expect(label.x0).toBeGreaterThan(num(rule, 'x2'));
+    expect(label.x1).toBeLessThanOrEqual(WIDTH);
+    // It is level with its rule.
+    expect(Math.abs((label.y0 + label.y1) / 2 - num(rule, 'y1'))).toBeLessThan(1);
+
+    // The rule passes clear of every value label, and each label is still over its own bar.
+    const ruleY = num(rule, 'y1');
+    values.forEach((value, i) => {
+      const box = textBox(value);
+      expect(ruleY < box.y0 || ruleY > box.y1).toBe(true);
+      expect(box.y1).toBeLessThanOrEqual(bars[i].y0);
+      expect((box.x0 + box.x1) / 2).toBeCloseTo((bars[i].x0 + bars[i].x1) / 2, 5);
+      expect(overlap(box, label)).toBe(false);
+      for (const bar of bars) expect(overlap(box, bar)).toBe(false);
+    });
+    // The 860K label was the one in the way: it now stands just above the rule.
+    expect(textBox(values[1]).y1).toBeLessThan(ruleY);
+    expect(ruleY - textBox(values[1]).y1).toBeLessThan(4);
+  });
+
+  it('leaves labels where they were when no rule is near them', () => {
+    const plain = draw(<BarChart data={revenue} x="region" y="revenue" labels />);
+    const far = draw(
+      <BarChart data={revenue} x="region" y="revenue" labels reference={{ value: 400000 }} />,
+    );
+    const ys = (root: ParentNode) =>
+      Array.from(root.querySelectorAll('.q-chart-value-labels text')).map((t) => num(t, 'y'));
+    expect(ys(far)).toEqual(ys(plain));
+    // A rule without a label is named by its value, also beside the plot.
+    const text = far.querySelector('.q-chart-reference text')!;
+    expect(text.textContent).toBe('$400K');
+    expect(num(text, 'x')).toBeGreaterThan(num(far.querySelector('.q-chart-reference line'), 'x2'));
+  });
+
+  it('puts the text on the rule when the author leaves no room beside the plot', () => {
+    const root = draw(
+      <BarChart data={revenue} x="region" y="revenue" reference={target} margin={{ right: 4 }} />,
+    );
+    const text = root.querySelector('.q-chart-reference text')!;
+    expect(text.getAttribute('text-anchor')).toBe('end');
+    expect(num(text, 'x')).toBeLessThan(WIDTH - 4);
+  });
+
+  it('stacks several rule texts without overlap', () => {
+    const root = draw(
+      <BarChart
+        data={revenue}
+        x="region"
+        y="revenue"
+        reference={[
+          { value: 1000000, label: 'Target' },
+          { value: 1040000, label: 'Stretch' },
+        ]}
+      />,
+    );
+    const [a, b] = boxes(root, '.q-chart-reference text', textBox);
+    expect(overlap(a, b)).toBe(false);
+    expect(Math.abs(a.y0 - b.y0)).toBeGreaterThanOrEqual(13);
+  });
+
+  it('moves the value of a horizontal bar past a rule that would run through it', () => {
+    const root = draw(
+      <BarChart
+        data={revenue}
+        x="region"
+        y="revenue"
+        orientation="horizontal"
+        reference={{ value: 900000, label: 'Target' }}
+      />,
+    );
+    const ruleX = num(root.querySelector('.q-chart-reference line'), 'x1');
+    const values = Array.from(root.querySelectorAll('.q-bar-value'));
+    expect(values.map((v) => v.textContent)).toEqual(['$1.2M', '$860K', '$2.1M']);
+    for (const value of values) {
+      const box = textBox(value);
+      expect(ruleX < box.x0 || ruleX > box.x1).toBe(true);
+    }
+    // 860K ends just short of the rule, so its label starts after it.
+    expect(textBox(values[1]).x0).toBeGreaterThan(ruleX);
+    expect(root.querySelector('.q-bar-labels')?.classList.contains('q-chart-haloed')).toBe(true);
+    const plain = draw(<BarChart data={revenue} x="region" y="revenue" orientation="horizontal" />);
+    expect(plain.querySelector('.q-bar-labels')?.getAttribute('class')).toBe('q-bar-labels');
+  });
+
+  it('shares the right margin between line-end labels and rule texts', () => {
+    // Team ends at 180 and Pro at 95: rules at both values would print on top of the labels.
+    for (const Chart of [LineChart, AreaChart]) {
+      const root = draw(
+        <Chart
+          data={plans}
+          x="month"
+          y="users"
+          color="plan"
+          labels
+          reference={[
+            { value: 180, label: 'Plan' },
+            { value: 95, label: 'Floor' },
+          ]}
+        />,
+      );
+      const ends = boxes(root, '.q-chart-end-labels text', textBox);
+      const rules = boxes(root, '.q-chart-reference text', textBox);
+      expect(texts(root, '.q-chart-end-labels text')).toEqual(['Team 180', 'Pro 95']);
+      expect(texts(root, '.q-chart-reference text')).toEqual(['Plan', 'Floor']);
+      const all = [...ends, ...rules];
+      for (let i = 0; i < all.length; i++) {
+        for (let j = i + 1; j < all.length; j++) expect(overlap(all[i], all[j])).toBe(false);
+      }
+      // All of it is beside the plot, inside the chart.
+      const plotRight = num(root.querySelector('.q-chart-reference line'), 'x2');
+      for (const box of all) {
+        expect(box.x0).toBeGreaterThan(plotRight);
+        expect(box.x1).toBeLessThanOrEqual(WIDTH);
+      }
+    }
+  });
+
+  it('names an unlabelled rule by its value on every chart that draws one', () => {
+    expect(
+      texts(
+        draw(<LineChart data={trend} x="month" y="users" reference={160} />),
+        '.q-chart-reference text',
+      ),
+    ).toEqual(['160']);
+    expect(
+      texts(
+        draw(<AreaChart data={trend} x="month" y="users" reference={160} />),
+        '.q-chart-reference text',
+      ),
+    ).toEqual(['160']);
+    expect(
+      texts(
+        draw(<BarChart data={flat} x="region" y="users" reference={100} />),
+        '.q-chart-reference text',
+      ),
+    ).toEqual(['100']);
+    const scatter = draw(<ScatterPlot data={points} x="weight" y="score" reference={3.5} />);
+    const text = scatter.querySelector('.q-chart-reference text')!;
+    expect(text.textContent).toBe('3.5');
+    expect(num(text, 'x')).toBeGreaterThan(
+      num(scatter.querySelector('.q-chart-reference line'), 'x2'),
+    );
+  });
+});
+
 describe('ScatterPlot presentation', () => {
   const scatter = (props: Record<string, unknown> = {}) => (
     <ScatterPlot data={points} x="weight" y="score" {...props} />

@@ -23,6 +23,7 @@ import {
 import {
   boundedNumber,
   type ChartPresentationProps,
+  clearOfRules,
   describeReferences,
   gridLines,
   type LegendSetting,
@@ -31,7 +32,9 @@ import {
   marginSides,
   readOut,
   referenceLines,
+  referenceRoom,
   sideLegendWidth,
+  spreadLabels,
   tickCount,
   valueAxis,
 } from './core/options';
@@ -349,7 +352,20 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
             (yAxis
               ? Math.ceil(Math.max(...yTickVals.map((v) => monoTextWidth(fmtTick(v))), 16)) + 12
               : 4));
-        if (!horizontal) catRange = [left, width - (pad.right ?? 4)];
+        // The text of a rule across vertical bars sits beside the plot, where no bar can be
+        // under it; with a right margin the author made too narrow, it sits on the rule.
+        const refTexts = refs.map((r) => r.label ?? fmtTick(r.value));
+        const refRoom = horizontal ? 0 : referenceRoom(refTexts);
+        const refsOutside = !horizontal && (pad.right === undefined || pad.right >= refRoom);
+        if (!horizontal) catRange = [left, width - (pad.right ?? Math.max(4, refRoom))];
+        const refMarks = refs
+          .map((r, i) => ({ at: vScale(r.value), text: refTexts[i] }))
+          .filter(
+            (m) =>
+              m.at >= Math.min(valRange[0], valRange[1]) - 0.5 &&
+              m.at <= Math.max(valRange[0], valRange[1]) + 0.5,
+          );
+        const ruleAt = refMarks.map((m) => m.at);
         const band = bandScale(
           xsRaw.map((_, i) => String(i)),
           catRange,
@@ -405,6 +421,7 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
               ),
             );
         const lines = gridLines(grid, { x: false, y: true });
+        const refYs = spreadLabels(ruleAt, 13, vMargin.top + 4, plotHeight - vMargin.bottom - 4);
 
         // Direct labels: one per bar, or the total on a stack. A label wider than its slot is
         // left out rather than printed over its neighbor.
@@ -419,7 +436,13 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
               key: `t-${i}`,
               i,
               x: (band(String(i)) ?? 0) + band.bandwidth() / 2,
-              y: vScale(Math.max(0, ...stacks.map((st) => st.y1[i]))) - 5,
+              y: clearOfRules(
+                vScale(Math.max(0, ...stacks.map((st) => st.y1[i]))) - 5,
+                ruleAt,
+                11,
+                4,
+                -1,
+              ),
               text,
             });
           });
@@ -435,7 +458,13 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
                 valueTexts.push({
                   key: `${s.key}-${i}`,
                   i,
-                  x: vScale(Math.max(0, raw)) + 6,
+                  x: clearOfRules(
+                    vScale(Math.max(0, raw)) + 6,
+                    ruleAt,
+                    5,
+                    monoTextWidth(text) + 2,
+                    1,
+                  ),
                   y: c0 + bw / 2,
                   text,
                 });
@@ -446,7 +475,11 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
                 key: `${s.key}-${i}`,
                 i,
                 x: c0 + bw / 2,
-                y: raw < 0 ? vScale(raw) + 13 : vScale(raw) - 5,
+                // A label a rule would run through stands just past the rule instead.
+                y:
+                  raw < 0
+                    ? clearOfRules(vScale(raw) + 13, ruleAt, 11, 4, 1)
+                    : clearOfRules(vScale(raw) - 5, ruleAt, 11, 4, -1),
                 text,
               });
             });
@@ -591,13 +624,14 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
                     />
                   ))}
                 </g>
-                {refs.length > 0 && (
+                {refMarks.length > 0 && (
                   <ReferenceRules
-                    marks={refs.map((r) => ({
-                      at: vScale(r.value),
-                      text: r.label ?? fmtTick(r.value),
+                    marks={refMarks.map((m, i) => ({
+                      ...m,
+                      labelAt: refsOutside ? refYs[i] : undefined,
                     }))}
                     vertical={horizontal}
+                    outside={refsOutside}
                     from={horizontal ? catRange[0] - 14 : left}
                     to={catRange[1]}
                     min={horizontal ? valRange[0] : vMargin.top}
@@ -605,7 +639,7 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
                   />
                 )}
                 {horizontal ? (
-                  <g className="q-bar-labels">
+                  <g className={refMarks.length ? 'q-bar-labels q-chart-haloed' : 'q-bar-labels'}>
                     {xsRaw.map((v, i) => {
                       const cy = (band(String(i)) ?? 0) + band.bandwidth() / 2;
                       const total = stacks
@@ -626,7 +660,13 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
                             (stacks || visible.length === 1) && (
                               <text
                                 className="q-bar-value"
-                                x={vScale(labelAt) + 6}
+                                x={clearOfRules(
+                                  vScale(labelAt) + 6,
+                                  ruleAt,
+                                  5,
+                                  monoTextWidth(fmtTick(total)) + 2,
+                                  1,
+                                )}
                                 y={cy}
                                 dy="0.32em"
                               >

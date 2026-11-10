@@ -217,12 +217,18 @@ export interface ReferenceMark {
   at: number;
   /** Text beside the rule: the author's label, or the formatted value. */
   text: string;
+  /** Where the text sits when it must stand clear of other labels. Defaults to `at`. */
+  labelAt?: number;
 }
 
 /**
- * Dashed rules at reference values with their text. Horizontal rules span `from`…`to` on x and
- * label the right end; vertical rules span them on y and label the top. Rules outside
- * `min`…`max` (the plot, along the value axis) are not drawn.
+ * Dashed rules at reference values with their text. Horizontal rules span `from`…`to` on x;
+ * vertical rules span them on y and label the top. Rules outside `min`…`max` (the plot, along
+ * the value axis) are not drawn.
+ *
+ * With `outside`, the text of a horizontal rule sits just past `to`, in the margin the chart
+ * keeps for it (`referenceRoom`), where no mark can be under it. Otherwise it sits on the rule
+ * at the right end of the plot.
  */
 export function ReferenceRules({
   marks,
@@ -231,6 +237,7 @@ export function ReferenceRules({
   min,
   max,
   vertical = false,
+  outside = false,
 }: {
   marks: ReferenceMark[];
   from: number;
@@ -238,6 +245,7 @@ export function ReferenceRules({
   min: number;
   max: number;
   vertical?: boolean;
+  outside?: boolean;
 }) {
   const lo = Math.min(min, max);
   const hi = Math.max(min, max);
@@ -252,6 +260,16 @@ export function ReferenceRules({
             <g key={`${i}-${m.text}`}>
               <line x1={at} x2={at} y1={from} y2={to} />
               <text x={flip ? at - 5 : at + 5} y={from + 10} textAnchor={flip ? 'end' : 'start'}>
+                {m.text}
+              </text>
+            </g>
+          );
+        }
+        if (outside) {
+          return (
+            <g key={`${i}-${m.text}`}>
+              <line x1={from} x2={to} y1={at} y2={at} />
+              <text x={to + 8} y={m.labelAt ?? m.at} dy="0.32em">
                 {m.text}
               </text>
             </g>

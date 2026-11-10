@@ -11,6 +11,7 @@ import {
 } from './colors';
 import {
   boundX,
+  clearOfRules,
   closestTicks,
   describeLimits,
   describeReferences,
@@ -20,6 +21,7 @@ import {
   marginSides,
   readOut,
   referenceLines,
+  referenceRoom,
   spreadLabels,
   tickCount,
   valueAxis,
@@ -188,6 +190,26 @@ describe('margin, grid, legend and reference settings', () => {
     expect(describeReferences([{ value: 5, label: 'Target' }, { value: 7 }], String)).toBe(
       'Reference line Target at 5. Reference line at 7.',
     );
+  });
+
+  it('keeps room beside the plot for the text of reference rules', () => {
+    expect(referenceRoom([])).toBe(0);
+    // Mono text at the axis size is 6.6px a character; the room adds the gap and a little air.
+    expect(referenceRoom(['Target'])).toBe(Math.ceil(6 * 6.6) + 14);
+    expect(referenceRoom(['Target', 'Stretch goal'])).toBe(Math.ceil(12 * 6.6) + 14);
+  });
+
+  it('moves a label clear of a rule that would run through it', () => {
+    // A label whose box reaches 11px up and 4px down from y = 100.
+    expect(clearOfRules(100, [], 11, 4, -1)).toBe(100);
+    expect(clearOfRules(100, [60, 140], 11, 4, -1)).toBe(100);
+    // A rule at 95 runs through it: the label goes up until its box clears the rule.
+    expect(clearOfRules(100, [95], 11, 4, -1)).toBe(90);
+    // Two close rules: clear of both.
+    expect(clearOfRules(100, [95, 84], 11, 4, -1)).toBe(79);
+    // The other way, for a label under a negative bar.
+    expect(clearOfRules(100, [95], 11, 4, 1)).toBe(107);
+    expect(clearOfRules(100, [95, 110], 11, 4, 1)).toBe(122);
   });
 
   it('describes axis limits only when one is set', () => {

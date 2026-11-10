@@ -44,7 +44,9 @@ import {
   marginSides,
   readOut,
   referenceLines,
+  referenceRoom,
   sideLegendWidth,
+  spreadLabels,
   tickCount,
   type ValueScaleType,
 } from './core/options';
@@ -298,10 +300,25 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
   );
   const yLog = scaleType === 'log' && !logProblem;
 
+  const fmtXAxis = useMemo(
+    () => tickFormatter(xField, locale, timeZone, xFormat),
+    [xField, locale, timeZone, xFormat],
+  );
+  const fmtYAxis = useMemo(
+    () => tickFormatter(yField, locale, timeZone, format),
+    [yField, locale, timeZone, format],
+  );
+
   const pad = marginSides(margin);
+  // The text of a rule sits beside the plot, where no point can be under it; with a right margin
+  // the author made too narrow, it sits on the rule.
+  const refTexts = refs.map((r) => r.label ?? fmtYAxis(r.value));
+  const refRoom = referenceRoom(refTexts);
+  const refsOutside = pad.right === undefined || pad.right >= refRoom;
+  const padRight = pad.right ?? (refRoom || undefined);
   const layout = useMemo<ScatterLayout>(
     () => ({
-      pad: { top: pad.top, right: pad.right, bottom: pad.bottom, left: pad.left },
+      pad: { top: pad.top, right: padRight, bottom: pad.bottom, left: pad.left },
       xTicks: xTickCount === undefined ? undefined : tickCount(xTickCount, 5),
       yTicks: yTickCount === undefined ? undefined : tickCount(yTickCount, 4),
       xAxis,
@@ -314,7 +331,7 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
     }),
     [
       pad.top,
-      pad.right,
+      padRight,
       pad.bottom,
       pad.left,
       xTickCount,
@@ -438,15 +455,6 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
     }
     return out;
   };
-
-  const fmtXAxis = useMemo(
-    () => tickFormatter(xField, locale, timeZone, xFormat),
-    [xField, locale, timeZone, xFormat],
-  );
-  const fmtYAxis = useMemo(
-    () => tickFormatter(yField, locale, timeZone, format),
-    [yField, locale, timeZone, format],
-  );
 
   const summary = useMemo(() => {
     if (points.length === 0) return '';
@@ -588,6 +596,15 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
               };
               const f = focus != null ? points[focus] : null;
               const tipRows = f ? tipRowsOf(f) : [];
+              const refMarks = refs
+                .map((r, i) => ({ at: yAt(r.value), text: refTexts[i] }))
+                .filter((m) => m.at >= top - 0.5 && m.at <= bottom + 0.5);
+              const refYs = spreadLabels(
+                refMarks.map((m) => m.at),
+                13,
+                top + 4,
+                bottom - 4,
+              );
 
               return (
                 <LegendLayout
@@ -640,12 +657,13 @@ export function ScatterPlot<R extends Row = Row>(props: ScatterPlotProps<R>) {
                           <SvgScatterMarks marks={marks} onRendererChange={onRendererChange} />
                         </g>
                       )}
-                      {refs.length > 0 && (
+                      {refMarks.length > 0 && (
                         <ReferenceRules
-                          marks={refs.map((r) => ({
-                            at: yAt(r.value),
-                            text: r.label ?? fmtYAxis(r.value),
+                          marks={refMarks.map((m, i) => ({
+                            ...m,
+                            labelAt: refsOutside ? refYs[i] : undefined,
                           }))}
+                          outside={refsOutside}
                           from={left}
                           to={right}
                           min={top}

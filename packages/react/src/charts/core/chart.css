@@ -497,9 +497,14 @@ button.q-legend-item:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
-/* A halo in the surface color keeps a value readable where a rule or gridline crosses it. */
 .q-chart-value-labels text {
   fill: var(--q-text);
+}
+
+/* A halo in the surface color keeps text readable where a rule, a gridline or a mark is under it. */
+.q-chart-end-labels text,
+.q-chart-value-labels text,
+.q-chart-haloed text {
   paint-order: stroke;
   stroke: var(--q-surface);
   stroke-width: 3px;

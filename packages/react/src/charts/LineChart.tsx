@@ -39,6 +39,7 @@ import {
   marginSides,
   readOut,
   referenceLines,
+  referenceRoom,
   sideLegendWidth,
   spreadLabels,
   tickCount,
@@ -414,11 +415,15 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
               return [{ key: s.key, at, value: s.values[at] as number, text, color: s.color }];
             })
           : [];
-        const right =
-          pad.right ??
-          (ends.length
-            ? Math.ceil(Math.max(...ends.map((e) => monoTextWidth(e.text)))) + 14
-            : MARGIN.right);
+        // Line-end labels and the text of reference rules share the right margin, beside the plot.
+        const refTexts = refs.map((r) => r.label ?? fmtTick(r.value));
+        const refRoom = referenceRoom(refTexts);
+        const endRoom = ends.length
+          ? Math.ceil(Math.max(...ends.map((e) => monoTextWidth(e.text)))) + 14
+          : 0;
+        const right = pad.right ?? Math.max(MARGIN.right, endRoom, refRoom);
+        // With a margin the author made too narrow for it, a rule's text sits on the rule.
+        const refsOutside = right >= refRoom;
         const x0 = left;
         const x1 = width - right;
         const xs = continuousX(xField, xsRaw, [x0, x1]);
@@ -434,8 +439,12 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
           label: fmtXTick(xsRaw[i]),
         }));
         const lines = gridLines(grid, { x: false, y: true });
-        const endYs = spreadLabels(
-          ends.map((e) => yScale(e.value)),
+        const refMarks = refs
+          .map((r, i) => ({ at: yScale(r.value), text: refTexts[i] }))
+          .filter((m) => m.at >= top - 0.5 && m.at <= bottom + 0.5);
+        // One column of text beside the plot: labels that would overlap are spread apart.
+        const sideYs = spreadLabels(
+          [...ends.map((e) => yScale(e.value)), ...(refsOutside ? refMarks.map((m) => m.at) : [])],
           13,
           top + 4,
           bottom - 4,
@@ -674,12 +683,13 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
                   );
                 })}
                 {clipped ? <g clipPath={`url(#${gradientId}-clip)`}>{marks}</g> : marks}
-                {refs.length > 0 && (
+                {refMarks.length > 0 && (
                   <ReferenceRules
-                    marks={refs.map((r) => ({
-                      at: yScale(r.value),
-                      text: r.label ?? fmtTick(r.value),
+                    marks={refMarks.map((m, i) => ({
+                      ...m,
+                      labelAt: refsOutside ? sideYs[ends.length + i] : undefined,
                     }))}
+                    outside={refsOutside}
                     from={x0}
                     to={x1}
                     min={top}
@@ -691,7 +701,7 @@ export function LineChart<R extends Row = Row>(props: LineChartProps<R>) {
                     labels={ends.map((e, i) => ({
                       key: e.key,
                       x: px[e.at] + 8,
-                      y: endYs[i],
+                      y: sideYs[i],
                       text: e.text,
                       color: e.color,
                     }))}

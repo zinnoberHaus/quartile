@@ -1,5 +1,6 @@
-import { act, render } from '@testing-library/react';
+import { act, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { DonutChart } from '../charts/DonutChart';
 import { configureEmbed, defineQuartileElements, setEmbedStyles } from '../embed/element';
 import { compileBlock } from '../lang/compile';
 import type { Diagnostic } from '../lang/diagnostics';
@@ -33,7 +34,7 @@ APAC,2026,910000
 title: Checkout conversion
 y.min: 2%
 y.max: 5%
-y.ticks: 3
+y.ticks: 4
 x.ticks: 4
 gridlines: no
 ---
@@ -108,7 +109,7 @@ describe('documented examples', () => {
     expect(compileBlock(EXAMPLES.axes).spec).toMatchObject({
       yMin: 0.02,
       yMax: 0.05,
-      yTicks: 3,
+      yTicks: 4,
       xTicks: 4,
       grid: false,
     });
@@ -137,6 +138,78 @@ describe('documented examples', () => {
       'Reference line Target at $1,000,000.',
     );
     expect(renderBlockToHTML(EXAMPLES.reference)).toContain('q-chart-reference');
+  });
+});
+
+describe('donut centre figure', () => {
+  const donut = (settings: string, rows: string) =>
+    `donut sum(revenue) by region\n${settings}---\nregion,revenue\n${rows}`;
+  const BIG = 'EMEA,1200000\nAPAC,860000\nAmericas,2100000\nLATAM,430000\n';
+  const centre = (root: ParentNode) => root.querySelector('.q-donut-value')!;
+  const summary = (root: ParentNode) =>
+    root.querySelector('p.q-visually-hidden')?.textContent ?? '';
+
+  it('shortens a total that would not fit the ring, and keeps the full value readable', () => {
+    for (const settings of ['', 'size: 120\n', 'size: 96\nthickness: 12\n']) {
+      const root = block(donut(settings, BIG));
+      // Whole-currency rows format in full ($4,590,000), which is wider than the hole.
+      expect([settings, centre(root).textContent]).toEqual([settings, '$4.59M']);
+      expect(centre(root).getAttribute('title')).toBe('$4,590,000');
+      expect(summary(root)).toContain('total $4,590,000');
+      expect(texts(root, 'table td').join(' ')).toContain('$2,100,000');
+    }
+  });
+
+  it('leaves a total that fits as it is', () => {
+    const small = block(donut('', 'EMEA,1200\nAPAC,860\n'));
+    expect(centre(small).textContent).toBe('$2,060');
+    expect(centre(small).hasAttribute('title')).toBe(false);
+    // A larger ring has room for the long form.
+    const large = block(donut('size: 240\n', BIG));
+    expect(centre(large).textContent).toBe('$4,590,000');
+    expect(centre(large).hasAttribute('title')).toBe(false);
+  });
+
+  it('shortens the hovered slice the same way, and leaves a custom centre alone', () => {
+    const root = block(donut('', BIG));
+    fireEvent.pointerEnter(root.querySelector('.q-donut-slice')!);
+    expect(centre(root).textContent).toBe('$2.1M');
+    expect(centre(root).getAttribute('title')).toBe('$2,100,000');
+    const custom = block(donut('centerValue: 4,590,000 dollars\n', BIG));
+    expect(centre(custom).textContent).toBe('4,590,000 dollars');
+    expect(centre(custom).hasAttribute('title')).toBe(false);
+  });
+
+  it('shortens under an explicit format and for plain counts', () => {
+    const rows = [
+      { region: 'EMEA', revenue: 1200000 },
+      { region: 'APAC', revenue: 860000 },
+    ];
+    const explicit = render(
+      <DonutChart data={rows} category="region" value="revenue" format="currency" size={120} />,
+    ).container;
+    expect(centre(explicit).textContent).toBe('$2.06M');
+    expect(centre(explicit).getAttribute('title')).toBe('$2,060,000.00');
+    // A format given as options keeps its currency in the short form.
+    const euros = render(
+      <DonutChart
+        data={rows}
+        category="region"
+        value="revenue"
+        format={{ style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }}
+      />,
+    ).container;
+    expect(centre(euros).textContent).toBe('€2.06M');
+    expect(centre(euros).getAttribute('title')).toBe('€2,060,000');
+    const counts = render(
+      <DonutChart
+        data={rows.map((r) => ({ region: r.region, units: r.revenue * 10 }))}
+        category="region"
+        value="units"
+      />,
+    ).container;
+    expect(centre(counts).textContent).toBe('20.6M');
+    expect(centre(counts).getAttribute('title')).toBe('20,600,000');
   });
 });
 

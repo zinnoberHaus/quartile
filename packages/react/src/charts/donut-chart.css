@@ -53,6 +53,11 @@
   white-space: nowrap;
 }
 
+/* A shortened figure carries the full value as its title; let the pointer reach it. */
+.q-donut-value[title] {
+  pointer-events: auto;
+}
+
 .q-donut-label {
   max-width: 100%;
   overflow: hidden;

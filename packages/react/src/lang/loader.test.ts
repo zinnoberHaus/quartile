@@ -83,6 +83,10 @@ describe('createSourceLoader', () => {
       'https://sub.api.example.com/x.csv',
       'https://api.example.com.evil.example/x.csv',
       '/same-origin-was-not-listed.csv',
+      // Forms that read like the allowed host but resolve elsewhere.
+      '//evil.example/x.csv',
+      'https://api.example.com@evil.example/x.csv',
+      'https://evil.example\\@api.example.com/x.csv',
     ];
     for (const url of refused) {
       await expect(load(url), url).rejects.toThrow(
@@ -96,6 +100,12 @@ describe('createSourceLoader', () => {
       'This page allows no data sources; `https://a.example` is not allowed.',
     );
     expect(fetch).not.toHaveBeenCalled();
+
+    // The request goes to the URL as parsed for the check, never to the text the block wrote.
+    await load('https://API.example.com\\@evil.example/../v1/x.csv');
+    expect((fetch.mock.calls as unknown as FetchArgs[])[0][0]).toBe(
+      'https://api.example.com/v1/x.csv',
+    );
   });
 
   it('loads http(s) only', async () => {

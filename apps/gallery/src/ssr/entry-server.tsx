@@ -18,6 +18,11 @@ export async function renderRoute(path: string): Promise<{ html: string; errors:
       <GalleryRoot />
     </ServerLocation>,
     {
+      // Keep every Suspense boundary where it renders. By default React moves boundaries larger
+      // than 12,800 bytes (a chart inside Streamdown's code-block Suspense, for example) to the
+      // end of the HTML, hidden, and swaps them in with an inline script, so a reader without
+      // JavaScript would see the loading fallback where the chart belongs.
+      progressiveChunkSize: Number.POSITIVE_INFINITY,
       onError(error) {
         errors.push(error);
       },

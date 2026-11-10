@@ -145,6 +145,8 @@ try {
       assert.equal(data.about?.programmingLanguage, 'TypeScript');
     }
     assert.ok(!html.includes('"SoftwareApplication"'), `${path} avoids SoftwareApplication`);
+    // A pending boundary means content was moved out of reading order or never rendered.
+    assert.ok(!html.includes('<!--$?-->'), `${path} keeps every Suspense boundary in place`);
     const root = html.match(
       /<div id="root" data-prerendered-path="([^"]*)" data-prerender="(hydrate|mount)">/,
     );
@@ -172,7 +174,7 @@ try {
     assert.ok(await h1.count(), `${page.path} has an h1 without JavaScript`);
     page.heading = normalize(await h1.innerText());
     assert.ok(page.heading.length > 0, `${page.path} h1 has text`);
-    page.charts = await raw.locator('#root .q-chart svg').count();
+    page.charts = await raw.locator('#root .q-chart svg').filter({ visible: true }).count();
     if (!CHARTS_AFTER_LOAD.has(page.path)) {
       assert.ok(page.charts > 0, `${page.path} has no chart SVG without JavaScript`);
     }

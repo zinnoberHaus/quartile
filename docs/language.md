@@ -227,7 +227,7 @@ Each column is typed from all its values:
 - **Dates:** ISO dates and times stay dates; `2026-03` and `Mar 2026` become months; `2026-Q1` and `Q1 2026` become quarters; four-digit `year` columns display without grouping.
 - **Text:** anything else.
 
-In CSV, a row with too many values caused by an unquoted thousands separator (`Europe,1,200`) is repaired when joining digit groups restores the column count, with a note. Other extra values are dropped with a warning. Duplicate column names get a suffix (`amount_2`). A block keeps at most 5,000 rows by default.
+In CSV, a row with too many values caused by an unquoted thousands separator (`Europe,1,200`) is repaired when joining digit groups restores the column count, with a note. Other extra values are dropped with a warning. Duplicate column names get a suffix (`amount_2`). A block keeps at most 5,000 rows by default; a view drawn from more says so under the chart ("Showing the first 5,000 of 5,200 rows."). Data with a header and no rows is not an error: the view draws its empty state.
 
 ### JSON envelopes and `path:`
 
@@ -283,7 +283,7 @@ path: data.results
 refresh: 5m
 ```
 
-`refresh:` reloads the URL on a timer: `30s`, `5m`, `1h`, or a number of seconds; `off` switches it off. The host sets the shortest interval (10 seconds by default), and a shorter value is raised to it with a note. `refresh:` needs `src:` in the same block; elsewhere it is ignored with a warning. Static output loads a source once.
+`refresh:` reloads the URL on a timer: `30s`, `5m`, `1h`, or a number of seconds; `off` switches it off. The host sets the shortest interval (10 seconds by default), and a shorter value is raised to it with a note. `refresh:` needs `src:` in the same block; elsewhere it is ignored with a warning. Static output loads a source once. A source that answers with no rows draws each view's empty state, and one longer than the host's row limit keeps its first rows and says so.
 
 Nothing is fetched by the language. A block only names the URL:
 

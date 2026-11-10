@@ -1,6 +1,8 @@
-# Interaction
+# Interaction: linking, rows, sources and events
 
-A Quartile chart is more than a picture. Views over the same data filter each other. A reader can open the rows behind a chart and download them. A chart can say where its numbers came from. And your app can listen to what the reader selects. This page covers each of these, then what is not built.
+Quartile views over the same data filter each other, a reader can open and download the rows behind a chart, a chart can say where its numbers came from, and your app can listen to what the reader selects.
+
+This page covers each of these, then what is not built.
 
 ## 1. Linked views
 
@@ -115,7 +117,7 @@ day,region,channel,amount
 2026-11-04,APAC,Store,410
 ```
 
-Settings written before the first view (`title`, `actions`, `source`, `asof`, `data`, `src`) belong to the dashboard. Settings written under a view belong to that view. The layout rules are in the [language reference](../language.md#8-documents-dashboards-and-linking).
+Settings written before the first view (`title`, `actions`, `source`, `asof`, `data`, `src`) belong to the dashboard. Settings written under a view belong to that view. In a container 720 px wide or narrower, the dashboard lays out in one column. The other layout rules are in the [language reference](../language.md#8-documents-dashboards-and-linking).
 
 ## 3. Filters
 
@@ -156,7 +158,8 @@ No toolbar appears unless a block or the host asks for one.
 The rows panel and the download hold the dataset's rows under the group's whole selection, **including the view's own**. Click the "Urgent" bar of the chart in section 1 and open its rows: you see the rows of that bar, and the count line reads "2 of 4 rows". The chart itself still shows every bar. When another view in the group selects, the panel narrows too.
 
 - The panel shows the columns of your data, not the helper columns a chart adds to count rows.
-- The CSV has the same rows as the panel. Cells that a spreadsheet would run as formulas are neutralized.
+- The CSV has the same rows as the panel, with the stored values rather than the formatted ones. A month or a quarter is written as a full ISO date, the first day of the period: `2026-03` is `2026-03-01` and `2026-Q1` is `2026-01-01`.
+- Cells that a spreadsheet would run as formulas are neutralized.
 
 ### One toolbar for a dashboard
 
@@ -275,11 +278,11 @@ Provenance is a statement by the author of the block. Quartile does not verify i
 const doc = useRef<QuartileDocumentHandle>(null);
 
 function showEmea() {
-  const orders = doc.current?.selection('orders');
-  orders?.set('region', 'EMEA'); // one value
-  orders?.set('region', ['EMEA', 'APAC']); // several values
-  orders?.set('amount', [100, 500], { op: 'between' }); // a range
-  orders?.clear('amount'); // one field
+  const selection = doc.current?.selection('orders');
+  selection?.set('region', 'EMEA'); // one value
+  selection?.set('region', ['EMEA', 'APAC']); // several values
+  selection?.set('amount', [100, 500], { op: 'between' }); // a range
+  selection?.clear('amount'); // one field
 }
 
 <>

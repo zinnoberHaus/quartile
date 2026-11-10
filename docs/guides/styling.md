@@ -1,6 +1,8 @@
 # Styling and settings
 
-A block needs no styling to look right: by default a chart takes its colors and fonts from the page it is on. When you care about a detail, each one is one more line in the block. This page covers the defaults, then the settings one at a time, which chart takes which setting, the colors a block may set, the chart tokens, the same settings in React, and building a chart of your own.
+A Quartile chart takes its colors and fonts from the page by default, and each detail you care about (margins, colors, axis range, ticks, gridlines, legend, value labels, reference lines) is one more line in the block.
+
+This page covers the defaults, then the settings one at a time, which chart takes which setting, the colors a block may set, the chart tokens, the same settings in React, and building a chart of your own.
 
 ## 1. The defaults follow your page
 
@@ -98,7 +100,7 @@ line conversion by week
 title: Checkout conversion
 y.min: 2%
 y.max: 5%
-y.ticks: 3
+y.ticks: 4
 x.ticks: 4
 gridlines: no
 ---
@@ -112,11 +114,12 @@ week,conversion
 - `y.min:` and `y.max:` bound the y axis. Numbers may be written the way data is: `1,200`, `1.2M`, `$40`, `2%`.
 - `x.min:` and `x.max:` bound a numeric x axis. They are ignored for dates and categories.
 - On a line or an area, marks outside the bounds are clipped to the plot. On a scatter plot, points outside are not drawn, and the chart's written summary says how many.
-- **Bars start at zero.** A bar's length is its value, so a bar chart ignores a minimum above zero, with this warning: `Bars are measured from zero, so the axis minimum 800000 was ignored: a cut axis would overstate the differences.` The same holds for stacked areas. A maximum that would cut a bar is ignored too. Use a line chart to zoom in on a range.
+- **Bars start at zero.** A bar's length is its value, so a bar chart ignores a minimum above zero, with this warning from the compiler: `Bars are measured from zero, so the axis minimum 800000 was ignored: a cut axis would overstate the differences.` The same holds for stacked areas. Use a line chart to zoom in on a range.
+- **A bound may add room, not cut a mark.** Whether a `y.max` would cut the tallest bar or the tallest stacked total depends on the data, so that check happens when the chart draws: the bound is ignored and the browser console gets a warning. It is not a block diagnostic, so `quartile check` does not report it.
 
 ### Ticks, gridlines and axes
 
-- `y.ticks:` and `x.ticks:` ask for an approximate number of ticks, from 0 to 20. The scale rounds to tidy values, and `0` draws none.
+- `y.ticks:` and `x.ticks:` ask for an approximate number of ticks, from 0 to 20. The scale keeps tidy values and picks the set closest in size to what you asked for, so you may get one more or fewer. `0` draws none.
 - `grid:` chooses the gridlines: `y` for horizontal lines at the y ticks, `x` for vertical lines at the x ticks, `both`, or `none`. `gridlines: no` is the same as `grid: none`.
 - `x axis: no` and `y axis: no` hide an axis's labels and give their room to the plot. `axes: no` hides both.
 
@@ -303,6 +306,7 @@ The table is checked against the component schema in the test suite. Notes:
 - `height:` applies to each of these kinds and to `funnel`, `heatmap`, `calendar` and `sankey`.
 - `heatmap` and `calendar` take `legend: yes` or `no` for their color legend, without a side.
 - A box plot uses the `y` settings for vertical boxes and the `x` settings for horizontal ones.
+- A `barlist` takes `color` and `height` only. It always writes its values beside its bars, and `labels` and `reference` do not apply to it.
 - `funnel`, `sankey`, `kpi`, `table`, `explorer` and `filters` take none of the settings in the table.
 
 ## 4. Colors a block may set
@@ -311,7 +315,7 @@ A block is text that may come from a model or from a stranger, so a color in a b
 
 - **Allowed.** The five palette names, `1` to `8`, and hex colors. A palette name reads a token of the page, so `signal` is the page's own accent in light and in dark.
 - **Refused.** Everything else: CSS color names such as `red`, `rgb()` and other functions, `var()`, `url()`. A refused entry is dropped with a warning that says what is allowed, and the chart keeps its palette for that series: `“red” is not a color a block can set; it was ignored.`
-- **The same rule for JSON specs.** A refused color in a spec is dropped with a warning; it does not fail the chart.
+- **The same rule for JSON specs.** In a spec written in a block, a refused color is dropped with a warning and the chart still draws. `validateSpec` rejects a spec with another color, and `SpecView` passes only allowed colors on to a component.
 
 Fonts, the background and everything outside the plot still come from the page. A block has no setting for them.
 
@@ -373,7 +377,7 @@ import { LineChart } from '@quartile/react';
 - A block setting and a prop have the same name in camelCase: `y.min` is `yMin`, `stroke width` is `strokeWidth`, `x axis: no` is `xAxis={false}`.
 - `colors` is a list in series order, or an object keyed by series name: `colors={{ Team: 'signal', Pro: 3 }}`.
 - `className` and `style` go on the chart's root element.
-- Color props take the same vocabulary as blocks, plus a reference to one of Quartile's own tokens, such as `var(--q-cat-3)`. Another value is ignored with a console warning and the series keeps its default color. To use a brand color that is not hex, set a token (`--q-signal`, `--q-cat-1` … `--q-cat-8`) in CSS and name it.
+- Color props take a palette name, `1` to `8`, or a CSS color of your choice: `colors={['signal', 'rebeccapurple', 'var(--brand)']}`. A prop is your code, so it is not held to the list that blocks and JSON specs are. A spec rendered through `SpecView` still is.
 
 `ChartPresentationProps`, `ChartMargin`, `ChartColor`, `GridSetting`, `LegendSetting` and `ReferenceSetting` are exported types.
 
@@ -381,7 +385,7 @@ import { LineChart } from '@quartile/react';
 
 When no built-in chart fits, build one from the parts the built-in charts use. They are exported from `@quartile/react`: the frame (`ChartFrame`), the axes and guides (`AxisLeft`, `AxisBottom`, `GridRows`, `GridColumns`, `Legend`, `ChartTooltip`, `ReferenceRules`), the scales (`valueAxis`, `bandScale`, `continuousX`, `timeScale`), the settings helpers (`marginSides`, `chartColor`, `gridLines`, `legendPlacement`) and the selection hooks (`useLinkedRows`, `useToggleSelect`, `useRangeBrush`, `useChartKeyboard`).
 
-This lollipop chart is a little over a hundred lines. It sizes itself on a server, shows loading and empty states, has a table alternative, takes `margin` and `color` like the built-in charts, and joins the linked selection:
+This lollipop chart is a little over a hundred lines. It sizes itself on a server, shows loading and empty states, has a table alternative, takes `margin` and `color` props like the built-in charts, and joins the linked selection:
 
 ```tsx
 import {
@@ -442,7 +446,7 @@ export function Lollipop({
   const categoryField = fieldOf(schema, category, rows);
   const format = makeFieldFormatter(valueField, { locale, timeZone });
   const label = makeFieldFormatter(categoryField, { locale, timeZone });
-  // The same color vocabulary as the built-in charts; anything else falls back to the palette.
+  // A palette name or 1 to 8 becomes its token; another string is used as a CSS color.
   const fill = chartColor(color) ?? seriesColor(0);
 
   return (

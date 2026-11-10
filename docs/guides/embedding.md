@@ -8,7 +8,7 @@ One script draws Quartile blocks on an HTML page, with no build step, and takes 
 <script src="/assets/quartile.global.js" data-theme="auto"></script>
 ```
 
-`quartile.global.js` is a standalone build: React, the components and the stylesheet in one file (about 233 kB with gzip -9, measured on this preview). Download it from the preview build's GitHub release, or copy it from `node_modules/@quartile/react/dist/embed/` after installing the package ([installation](installation.md)), and serve it from your own site. It makes no network requests of its own. An ES module build sits next to it as `quartile.js`. The [plain-HTML demo](https://docs.usequartile.com/examples/embed/demo) is a page with no build step.
+`quartile.global.js` is a standalone build: React, the components and the stylesheet in one file (about 235 kB with gzip -9, measured on this preview). Download it from the preview build's GitHub release, or copy it from `node_modules/@quartile/react/dist/embed/` after installing the package ([installation](installation.md)), and serve it from your own site. It makes no network requests of its own. An ES module build sits next to it as `quartile.js`. The [plain-HTML demo](https://docs.usequartile.com/examples/embed/demo) is a page with no build step.
 
 On load the script:
 
@@ -77,10 +77,10 @@ A block's `src:` line names a URL. The page decides what is fetched, and by defa
 
 Origins are matched whole. There are no wildcards; a value that is not `none`, `same-origin` or an exact http(s) origin is ignored with a console warning.
 
-- **Responses.** CSV, TSV and JSON are parsed like inline rows, up to 50,000 rows, 5 MB and 15 seconds per response. A block's `path:` says where the rows are in a JSON response.
+- **Responses.** CSV, TSV and JSON are parsed like inline rows, up to 50,000 rows, 5 MB and 15 seconds per response. A block's `path:` says where the rows are in a JSON response. A longer response keeps its first rows and each chart drawn from it says so; a response with no rows draws the empty state.
 - **Refresh.** A block's `refresh: 30s` reloads its URL while the page is visible. `data-min-refresh` sets the shortest interval a block may ask for (10 seconds by default).
 - **Reload.** `Quartile.reload()` fetches the page's sources again; `Quartile.reload('/api/orders.json')` reloads one URL. Charts keep their rows until the new ones arrive.
-- **Configure from JavaScript.** `Quartile.configure({ sources, minRefresh, maxBytes, timeoutMs, loadSource })`. `sources` is the same list as a string or an array, or a function `(url: URL) => boolean`. `loadSource: (url, signal) => myApi(url, signal)` replaces fetching with your own function, which may map your own names to authorized queries and return rows, text or parsed JSON.
+- **Configure from JavaScript.** `Quartile.configure({ sources, minRefresh, maxBytes, timeoutMs, maxRows, loadSource })`. `sources` is the same list as a string or an array, or a function `(url: URL) => boolean`. `loadSource: (url, signal) => myApi(url, signal)` replaces fetching with your own function, which may map your own names to authorized queries and return rows, text or parsed JSON.
 
 ```html
 <script>

@@ -56,7 +56,7 @@ export function Lollipop({
   const categoryField = fieldOf(schema, category, rows);
   const format = makeFieldFormatter(valueField, { locale, timeZone });
   const label = makeFieldFormatter(categoryField, { locale, timeZone });
-  // The same color vocabulary as the built-in charts; anything else falls back to the palette.
+  // A palette name or 1 to 8 becomes its token; another string is used as a CSS color.
   const fill = chartColor(color) ?? seriesColor(0);
 
   return (

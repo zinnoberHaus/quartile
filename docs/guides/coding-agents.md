@@ -19,7 +19,7 @@ Add what you want charted, for example "chart the three tables in docs/report.md
 1. **Install the preview build** from its GitHub release, and not from the npm registry, where the package does not exist.
 2. **Detect the host.** It looks for Streamdown, react-markdown, MDX, a remark pipeline, markdown-it or plain HTML in your project.
 3. **Wire Quartile into that host** with the minimum code for it.
-4. **Write blocks** with the kinds and settings the language has.
+4. **Write blocks** with the kinds and settings the language has, including the settings for looks, linking, toolbars and provenance.
 5. **Use data the way the host allows**: inline rows, a `data` block, a dataset the app passes, or a `src:` URL only where the page already allows it.
 6. **Validate** with `npx --no-install quartile check` and fix what it reports.
 
@@ -146,6 +146,20 @@ npx --no-install quartile prompt --dataset orders=orders.csv
 ```
 
 Prints the text that `quartilePrompt()` returns: the system-prompt section that teaches a model the block syntax. With `--dataset name=file`, the prompt lists the dataset's name and its columns with their types, and tells the model to write `data: name` instead of pasting rows. Use it to inspect the prompt, or to paste it into a tool that has no JavaScript runtime. The command prints the default prompt; the `actions` option of `quartilePrompt()` has no flag.
+
+## Docs for machines
+
+These URLs are stable and return plain text, so an agent can fetch them without rendering a page:
+
+| URL | Holds |
+|---|---|
+| `https://docs.usequartile.com/llms.txt` | what Quartile is, how to install it, and a link to each docs page |
+| `https://docs.usequartile.com/llms-full.txt` | the main pages in one file |
+| `https://docs.usequartile.com/docs/<slug>.md` | the Markdown rendition of a docs page, for example `/docs/language.md` |
+| `https://docs.usequartile.com/schema.json` | the JSON Schema of the component specs that blocks compile to |
+| `https://usequartile.com/SKILL.md` | the skill |
+
+The docs describe the latest preview. For the version installed in a project, `npx --no-install quartile prompt` prints the exact system prompt of that version, and `node_modules/@quartile/react/dist/schema.json` is its schema.
 
 ## `quartilePrompt()` or the skill?
 

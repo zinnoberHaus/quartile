@@ -26,7 +26,7 @@ import { QuartileBlock, QuartileDocument, QuartilePre, quartileRenderer, type Co
 import { compileBlock, quartilePrompt, quartileChartTool, chartToolInputToBlock, dbtFields, type Diagnostic } from '@quartile/react/lang';
 import { renderBlockToHTML, remarkQuartile, markdownItQuartile } from '@quartile/react/server';
 import { configureEmbed, defineQuartileElements, upgradeBlocks } from '@quartile/react/embed';
-import { SpecView, type SelectionChange, type ViewAction } from '@quartile/react';
+import { SpecView, type QuartileDocumentHandle, type SelectionChange, type SelectionHandle as DocumentSelection, type ViewAction } from '@quartile/react';
 import { embedGroups, embedSelection, type QuartileSelectDetail, type SelectionHandle } from '@quartile/react/embed';
 import '@quartile/react/styles.css';
 export const compiled: CompiledBlock = compileBlock('bar sum(amount) by region\\n---\\nregion,amount\\nEU,1\\n');
@@ -45,6 +45,11 @@ export const renderers = [quartileRenderer()];
 export function Interactions({ md, heard }: { md: string; heard: (change: SelectionChange) => void }) {
   const actions: ViewAction[] = ['rows', 'download'];
   return <QuartileDocument markdown={md} onSelectionChange={heard} actions={actions}><QuartileBlock source={md} group="answer" onSelectionChange={heard} actions={false} /><SpecView spec={{ component: 'DataExplorer', data: 'rows', columns: [{ field: 'region' }], source: 'Example', sourceUrl: 'https://example.org/', asOf: '2026-11-01' }} data={{ rows: [] }} onSelectionChange={heard} actions={actions} /></QuartileDocument>;
+}
+export function showAll(doc: QuartileDocumentHandle): string[] {
+  const orders: DocumentSelection = doc.selection('orders');
+  orders.clear();
+  return doc.groups();
 }
 export function listen(): () => void {
   const orders: SelectionHandle = embedSelection('orders');

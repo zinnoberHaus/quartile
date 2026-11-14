@@ -16,7 +16,7 @@ test('renders a report with charts, dbt documentation and an exposure', () => {
     assert.deepEqual(diagnostics, []);
     const page = readFileSync(html, 'utf8');
     assert.match(page, /<h1>Q3 2026 revenue<\/h1>/);
-    assert.equal(page.match(/class="quartile-static"/g)?.length, 2);
+    assert.equal(page.match(/class="quartile-static not-prose"/g)?.length, 2);
     assert.match(page, /<svg/);
     // The manifest's label and description reach the rendered chart and table.
     assert.match(page, /Net revenue/);

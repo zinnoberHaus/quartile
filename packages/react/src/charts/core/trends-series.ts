@@ -34,8 +34,8 @@ export function pivotSeries(
     formatGroup?: (value: unknown) => string;
     /** Sort x ascending (dates, numbers). Strings keep first-seen order either way. */
     sortX?: boolean;
-    /** Explicit colors, by series index or by series key. */
-    colors?: string[] | Record<string, string>;
+    /** Explicit colors, by series index or by series key. A gap keeps the palette color. */
+    colors?: (string | undefined)[] | Record<string, string>;
   },
 ): { xsRaw: unknown[]; series: XSeries[] } {
   const xsRaw: unknown[] = [];
@@ -70,7 +70,8 @@ export function pivotSeries(
   };
   const colorFor = (key: string, i: number) => {
     if (Array.isArray(colors)) return colors[i] ?? seriesColor(i);
-    return colors?.[key] ?? seriesColor(i);
+    // Own keys only: a series named "constructor" must not read Object.prototype.
+    return (colors && Object.hasOwn(colors, key) ? colors[key] : undefined) ?? seriesColor(i);
   };
   const series: XSeries[] = [];
   if (color && yFields.length === 1) {

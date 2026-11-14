@@ -1,7 +1,7 @@
 {
   "name": "@quartile/react",
   "version": "0.1.0",
-  "description": "Charts, tables and controls for data apps, on one theme, one data model and one selection state.",
+  "description": "An open-source chart block for Markdown, AI answers and web pages: a few lines of text become an interactive chart, KPI, table or dashboard.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -13,10 +13,17 @@
     "url": "https://github.com/zinnoberHaus/quartile/issues"
   },
   "keywords": [
+    "markdown",
+    "charts",
+    "chart",
     "react",
     "data-visualization",
-    "charts",
     "dashboard",
+    "llm",
+    "ai",
+    "streaming",
+    "web-component",
+    "embed",
     "crossfilter",
     "typescript"
   ],
@@ -26,6 +33,9 @@
     "./dist/embed/quartile.js",
     "./dist/embed/quartile.global.js"
   ],
+  "bin": {
+    "quartile": "./dist/cli.js"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

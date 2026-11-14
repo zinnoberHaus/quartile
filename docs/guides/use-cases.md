@@ -8,15 +8,15 @@ Use [Studio](studio.md) for a weather forecast, earthquake event inspection or c
 
 | Use case | Live example | Source |
 | --- | --- | --- |
-| Storefront revenue, acquisition, conversion | [Storefront](https://quartile-design.vercel.app/examples/storefront) | [StorefrontExample](../../apps/gallery/src/examples/storefront/StorefrontExample.tsx) |
-| Customer subscription portfolio | [SaaS analytics](https://quartile-design.vercel.app/examples/saas) | [Workbench](../../apps/gallery/src/examples/workbench/Workbench.tsx) |
-| Operations and incident investigation | [Service health](https://quartile-design.vercel.app/examples/operations) | [Workbench](../../apps/gallery/src/examples/workbench/Workbench.tsx) |
-| Editable dashboard JSON | [JSON dashboard](https://quartile-design.vercel.app/examples/ai-dashboard) | [Spec editor](../../apps/gallery/src/examples/workbench/Workbench.tsx) |
-| Locale, precision, notation and explanatory tooltips | [Formatting lab](https://quartile-design.vercel.app/examples/formatting) | [Formatting guide](formatting.md) |
-| Dataset profiling and analytical tables | [Dataset explorer](https://quartile-design.vercel.app/examples/explore) | [Science workspace](../../apps/gallery/src/examples/science) |
-| Exact return activity by acquisition cohort | [Cohort retention](https://quartile-design.vercel.app/examples/cohorts) | [Calculations](../../apps/gallery/src/examples/science/analysis.ts) |
-| Threshold and slice evaluation | [Model evaluation](https://quartile-design.vercel.app/examples/model-evaluation) | [Predictions and calculations](../../apps/gallery/src/examples/science) |
-| Reviewed analysis proposals | [Analysis assistant](https://quartile-design.vercel.app/examples/assistant) | [Assistant workspace](../../apps/gallery/src/examples/science/AssistantWorkbench.tsx) |
+| Storefront revenue, acquisition, conversion | [Storefront](https://docs.usequartile.com/examples/storefront) | [StorefrontExample](../../apps/gallery/src/examples/storefront/StorefrontExample.tsx) |
+| Customer subscription portfolio | [SaaS analytics](https://docs.usequartile.com/examples/saas) | [Workbench](../../apps/gallery/src/examples/workbench/Workbench.tsx) |
+| Operations and incident investigation | [Service health](https://docs.usequartile.com/examples/operations) | [Workbench](../../apps/gallery/src/examples/workbench/Workbench.tsx) |
+| Editable dashboard JSON | [JSON dashboard](https://docs.usequartile.com/examples/ai-dashboard) | [Spec editor](../../apps/gallery/src/examples/workbench/Workbench.tsx) |
+| Locale, precision, notation and explanatory tooltips | [Formatting lab](https://docs.usequartile.com/examples/formatting) | [Formatting guide](formatting.md) |
+| Dataset profiling and analytical tables | [Dataset explorer](https://docs.usequartile.com/examples/explore) | [Science workspace](../../apps/gallery/src/examples/science) |
+| Exact return activity by acquisition cohort | [Cohort retention](https://docs.usequartile.com/examples/cohorts) | [Calculations](../../apps/gallery/src/examples/science/analysis.ts) |
+| Threshold and slice evaluation | [Model evaluation](https://docs.usequartile.com/examples/model-evaluation) | [Predictions and calculations](../../apps/gallery/src/examples/science) |
+| Reviewed analysis proposals | [Analysis assistant](https://docs.usequartile.com/examples/assistant) | [Assistant workspace](../../apps/gallery/src/examples/science/AssistantWorkbench.tsx) |
 
 ## Walk through the examples
 
@@ -34,7 +34,7 @@ Start with the unfiltered view, make one change, inspect both the displayed metr
 | `/examples/model-evaluation` | Move the decision threshold, choose a segment, then inspect a false-positive confusion cell. | Segment selection changes the metric population; an outcome or detail-table filter only narrows inspected records. |
 | `/examples/assistant` | Request a local example proposal, inspect context and proposed changes, then Apply, Undo or Reset. | Local mode is deterministic. A proposal does not alter the analysis until applied. Connect the separate server only with your own configured model account. |
 | `/examples/scale` | Initialize a small source, change a shared filter, inspect the page/point counts and download measurements. | Source records, matching records, returned rows and plotted marks differ. Scatter uses bounded first matching IDs, not representative sampling. |
-| `/studio` | Load a preset, change a mapping, switch canvas/source, then download a project and React starter. | Requests are real; source changes can fail. Project JSON saves configuration, while the starter fetches data again when run. |
+| `/examples/studio` | Load a preset, change a mapping, switch canvas/source, then download a project and React starter. | Requests are real; source changes can fail. Project JSON saves configuration, while the starter fetches data again when run. |
 
 See [connecting data](connecting-data.md), [science calculations](data-science.md), [AI integration](ai-assistance.md), [worker queries](worker-queries.md) and [Studio exports](studio.md) for the specific contracts. None of these local examples supplies application authentication or hosted persistence.
 

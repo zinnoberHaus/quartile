@@ -1,6 +1,6 @@
 # Formatting values, axes and tooltips
 
-Define a field's meaning once with `dataset()`, then choose how each surface presents it. Formatting changes labels; it does not change underlying rows, aggregates, sort order or filters. Raw CSV remains the default; formatted CSV is an explicit export choice. Native `Intl` supplies locale-aware numbers and dates. FormatJS, math.js and d3-format remain optional application integrations. [Try the formatting lab](https://quartile-design.vercel.app/examples/formatting).
+Define a field's meaning once with `dataset()`, then choose how each surface presents it. Formatting changes labels; it does not change underlying rows, aggregates, sort order or filters. Raw CSV remains the default; formatted CSV is an explicit export choice. Native `Intl` supplies locale-aware numbers and dates. FormatJS, math.js and d3-format remain optional application integrations. [Try the formatting lab](https://docs.usequartile.com/examples/formatting).
 
 ## Start with field metadata
 

@@ -43,13 +43,13 @@ Contexts, GPU resources, observers and event listeners are released when the sur
 
 Accelerated rendering currently covers ScatterPlot and its size-encoded bubbles. It does not add Canvas/WebGL to other charts, GPU filtering, a worker renderer, progressive drawing, automatic downsampling, per-point DOM customization or an image export API. Device GPU limits, browser context quotas and software rendering can trigger fallback or affect performance. CSS token changes on provider/ancestor style, class, theme or density attributes redraw the surface; stylesheet replacement outside that mechanism may require a rerender.
 
-The [runnable scale workbench](https://quartile-design.vercel.app/examples/scale) separates source rows, matched rows and bounded rendered marks, with renderer selection and downloadable observations. See its [source and measurement notes](../../apps/gallery/src/examples/scale/README.md). Treat results as browser/device observations rather than guarantees. Automated keyboard, table and renderer tests do not substitute for manual screen-reader validation, which remains a preview limitation.
+The [runnable scale workbench](https://docs.usequartile.com/examples/scale) separates source rows, matched rows and bounded rendered marks, with renderer selection and downloadable observations. See its [source and measurement notes](../../apps/gallery/src/examples/scale/README.md). Treat results as browser/device observations rather than guarantees. Automated keyboard, table and renderer tests do not substitute for manual screen-reader validation, which remains a preview limitation.
 
 The architecture and tradeoffs are recorded in [ADR 0003](../decisions/0003-accelerated-scatter.md).
 
 ## Reproduce browser correctness checks
 
-Run the gallery with `pnpm dev`, then run the optional Playwright fixture from the repository root. It requires a local development server, because it imports source modules through Vite.
+Run the examples app with `pnpm dev`, then run the optional Playwright fixture from the repository root. It requires a local development server, because it imports source modules through Vite.
 
 ```sh
 npm install --prefix /tmp/quartile-browser-verification playwright@1.63.0

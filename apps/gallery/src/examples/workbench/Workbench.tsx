@@ -17,7 +17,7 @@ import {
 } from '@quartile/react';
 import { useState } from 'react';
 import { Link } from '../../router';
-import { Wordmark } from '../../shell/Logo';
+import { ExamplesBrand } from '../../shell/Brand';
 import { links } from '../../shell/links';
 import { accounts, initialSpec, requests } from './data';
 import { referenceErrors } from './references';
@@ -344,9 +344,7 @@ export function Workbench({ kind }: { kind: WorkbenchKind }) {
       className="w-page"
     >
       <header className="w-header">
-        <Link to="/">
-          <Wordmark />
-        </Link>
+        <ExamplesBrand />
         <nav aria-label="Examples">
           <Link to="/examples/storefront">Storefront</Link>
           <Link to="/examples/saas" aria-current={kind === 'saas' ? 'page' : undefined}>
@@ -362,7 +360,7 @@ export function Workbench({ kind }: { kind: WorkbenchKind }) {
             JSON dashboard
           </Link>
           <Link to="/examples/scale">Worker queries</Link>
-          <Link to="/studio">App Studio</Link>
+          <Link to="/examples/studio">App Studio</Link>
         </nav>
         <a href={links.docs}>Docs</a>
       </header>

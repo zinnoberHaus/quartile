@@ -1,8 +1,10 @@
 import { QuartileProvider } from '@quartile/react';
 import { useEffect, useState } from 'react';
 import { Link } from '../router';
+import { EXAMPLES_PATH } from '../routes';
 import { Wordmark } from '../shell/Logo';
 import { links } from '../shell/links';
+import './catalog.css';
 import { BrandSection } from './sections/Brand';
 import { ButtonsSection } from './sections/Buttons';
 import { ChartStatesSection } from './sections/ChartStates';
@@ -86,12 +88,16 @@ function useActiveSection() {
   return active;
 }
 
+/**
+ * The component catalog. A development-only test bed at /examples/_design (see App.tsx): it is not
+ * in the route table, so production builds neither contain nor link it.
+ */
 export function DesignSystemPage() {
   const active = useActiveSection();
   return (
     <QuartileProvider className="g-page">
       <header className="g-header">
-        <Link to="/" className="g-brand">
+        <Link to={EXAMPLES_PATH} className="g-brand">
           <Wordmark size={18} />
         </Link>
         <span className="g-divider" />
@@ -101,14 +107,14 @@ export function DesignSystemPage() {
         <nav className="g-header-nav">
           <a href={links.landing}>Landing</a>
           <a href={links.docs}>Docs</a>
-          <Link to="/language">Markdown</Link>
+          <Link to="/examples/playground">Markdown</Link>
           <Link to="/examples/ai-answer">AI answers</Link>
           <Link to="/examples/storefront">Example app</Link>
           <Link to="/examples/explore">Data science</Link>
           <Link to="/examples/assistant">AI workbench</Link>
           <Link to="/examples/scale">Worker queries</Link>
           <Link to="/examples/formatting">Formatting</Link>
-          <Link to="/studio">App Studio</Link>
+          <Link to="/examples/studio">App Studio</Link>
           <a href={links.github}>GitHub</a>
         </nav>
       </header>

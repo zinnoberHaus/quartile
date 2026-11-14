@@ -26,6 +26,8 @@ import { QuartileBlock, QuartileDocument, QuartilePre, quartileRenderer, type Co
 import { compileBlock, quartilePrompt, quartileChartTool, chartToolInputToBlock, dbtFields, type Diagnostic } from '@quartile/react/lang';
 import { renderBlockToHTML, remarkQuartile, markdownItQuartile } from '@quartile/react/server';
 import { configureEmbed, defineQuartileElements, upgradeBlocks } from '@quartile/react/embed';
+import { SpecView, type QuartileDocumentHandle, type SelectionChange, type SelectionHandle as DocumentSelection, type ViewAction } from '@quartile/react';
+import { embedGroups, embedSelection, type QuartileSelectDetail, type SelectionHandle } from '@quartile/react/embed';
 import '@quartile/react/styles.css';
 export const compiled: CompiledBlock = compileBlock('bar sum(amount) by region\\n---\\nregion,amount\\nEU,1\\n');
 export const notes: Diagnostic[] = compiled.diagnostics;
@@ -40,6 +42,22 @@ export function MarkdownBlocks({ md }: { md: string }) {
   return <QuartileDocument markdown={md} theme="auto" host="shadcn" accent="#e11d48"><QuartileBlock source={md} streaming={false} /><QuartilePre>x</QuartilePre></QuartileDocument>;
 }
 export const renderers = [quartileRenderer()];
+export function Interactions({ md, heard }: { md: string; heard: (change: SelectionChange) => void }) {
+  const actions: ViewAction[] = ['rows', 'download'];
+  return <QuartileDocument markdown={md} onSelectionChange={heard} actions={actions}><QuartileBlock source={md} group="answer" onSelectionChange={heard} actions={false} /><SpecView spec={{ component: 'DataExplorer', data: 'rows', columns: [{ field: 'region' }], source: 'Example', sourceUrl: 'https://example.org/', asOf: '2026-11-01' }} data={{ rows: [] }} onSelectionChange={heard} actions={actions} /></QuartileDocument>;
+}
+export function showAll(doc: QuartileDocumentHandle): string[] {
+  const orders: DocumentSelection = doc.selection('orders');
+  orders.clear();
+  return doc.groups();
+}
+export function listen(): () => void {
+  const orders: SelectionHandle = embedSelection('orders');
+  orders.set('region', ['EMEA', 'APAC']);
+  orders.set('amount', [100, 500], { op: 'between' });
+  document.addEventListener('quartile-select', (event) => { const detail: QuartileSelectDetail = event.detail; if (detail.origin) console.log(detail.group, embedGroups()); });
+  return orders.subscribe((predicates) => console.log(predicates.length));
+}
 export const RemoteMetric = ({ source }: { source: QuerySource }) => <QueryKPI data={source} label="Remote count" aggregate="count" />;
 const data = dataset([{ date: '2026-09-01', region: 'Europe', amount: 120 }]);
 const numberFormat: NumberFormat = { type: 'number', notation: 'engineering', maximumSignificantDigits: 4, suffix: ' ms' };
@@ -132,6 +150,10 @@ const blockHtml = renderToString(createElement(QuartileBlock, { source: 'kpi cou
 assert.match(blockHtml, /Rows/);
 const standalone = readFileSync(new URL(import.meta.resolve('@quartile/react/embed/standalone.global.js')), 'utf8');
 assert(standalone.includes('quartile-chart'), 'standalone embed defines <quartile-chart>');
+assert(standalone.includes('quartile-select'), 'standalone embed announces selections');
+const sourced = renderBlockToHTML('explorer\\nsource: Example\\nsource.url: https://example.org/\\nactions: rows\\n---\\nregion,amount\\nEU,1\\n', { timeZone: 'UTC' });
+assert.match(sourced, /Source: <a href="https:\\/\\/example.org\\/" rel="noopener noreferrer">Example<\\/a>/);
+assert(!sourced.includes('q-spec-actions'), 'static HTML has no view toolbar');
 assert(standalone.length < 900_000, 'standalone embed stays under 900 kB minified');
 assert.deepEqual(warnings, [], 'Static rendering should not emit React warnings');
 console.log('Packed import, SSR, CSS, schema, language, static rendering, embed, license and README passed.');
@@ -159,6 +181,25 @@ console.log('Packed import, SSR, CSS, schema, language, static rendering, embed,
       'typescript@5.9.3',
     ]);
     run(process.execPath, [join(temporary, 'runtime.mjs')]);
+    // The `quartile` command from the installed package: a valid document passes, a misspelt
+    // column fails with its line.
+    writeFileSync(
+      join(temporary, 'ok.md'),
+      '# Report\n\n```quartile\nbar sum(amount) by region\n---\nregion,amount\nEU,1\n```\n',
+    );
+    writeFileSync(
+      join(temporary, 'bad.md'),
+      '```quartile\nbar sum(amuont) by nowhere\n---\nregion,amount\nEU,1\n```\n',
+    );
+    run('npx', ['--no-install', 'quartile', 'check', 'ok.md']);
+    let failed = false;
+    try {
+      execFileSync('npx', ['--no-install', 'quartile', 'check', 'bad.md'], { cwd: temporary });
+    } catch (error) {
+      failed = error.status === 1 && /bad\.md:2: error/.test(String(error.stdout));
+    }
+    if (!failed)
+      throw new Error('quartile check must exit 1 and name bad.md:2 for an unknown column');
     run(process.execPath, [
       join(temporary, 'node_modules/typescript/bin/tsc'),
       '--noEmit',

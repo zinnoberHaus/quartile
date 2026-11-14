@@ -2,6 +2,8 @@
 
 Date: 2026-11-09 · Status: accepted for the preview
 
+> Amended by [ADR 0008](0008-embed-first-data-settings-interaction.md): points 4 and 9 (the origin allowlist for `src:`; presentation settings and a closed list of colors in blocks), point 5 (views in a named group publish by default) and the meaning of `source:`.
+
 ## Context
 
 Quartile renders linked charts, tables and KPIs in React and validates JSON dashboard specs (ADR 0001, guides/generated-dashboards). Three uses were not served: authors writing dashboards in Markdown (documentation, reports, dbt projects); websites showing AI answers, where a model writes the chart inside its Markdown; and pages that are not React apps. Charts also rendered nothing on the server, because they waited to measure their container, so search engines and AI crawlers that do not run JavaScript saw no chart. The [November research](../research/markdown-ai-embedding-2026-11.md) records the evidence behind each decision below.

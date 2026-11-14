@@ -1,57 +1,253 @@
 # Quartile
 
-**Build data apps, not just charts.** Quartile is an open-source React toolkit of charts, tables and interface controls that share one theme, one data model and one selection state. Brush a chart or click a bar, and the table, the KPIs and the filters follow.
+**Write a sentence. Get a chart.**
 
-> **Status: 0.1 preview.** The library builds, is tested and renders the gallery and example app, but it is not yet published to npm and its API may change before 0.1.0 is released. See [what is not built yet](#what-is-not-built-yet).
+Quartile is an open-source chart block for Markdown, AI answers and web pages. A few lines of text become an interactive chart, KPI, table or dashboard: in Markdown docs and notes, in AI answers while they stream, and on a web page with one script tag.
 
-- **[Charts in Markdown](docs/language.md):** a ```` ```quartile ```` block turns a sentence and CSV rows into an interactive chart or dashboard. Use it in documentation, reports, dbt projects and AI answers; it renders in React, on a server for SEO, or on any page with one script, in the page's own styling. [Playground](https://quartile-design.vercel.app/language) · [streamed AI answer](https://quartile-design.vercel.app/examples/ai-answer) · [Markdown report](https://quartile-design.vercel.app/examples/markdown-report).
-- **[Design system and component gallery](https://quartile-design.vercel.app):** components rendered live from this repository (`apps/gallery`).
-- **[Documentation](https://quartile-docs.vercel.app)** and **[public implementation guides](docs/guides/README.md)**: installation, data, selection, integration, accessibility, and performance.
-- **[Visual Studio](https://quartile-design.vercel.app/studio):** connect a real public API, arrange charts and tables, then export project JSON or a runnable React starter. [Studio guide](docs/guides/studio.md) · [API recipes](docs/guides/api-data.md).
-- **Runnable examples:** [storefront](https://quartile-design.vercel.app/examples/storefront), [SaaS analytics](https://quartile-design.vercel.app/examples/saas), [service health](https://quartile-design.vercel.app/examples/operations), an [editable JSON dashboard](https://quartile-design.vercel.app/examples/ai-dashboard), and the [worker query explorer](https://quartile-design.vercel.app/examples/scale).
-- **Data-science workspaces:** [dataset exploration](https://quartile-design.vercel.app/examples/explore), [cohort retention](https://quartile-design.vercel.app/examples/cohorts), [model evaluation](https://quartile-design.vercel.app/examples/model-evaluation), and [reviewed analysis assistance](https://quartile-design.vercel.app/examples/assistant). [Bring a pandas/Polars snapshot](examples/python) or [connect your own model backend](examples/ai-server).
-
-## Why another data-viz library
-
-Chart libraries stop at the chart. UI kits stop at the form. Teams glue the two together and then spend weeks reconciling themes, tooltips and filter state. Quartile ships the layers as one system:
-
-- **One theme.** Charts, tables, inputs and overlays read the same `--q-*` CSS custom properties. Light and dark themes and two densities are token remaps. No Tailwind or CSS-in-JS runtime is required, and it sits inside a Tailwind or shadcn/ui app.
-- **One data model.** Pass rows and name the fields. Types, labels and formats are inferred (or declared once with `dataset()`), and axes, tooltips, tables and KPIs all use them. [Formatting](docs/guides/formatting.md) supports explicit precision, scientific/engineering notation, locale, time zones, units and separate axis/tooltip presentation.
-- **Bring your own data.** The local dataset explorer imports CSV/JSON files or bounded HTTP snapshots, then links charts, profiles and records. [Connection workflow and API shape](docs/guides/connecting-data.md).
-- **One selection.** Wrap views in `<Selection>`. Brushes, clicks and filter chips publish predicates to a shared store; every other view re-filters, and a view is never filtered by its own selection (crossfilter semantics).
-- **Accessible analytical views.** Charts provide keyboard navigation, generated summaries and table alternatives (`view="table"`). Sparkline is a compact image with a summary instead of interactive navigation or a table. [Accessibility scope](docs/guides/accessibility.md).
-- **Machine-readable.** Components are described by JSON Schema (`@quartile/react/schema.json`). `validateSpec` checks a generated dashboard spec and `<SpecView>` renders it.
-- **A Markdown language.** ```` ```quartile ```` blocks compile to the same validated spec. Models learn it from `quartilePrompt()`; blocks draw while an answer streams; field names are checked against the data with line-numbered errors. [Language](docs/language.md) · [AI answers](docs/guides/ai-responses.md).
-- **Renders anywhere, looks native.** Charts render real SVG and tables on the server and at build time (remark and markdown-it plugins), and a standalone script upgrades code blocks on any HTML page. `theme="auto"` and host presets (shadcn/ui, VitePress, Docusaurus, Starlight, Material for MkDocs, Primer and more) take the page's colors and fonts. [Server rendering](docs/guides/server-rendering.md) · [Embedding](docs/guides/embedding.md) · [dbt](docs/guides/dbt.md).
-- **Optional worker queries.** Arrow input and DuckDB-backed bounded queries link metrics, category totals and remote table pages. [Setup and semantics](docs/guides/worker-queries.md).
-- **Scatter renderer choice.** Use SVG, Canvas, or WebGL for scatter points, with shared selection, keyboard navigation and paged exact data. [Coverage and fallbacks](docs/guides/renderers.md).
-- **Analytical tables.** Search, typed local filters, multi-sort, column controls, grouping, saved view JSON, CSV export and controlled cell edits. [Table contracts](docs/guides/tables.md).
-- **Optional analysis assistance.** Bounded context and profiles, typed proposals, validation and explicit Apply. Bring your own backend; the local demo is deterministic, with no model inference. [AI integration](docs/guides/ai-assistance.md).
-
-How this compares with Recharts, ECharts, Observable Plot, Unovis, shadcn/ui charts, Tremor, MUI X, Mosaic and others, with sources: [docs/research/landscape-2026-10.md](docs/research/landscape-2026-10.md).
-
-The [product-direction follow-up](docs/research/product-direction-2026-10-09.md) connects primary-source research to the preview's use cases, integration choices, and remaining evidence gaps.
-
-## Quick look
-
-In Markdown:
+> **Status: 0.1 preview · Apache-2.0 · not on npm yet.** Install the preview build from a GitHub release ([install](#install)). The block language and the APIs may change before 0.1.0. See [what is not built yet](#what-is-not-built-yet).
 
 ````markdown
 ```quartile
-bar sum(amount) by region
-title: Order value by region
+bar sum(revenue) by region
+title: Revenue by region, Q3 2026
+format: currency USD
 ---
-region,amount
-EMEA,"$1,200"
-APAC,$860
-Americas,"$2,100"
+region,revenue
+EMEA,1200000
+APAC,860000
+Americas,2100000
 ```
 ````
 
-In React:
+The first line is the chart: a kind (`bar`), a measure (`sum(revenue)`) and the field that splits it (`region`). The `key: value` lines are settings. The rows come after `---`.
+
+A page with Quartile draws this block as a bar chart titled "Revenue by region, Q3 2026": three bars, values in US dollars, keyboard navigation, a written summary ("3 bars. Highest Americas at $2,100,000; lowest APAC at $860,000.") and a table of the same numbers for assistive technology. A page without Quartile, such as this README on GitHub, shows the block as the code above, so the data stays readable.
+
+What a Mermaid block does for diagrams, a `quartile` block does for data. (Quartile is not affiliated with Mermaid.)
+
+[Playground](https://docs.usequartile.com/examples/playground) · [Documentation](https://docs.usequartile.com) · [Examples](https://docs.usequartile.com/examples) · [Language reference](docs/language.md)
+
+## Use it in
+
+Each path needs the package or the script from [Install](#install).
+
+### Markdown, in a React app
 
 ```tsx
-import { QuartileProvider, Selection, KPI, Histogram, BarList, DataTable } from '@quartile/react';
+import Markdown from 'react-markdown';
+import { QuartileDocument, QuartilePre } from '@quartile/react';
+import '@quartile/react/styles.css';
+
+export function Page({ markdown }: { markdown: string }) {
+  return (
+    <QuartileDocument markdown={markdown} theme="system">
+      <Markdown components={{ pre: QuartilePre }}>{markdown}</Markdown>
+    </QuartileDocument>
+  );
+}
+```
+
+`QuartilePre` draws `quartile` code blocks and leaves other code blocks alone. For MDX, remark, markdown-it and static builds, see [Markdown and documentation sites](docs/guides/markdown.md).
+
+### AI answers
+
+Teach the model the syntax, then render its Markdown while it streams:
+
+```ts
+import { quartilePrompt } from '@quartile/react/lang';
+
+const system = ['You are a data analyst.', quartilePrompt()].join('\n\n');
+```
+
+```tsx
+import { Streamdown } from 'streamdown';
+import { QuartileDocument, quartileRenderer } from '@quartile/react';
+import '@quartile/react/styles.css';
+
+const renderers = [quartileRenderer()];
+
+export function Answer({ text, streaming }: { text: string; streaming: boolean }) {
+  return (
+    <QuartileDocument theme="auto" streaming={streaming}>
+      <Streamdown isAnimating={streaming} plugins={{ renderers }}>
+        {text}
+      </Streamdown>
+    </QuartileDocument>
+  );
+}
+```
+
+`quartilePrompt()` returns one system-prompt section. The model writes blocks inside its normal Markdown. A block draws once its first line and one complete row have arrived, and grows with each row. Quartile ships no model and calls none. [Charts in AI answers](docs/guides/ai-responses.md) covers react-markdown, tool calls, validation and repair.
+
+### A web page
+
+```html
+<script src="/assets/quartile.global.js" data-theme="auto"></script>
+
+<quartile-chart>
+  <script type="text/quartile">
+    bar sum(revenue) by region
+    ---
+    region,revenue
+    EMEA,1200000
+    APAC,860000
+    Americas,2100000
+  </script>
+</quartile-chart>
+```
+
+One file that you host yourself, with no build step. The script also draws `quartile` code blocks that a Markdown renderer already put on the page (`pre > code.language-quartile`), including blocks added later. `data-theme="auto"` takes the page's background, text color and font. See [embedding and styling](docs/guides/embedding.md).
+
+## Three reasons to use it
+
+### 1. Data and AI first
+
+Rows in, chart out. A block gets its rows in one of four ways:
+
+- **Inline.** CSV, TSV, a Markdown table or JSON after `---`.
+- **A `data` block.** Define rows once in a document; other blocks read them with `data: sales`.
+- **A dataset your app provides.** `<QuartileDocument data={{ orders }}>` makes `data: orders` work, with rows your server already authorized.
+- **A URL the page allows.** `src: /data/orders.csv` or a JSON API.
+
+JSON APIs seldom return a bare list. `path:` says where the rows are, and `refresh:` reloads them on a timer:
+
+```text
+line sum(visitors) by day
+title: Visitors, last 7 days
+src: https://api.example.com/v1/analytics/visitors?range=7d
+path: data.results
+refresh: 5m
+```
+
+Nothing is fetched unless the host opts in. In React, pass a loader that lists the origins: `createSourceLoader({ origins: ['same-origin', 'https://api.example.com'] })`. On a plain page, list them on the script tag: `data-sources="same-origin https://api.example.com"`. Request headers, such as an API key, come only from your code. Responses are limited to 5 MB and 15 seconds by default. See [data sources](docs/guides/data-sources.md).
+
+For models:
+
+- `quartilePrompt()` teaches the syntax in one system-prompt section. `quartileBlockTool()` and `quartileChartTool()` are tool schemas that fit strict modes.
+- The compiler checks each field name against the real columns. An unknown column is an error with a line number and the list of columns, which is what a model needs to repair the block.
+- Blocks draw while the answer streams. Errors wait until the block is complete.
+
+SQL is not executed, and Quartile does not connect to a database: your app runs the query and passes the rows.
+
+### 2. One line to start. Every detail when you care.
+
+- **Defaults come from the data and the page.** Column types, labels (`net_revenue` reads "Net revenue") and number and date formats are inferred. Written values such as `$1,200`, `12%`, `1.2M` and `2026-Q1` are typed for you. Colors and fonts follow your page in light and dark: `theme="auto"` reads them, and ten `host` presets map the variables of shadcn/ui (two variable formats), VitePress, Docusaurus, Starlight, Material for MkDocs, Primer, Pico, Radix Themes and Open Props.
+
+Each detail is one more line:
+
+````markdown
+```quartile
+bar sum(revenue) by region
+title: Revenue against target
+height: 280px
+margin.left: 72
+colors: signal
+y.max: 2500000
+y.ticks: 5
+grid: none
+labels: yes
+reference: 1000000
+reference.label: Target
+---
+region,revenue
+EMEA,1200000
+APAC,860000
+Americas,2100000
+```
+````
+
+Margins, colors, axis range and ticks, gridlines, hidden axes, legend position, value labels, reference lines, a log scale, line width, bar corners and annotations are settings. Dotted keys describe fields: `revenue.label`, `revenue.format`, `revenue.description`. The [styling guide](docs/guides/styling.md) shows each one and [which chart takes which](docs/guides/styling.md#3-which-chart-takes-which-setting).
+
+- **Settings stay honest and safe.** A bar chart ignores an axis minimum above zero, because a cut bar overstates differences. A block may set colors only as palette names, `1` to `8` or hex, and a page can turn block colors off.
+- **A setting is a line of text.** A person, a model or a coding agent changes a chart by editing that line, not chart code.
+- **The same charts are React components.** When a block is not enough, use `LineChart`, `BarChart`, `DataTable` and the rest directly, with the same settings as props. The chart frame, axes, grid, legend, tooltip, scales and selection hooks are exported, and the styling guide builds a [custom chart](docs/guides/styling.md#7-build-your-own-chart) from them.
+
+### 3. More than a picture
+
+- **Linked.** Views over the same dataset share one selection, with no setting: click a bar and the KPIs, the other charts and the table follow, also across blocks in a document. A view is never filtered by its own selection.
+- **Dashboards in prose.** A `dashboard` block is a small data app inside your text: filters, headline numbers, charts and a table on a 12-column grid.
+- **The rows behind a chart.** `actions: table, rows, download` adds buttons to switch to the table, open the rows the chart is drawn from and download them as CSV. The rows follow the selection, so a clicked bar traces to its rows. An `explorer` block is a table with search, filters, sorting and grouping.
+- **Where the numbers came from.** `source:`, `source.url:` and `asof:` put a source line under the chart: "Source: World Bank · As of Nov 1, 2026".
+- **Your app can listen.** `onSelectionChange` in React and the `quartile-select` event on a page report what a reader selects, and a handle sets or clears a selection by name. A chat can turn a clicked bar into the next question.
+- **In the HTML.** Charts render as SVG with a real table on a server or at build time, so they are on the page before JavaScript runs and crawlers can read the numbers. See [server rendering](docs/guides/server-rendering.md).
+- **Keyboard and tables.** Charts have keyboard navigation, a generated summary and a table alternative. They have not been tested with NVDA, JAWS or VoiceOver yet. See the [accessibility scope](docs/guides/accessibility.md).
+- **Readable when it fails.** An invalid block shows its errors and its source instead of a wrong chart. Where Quartile is not installed, the block is still a readable code block.
+
+See [interaction](docs/guides/interaction.md) for linking, toolbars, provenance and events.
+
+## Tell your coding agent
+
+Paste this into your coding agent:
+
+```text
+Add Quartile charts to this project. Read https://usequartile.com/SKILL.md and follow it.
+```
+
+The skill is [skills/quartile/SKILL.md](skills/quartile/SKILL.md) in this repository. It tells the agent how to install the preview build, find the Markdown renderer your project uses, wire Quartile into it, write blocks and check them.
+
+Check the blocks in your Markdown files from a terminal or in CI:
+
+```sh
+npx --no-install quartile check README.md docs/*.md
+```
+
+It compiles each `quartile` block, prints problems as `file:line: severity: message` and exits with status 1 when there are errors. `--no-install` makes `npx` run only the copy installed in your project. With pnpm, write `pnpm exec quartile check`.
+
+For ongoing work, add this to your project's `AGENTS.md` (or `CLAUDE.md`):
+
+````markdown
+## Charts: Quartile
+
+This project draws charts with Quartile (`@quartile/react`, a 0.1 preview build).
+
+- Install: `npm install https://github.com/zinnoberHaus/quartile/releases/download/v0.1.0-preview.1/quartile-react-0.1.0-preview.1.tgz` (pnpm, Yarn and Bun take the same URL). The package is not on the npm registry: never run `npm install @quartile/react`.
+- A chart is a fenced `quartile` block in Markdown: one sentence, optional `key: value` settings, a `---` line, then rows.
+
+```quartile
+bar sum(revenue) by region
+title: Revenue by region, Q3 2026
+format: currency USD
+---
+region,revenue
+EMEA,1200000
+APAC,860000
+Americas,2100000
+```
+
+- Prefer these docs over memory. The syntax is new and can change between preview builds.
+  - Syntax: https://docs.usequartile.com/docs/language.md
+  - Data sources: https://docs.usequartile.com/docs/data-sources.md
+  - Styling and settings: https://docs.usequartile.com/docs/styling.md
+  - Interaction: https://docs.usequartile.com/docs/interaction.md
+  - Markdown and React: https://docs.usequartile.com/docs/markdown.md
+  - AI answers: https://docs.usequartile.com/docs/ai-answers.md
+  - Web pages: https://docs.usequartile.com/docs/embedding.md
+  - Index of pages: https://docs.usequartile.com/llms.txt
+- Use only kinds and settings from the syntax reference. Chart only numbers you were given or computed.
+- Do not swap Quartile for another chart library without asking.
+- After editing blocks, run `npx --no-install quartile check <files>` (with pnpm: `pnpm exec quartile check <files>`) and fix what it reports.
+````
+
+More in [AI coding agents](docs/guides/coding-agents.md).
+
+## Install
+
+```sh
+npm install https://github.com/zinnoberHaus/quartile/releases/download/v0.1.0-preview.1/quartile-react-0.1.0-preview.1.tgz
+```
+
+This is a preview build attached to a GitHub pre-release. It is not a release of 0.1.0. The registry install does not exist yet: `npm install @quartile/react` fails. The import name stays `@quartile/react`. pnpm, Yarn and Bun accept the same URL. React 18.2 or newer and React DOM are peer dependencies.
+
+For a page without a build step, download `quartile.global.js` from the [same release](https://github.com/zinnoberHaus/quartile/releases/tag/v0.1.0-preview.1) and serve it from your own site.
+
+You can also [build the package from source](docs/guides/installation.md#build-from-source). The [installation guide](docs/guides/installation.md) has the details and setup checks.
+
+## The React components underneath
+
+A block compiles to a validated JSON spec, and the spec renders through a React component library. You can use that library directly: charts, KPIs, tables, filters and interface controls that share one theme, one data model and one selection.
+
+```tsx
+import { BarList, DataTable, Histogram, KPI, QuartileProvider, Selection } from '@quartile/react';
 import '@quartile/react/styles.css';
 
 type Order = { product: string; region: string; amount: number };
@@ -63,43 +259,65 @@ export function OrdersExplorer({ orders }: { orders: Order[] }) {
         <KPI data={orders} value="amount" label="Order value" format="currency" />
         <Histogram data={orders} x="amount" brush />
         <BarList data={orders} category="region" value="amount" select />
-        <DataTable data={orders} columns={[{ field: 'product' }, { field: 'amount' }]} sort="-amount" limit={5} />
+        <DataTable data={orders} columns={[{ field: 'product' }, { field: 'amount' }]} />
       </Selection>
     </QuartileProvider>
   );
 }
 ```
 
-## Develop
+Brush the histogram or click a region, and the KPI, the list and the table follow.
 
-To install the unpublished preview into another application, [build and pack it locally](docs/guides/installation.md). Do not use an npm registry install command until a release is announced.
+- **Data model.** Pass rows and name the fields. `dataset()` declares types, labels and formats once. [Data and linked selection](docs/guides/data-and-selection.md) · [Formatting](docs/guides/formatting.md)
+- **Theming.** Plain CSS custom properties, light and dark, two densities. No Tailwind or CSS-in-JS runtime is required. [Integration and theming](docs/guides/integration.md)
+- **Tables.** Search, typed filters, multi-sort, column controls, grouping, saved view JSON, CSV export and controlled cell edits. [Analytical tables](docs/guides/tables.md)
+- **JSON specs.** `validateSpec` checks a dashboard spec against `@quartile/react/schema.json` and `<SpecView>` renders it. [Generated dashboards](docs/guides/generated-dashboards.md)
+- **Optional worker queries.** Arrow input and DuckDB-backed bounded queries in a browser worker. [Worker queries](docs/guides/worker-queries.md)
+- **Scatter renderers.** SVG, Canvas or WebGL for scatter points. [Renderers](docs/guides/renderers.md)
+- **Optional analysis assistance.** Bounded context, typed proposals, validation and explicit Apply, with your own backend. [AI assistance](docs/guides/ai-assistance.md)
 
-To begin visually, open [Studio](https://quartile-design.vercel.app/studio). Its downloadable starter includes a built local preview package, normal React components and a real API helper. The [API guide](docs/guides/api-data.md) also supports copying that helper into an existing app. Studio is a bounded editor for public data; private requests, deployment and persistence stay in your application.
+## Documentation and examples
 
-Use Node 22.12 or newer and pnpm 10. The Vite toolchain also supports Node 20.19+; earlier Node 22 releases are not supported.
-
-```sh
-pnpm install
-pnpm dev          # gallery at http://localhost:5173 (design system at /, example app at /examples/storefront)
-pnpm test         # library unit tests
-pnpm typecheck
-pnpm lint
-pnpm build        # library (dist/) and gallery
-pnpm benchmark    # filtering microbenchmark and artifact sizes; build the library first
-```
-
-Read [docs/architecture.md](docs/architecture.md) before adding a component, and [docs/decisions](docs/decisions) for the decisions so far.
+- **Documentation:** <https://docs.usequartile.com>. The guides in this repository are the source of its embedding and language pages: [guide index](docs/guides/README.md).
+- **Language:** [reference](docs/language.md) · [data sources](docs/guides/data-sources.md) · [styling and settings](docs/guides/styling.md) · [interaction](docs/guides/interaction.md)
+- **Embed:** [Markdown and documentation sites](docs/guides/markdown.md) · [AI answers](docs/guides/ai-responses.md) · [web pages](docs/guides/embedding.md) · [server rendering](docs/guides/server-rendering.md) · [dbt](docs/guides/dbt.md)
+- **Examples:** <https://docs.usequartile.com/examples>, built from `apps/gallery` in this repository.
+  - Blocks: [playground](https://docs.usequartile.com/examples/playground), [streamed AI answer](https://docs.usequartile.com/examples/ai-answer), [Markdown report](https://docs.usequartile.com/examples/markdown-report), [plain HTML page](https://docs.usequartile.com/examples/embed/demo)
+  - Data apps: [storefront](https://docs.usequartile.com/examples/storefront), [SaaS analytics](https://docs.usequartile.com/examples/saas), [service health](https://docs.usequartile.com/examples/operations), [dashboard from JSON](https://docs.usequartile.com/examples/ai-dashboard), [worker query explorer](https://docs.usequartile.com/examples/scale)
+  - Data science: [dataset explorer](https://docs.usequartile.com/examples/explore), [cohort retention](https://docs.usequartile.com/examples/cohorts), [model evaluation](https://docs.usequartile.com/examples/model-evaluation), [reviewed analysis assistance](https://docs.usequartile.com/examples/assistant)
+  - Tools: [formatting lab](https://docs.usequartile.com/examples/formatting), [Studio](https://docs.usequartile.com/examples/studio), which loads a public API and exports a React starter ([Studio guide](docs/guides/studio.md))
+- **In this repository:** [dbt example](examples/dbt), [pandas and Polars snapshot](examples/python), [local model backend](examples/ai-server)
 
 ## What is not built yet
 
 The [design coverage audit](docs/design-coverage.md) maps the original design to implementation evidence and remaining gaps.
 
-- **npm release.** `@quartile/react` is not published. The name, npm scope and domain need clearance first.
+- **npm release.** `@quartile/react` is not on the npm registry. The name, npm scope and domain need clearance first. Until then there are preview builds on GitHub Releases.
 - **Markdown hosts without scripts.** GitHub and stock repository viewers show Quartile blocks as text; a pre-rendered image route is not built. Semantic Layer metric queries and a Preact-sized standalone build are not built either.
+- **Databases and SQL.** Blocks do not run SQL or connect to a warehouse. `src:` reads CSV, TSV and JSON over HTTP from origins the host allows.
+- **Writing back.** Selecting, opening rows and downloading read data. A block cannot change data or call your server, and a selection is not stored unless your code stores it. [What interaction does not do](docs/guides/interaction.md#7-what-is-not-built).
 - **Renderer coverage.** Canvas and WebGL currently cover scatter plots. Other charts do not expose accelerated renderer selection; automatic renderer thresholds are not established.
-- **Scale.** The [worker explorer](https://quartile-design.vercel.app/examples/scale) reports actual bounded-query timings. [Measurement guidance](docs/guides/performance.md) describes their limits; no universal row-count or device-performance guarantee is claimed.
+- **Scale.** The [worker explorer](https://docs.usequartile.com/examples/scale) reports actual bounded-query timings. [Measurement guidance](docs/guides/performance.md) describes their limits; no universal row-count or device-performance guarantee is claimed.
 - **Screen-reader testing.** The keyboard model, summaries and table fallbacks exist, but they have not been tested with NVDA, JAWS or VoiceOver yet.
 - **Managed platform services.** Quartile does not host notebooks, train models, persist records, provide multi-user authorization, or provision model accounts. The Python utility is a snapshot handoff; the model server is a local development example. [Workflow scope](docs/guides/data-science.md).
+
+## Develop
+
+Use Node 22.12 or newer and pnpm 10. The Vite toolchain also supports Node 20.19+; earlier Node 22 releases are not supported.
+
+```sh
+pnpm install
+pnpm dev          # examples app at http://localhost:5173/examples
+pnpm test         # library unit tests, including each documented example block
+pnpm typecheck
+pnpm lint
+pnpm build        # library (dist/) and examples app
+pnpm benchmark    # filtering microbenchmark and artifact sizes; build the library first
+```
+
+After `pnpm build:lib`, `node packages/react/dist/cli.js check README.md docs/language.md docs/guides/*.md --nested` checks the example blocks in the documentation the same way `quartile check` does in a project.
+
+Read [docs/architecture.md](docs/architecture.md) before adding a component, and [docs/decisions](docs/decisions) for the decisions so far.
 
 ## Contributing
 
@@ -111,4 +329,4 @@ Issues and proposals are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before
 
 ## Hosted-site analytics
 
-The hosted app uses Vercel Web Analytics for page views, including client-side navigation. Query strings and fragments are removed from page-view URLs before sending. No custom data events are collected. Enable Web Analytics in the Vercel project before deploying. This integration is confined to the gallery app; the library and exported Studio starters do not include it.
+The hosted examples app uses Vercel Web Analytics for page views, including client-side navigation. Query strings and fragments are removed from page-view URLs before sending. No custom data events are collected. Enable Web Analytics in the Vercel project before deploying. This integration is confined to the examples app (`apps/gallery`); the library and exported Studio starters do not include it.

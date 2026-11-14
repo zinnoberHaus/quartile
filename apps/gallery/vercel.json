@@ -1,5 +1,12 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
-  "rewrites": [{ "source": "/(.*)", "destination": "/index" }]
+  "redirects": [
+    { "source": "/", "destination": "/examples", "permanent": false },
+    { "source": "/language", "destination": "/examples/playground", "permanent": false },
+    { "source": "/studio", "destination": "/examples/studio", "permanent": false },
+    { "source": "/embed/:path*", "destination": "/examples/embed/:path*", "permanent": false },
+    { "source": "/starter/:path*", "destination": "/examples/starter/:path*", "permanent": false }
+  ],
+  "rewrites": [{ "source": "/examples/((?!_assets/|embed/|starter/).*)", "destination": "/index" }]
 }

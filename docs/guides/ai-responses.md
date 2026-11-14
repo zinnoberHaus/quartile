@@ -1,10 +1,12 @@
 # Charts in AI answers
 
-Let a model answer with charts by writing ```` ```quartile ```` blocks in its normal Markdown. Your site renders them with the components it already uses for Markdown; no chart library has to be chosen per answer, and the charts take your site's styling. The [live replay](https://quartile-design.vercel.app/examples/ai-answer) shows the result with Vercel's Streamdown. The evidence behind this design is in the [November research](../research/markdown-ai-embedding-2026-11.md#3-what-models-get-right-and-wrong).
+Let a model answer with charts by writing ```` ```quartile ```` blocks in its normal Markdown. Your site renders them with the components it already uses for Markdown, while the answer streams; no chart library has to be chosen per answer, and the charts take your site's styling. Quartile ships no model and calls none: you bring the model, and this page covers the prompt, the rendering, the data and the validation. The [live replay](https://docs.usequartile.com/examples/ai-answer) shows the result with Vercel's Streamdown. The evidence behind this design is in the [November research](../research/markdown-ai-embedding-2026-11.md#3-what-models-get-right-and-wrong).
 
 ## 1. Teach the syntax
 
-`quartilePrompt()` returns a system-prompt section (about 3,300 characters) generated from the language's own tables: the block shape, the kinds, measures and formats, two complete examples, and rules (chart only data you have, at most 60 rows, no code or URLs). Every example in it is compiled in the test suite.
+`quartilePrompt()` returns a system-prompt section (about 3,800 characters) generated from the language's own tables: the block shape, the kinds, measures and formats, two complete examples, a short list of optional lines, and rules (chart only data you have, at most 60 rows, no code or URLs). Every example and every optional line in it is compiled in the test suite. `npx --no-install quartile prompt` prints the same text in a terminal.
+
+The optional lines are ones a model may add when asked, or when they help the reader: `colors`, `y.min` and `y.max`, `legend`, `labels`, `reference` with `reference.label`, and `source` with `asof` to say where the numbers came from when it knows. The prompt tells the model to set colors only when asked. `quartilePrompt({ actions: true })` also teaches `actions: rows, download`, the buttons that open and download the rows behind a chart; it is off by default because whether answers carry those buttons is your choice.
 
 ```ts
 import { quartilePrompt } from '@quartile/react/lang';
@@ -56,6 +58,8 @@ export function Answer({ text, streaming }: { text: string; streaming: boolean }
 
 `quartileRenderer()` uses Streamdown's `isIncomplete` flag for each fence. Passing `plugins` replaces AI Elements' default plugin set, so include the defaults you use alongside `renderers`.
 
+Streamdown renders each custom renderer inside a Suspense boundary. If you render answers on the server with React's `prerender` or streaming APIs, React moves boundaries larger than `progressiveChunkSize` (12,800 bytes by default), such as a chart with its data table, to the end of the HTML and swaps them into place with an inline script. Pass `progressiveChunkSize: Infinity` so readers and crawlers without JavaScript find each chart where it belongs.
+
 **react-markdown and others:** use `components={{ pre: QuartilePre }}` and pass `streaming` to `QuartileDocument` while the message is in progress. With the full message text, also pass `markdown={text}` so `data` blocks are known to every block.
 
 **Non-React chat pages:** include the [embed script](embedding.md). Its observer upgrades code blocks as messages append to the page, follows each block's text while it grows, and treats a block as complete once its text stops changing.
@@ -71,6 +75,8 @@ Data a model writes inline is only as reliable as the model. Where the numbers m
 ```
 
 The model then writes only the chart (`bar sum(amount) by region` + `data: orders`), and the compiler checks every field against the real columns. Blocks over the same dataset share a selection, so a model can lay out a small dashboard across several blocks.
+
+The prompt tells the model not to write URLs, and a page that passes no `loadSource` fetches nothing. If answers should read a live endpoint, the choice is yours to make in host code: pass a loader limited to origins you control, for example `loadSource={createSourceLoader({ origins: ['same-origin'] })}`, and tell the model which `src:` URLs exist. An allowlist limits the origin, not the path or the query, so allow only endpoints where a GET request with a path the model chose is harmless. [Data sources](data-sources.md) covers `path:`, `refresh:`, authentication and the [security model](data-sources.md#12-security-model).
 
 ## 4. Validate and repair
 
@@ -88,6 +94,8 @@ if (problems.length) {
   // Ask the model once to fix exactly these, then render whatever it returns.
 }
 ```
+
+For answers saved as Markdown files, such as test fixtures or evaluation outputs, [`quartile check`](coding-agents.md#quartile-check) prints the same diagnostics from the command line.
 
 ## 5. Tool calls and structured output
 
@@ -107,10 +115,52 @@ const block = chartToolInputToBlock(call.input);
 
 Render the result with `<QuartileBlock source={block} />`. The JSON spec (`@quartile/react/schema.json`) remains the validator for complete dashboards; it uses `oneOf` and bounds, so do not pass it as a strict schema.
 
+## 6. Ask a follow-up from a selection
+
+A reader who clicks a bar has told you what they want to know more about. `onSelectionChange` reports each change of a selection group, so the page can offer the next question:
+
+```tsx
+import { useState } from 'react';
+import Markdown from 'react-markdown';
+import {
+  predicateValueLabel,
+  QuartileDocument,
+  QuartilePre,
+  type SelectionChange,
+} from '@quartile/react';
+
+export function Answer({ markdown, onAsk }: { markdown: string; onAsk: (question: string) => void }) {
+  const [picked, setPicked] = useState<SelectionChange | null>(null);
+  const about = picked?.predicates
+    .map((p) => `${p.field} ${predicateValueLabel(p)}`)
+    .join(' and ');
+  return (
+    <QuartileDocument markdown={markdown} onSelectionChange={setPicked}>
+      <Markdown components={{ pre: QuartilePre }}>{markdown}</Markdown>
+      {about ? (
+        <button type="button" onClick={() => onAsk(`Tell me more about ${about}.`)}>
+          Ask about {about}
+        </button>
+      ) : null}
+    </QuartileDocument>
+  );
+}
+```
+
+After a click on APAC in a ranking by region, the button reads "Ask about region APAC". Clearing the selection withdraws it. Send the question as the next user message, and pass `picked.predicates` to your server if it should filter the data for the answer.
+
+A chart reports a selection only if it publishes one. A `dashboard` block does, and so do blocks over a dataset you pass in `data`. A lone chart with its own rows needs `select: yes`. Non-React pages get the same information from the `quartile-select` event. See [interaction](interaction.md#6-react-to-selections-in-your-app).
+
 ## Safety
 
 - Blocks are data: no scripts, HTML, styles, SQL or event handlers are executed or injected.
-- Nothing is fetched unless you pass `loadSource`. A prompt-injected answer cannot make the page send data to a URL in a `src:` line.
+- Nothing is fetched unless you pass `loadSource` (or, with the script, list origins in `data-sources`). A prompt-injected answer cannot make the page send data to a URL in a `src:` line. With a loader from `createSourceLoader`, only the origins you listed are read, without cookies for other origins, and a block cannot add request headers.
 - Inline rows are capped (5,000 by default); the prompt asks for at most 60.
-- Colors and fonts come from your page. A model cannot style a block to look like your interface.
+- Fonts and everything outside the plot come from your page. A block may color its marks with palette names, `1` to `8` and hex colors only; other values never reach a style. Pass `blockColors={false}` to keep each chart on your palette.
+- A `source:` line is the model's statement, shown as text. Quartile does not verify it, and `source.url:` becomes a link only for an `http:` or `https:` address, which is not fetched. Tell the model to state a source only when it knows one.
+- The rows panel and the CSV download show data that is already on the page. Pass `actions={false}` to show no toolbar whatever a block asks.
 - A schema-valid chart can still answer the wrong question. Keep row grain, units and denominators explicit in prompts and datasets, as in the [data-app recipes](use-cases.md).
+
+## Adding this with a coding agent
+
+`quartilePrompt()` is for the model that writes answers at run time. To have a coding agent add the renderer and the prompt to your app, see [AI coding agents](coding-agents.md), which also explains how the two differ.

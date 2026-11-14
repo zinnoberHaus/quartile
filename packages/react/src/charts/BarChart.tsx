@@ -1,5 +1,5 @@
 import { scaleBand } from 'd3-scale';
-import { type MouseEvent, useMemo, useState } from 'react';
+import { type MouseEvent, useMemo, useRef, useState } from 'react';
 import { makeFieldFormatter } from '../data/format';
 import type { Predicate } from '../data/predicates';
 import { fieldOf, resolveData } from '../data/schema';
@@ -8,22 +8,47 @@ import { useQuartile } from '../provider/QuartileProvider';
 import { useLinkedRows, useSourceId } from '../selection/Selection';
 import { useChartKeyboard } from './core/a11y';
 import { type ChartBaseProps, ChartFrame, type ChartTable, statusOf } from './core/ChartFrame';
+import { type ChartColor, seriesColors } from './core/colors';
+import { useCssNumber } from './core/css-number';
 import {
   AxisBottom,
   AxisLeft,
   ChartTooltip,
   GridRows,
   Legend,
+  LegendLayout,
+  ReferenceRules,
   type TooltipRow,
 } from './core/guides';
-import { bandScale, monoTextWidth, spacedIndices, tickFormatter, valueScale } from './core/scales';
+import {
+  boundedNumber,
+  type ChartPresentationProps,
+  clearOfRules,
+  describeReferences,
+  gridLines,
+  type LegendSetting,
+  labelCount,
+  legendPlacement,
+  marginSides,
+  readOut,
+  referenceLines,
+  referenceRoom,
+  sideLegendWidth,
+  spreadLabels,
+  tickCount,
+  valueAxis,
+} from './core/options';
+import { bandScale, monoTextWidth, spacedIndices, tickFormatter } from './core/scales';
+import { useSettled } from './core/settled';
 import type { SortOrder } from './core/trends-aggregate';
 import { isKeyboardFocus } from './core/trends-focus';
 import { seriesFormatters } from './core/trends-format';
 import { useToggleSelect } from './core/trends-select';
 import { pivotSeries, stackSeries } from './core/trends-series';
 
-export interface BarChartProps<R extends Row = Row> extends ChartBaseProps {
+export interface BarChartProps<R extends Row = Row>
+  extends ChartBaseProps,
+    Pick<ChartPresentationProps, 'margin' | 'yTicks' | 'xTicks' | 'xAxis' | 'yAxis' | 'reference'> {
   /** Rows to plot, or a dataset with a schema attached. */
   data: DataInput<R>;
   /** Category or date field, one bar (or group of bars) per value. */
@@ -46,10 +71,33 @@ export interface BarChartProps<R extends Row = Row> extends ChartBaseProps {
   format?: Formatter;
   /** Formats the category labels. Defaults to the field's schema format. */
   xFormat?: Formatter;
-  /** Series colors, by index or by group value. Defaults to the categorical palette in order. */
-  colors?: string[] | Record<string, string>;
-  /** Shows a legend under the plot that doubles as a group filter. Defaults to true for 2+ groups. */
-  legend?: boolean;
+  /**
+   * Series colors, by index or by group value: palette names, 1–8 or any CSS color. Defaults to
+   * the categorical palette in order.
+   */
+  colors?: ChartColor[] | Record<string, ChartColor>;
+  /**
+   * Shows a legend under the plot, or on the side named, that doubles as a group filter.
+   * Defaults to true for 2+ groups.
+   */
+  legend?: LegendSetting;
+  /**
+   * Bounds of the value axis. Bars are measured from zero, so a bound that would cut the baseline
+   * or a bar is ignored with a console warning; bounds may only add room.
+   */
+  yMin?: number;
+  yMax?: number;
+  /** Horizontal gridlines behind vertical bars. `false` or `"none"` removes them. */
+  grid?: ChartPresentationProps['grid'];
+  /**
+   * Writes each bar's value at its end, or the total on a stack. Horizontal bars with one series
+   * or a stack show them unless this is `false`.
+   */
+  labels?: boolean;
+  /** Corner radius of the bar ends in px. Defaults to the `--q-chart-bar-radius` token (2). */
+  radius?: number;
+  /** Gap between bars as a share of each band, 0 (touching) to 0.9. Defaults to 0.28. */
+  padding?: number;
   /** Publisher id for the selection. Defaults to a generated id. */
   id?: string;
   /** Selection to read from and publish to. Defaults to the nearest; false opts out. */
@@ -98,6 +146,18 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
     xFormat,
     colors,
     legend,
+    labels: valueLabels,
+    radius,
+    padding,
+    margin,
+    yMin,
+    yMax,
+    yTicks: yTickCount,
+    xTicks: xTickCount,
+    grid,
+    xAxis = true,
+    yAxis = true,
+    reference,
     id,
     selection,
     onSelect,
@@ -106,11 +166,20 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
   } = props;
   const split = group ?? color;
   const horizontal = orientation === 'horizontal';
-  const { locale, timeZone } = useQuartile();
+  const { locale, timeZone, theme } = useQuartile();
   const source = useSourceId(id);
   const { rows: allRows, schema } = useMemo(() => resolveData(data), [data]);
   const { rows, selection: sel } = useLinkedRows(allRows, { selection, source });
   const [hidden, setHidden] = useState<Set<string>>(new Set());
+  // The path of a bar carries its corner radius, so the token is read rather than applied by CSS.
+  const plotRef = useRef<HTMLDivElement>(null);
+  const tokenRadius = useCssNumber(plotRef, '--q-chart-bar-radius', 2, theme);
+  const cornerRadius = boundedNumber(radius, 0, 40) ?? tokenRadius;
+  const bandPadding = boundedNumber(padding, 0, 0.9);
+  const colorList = useSettled(colors);
+  const palette = useMemo(() => seriesColors(colorList), [colorList]);
+  const referenceList = useSettled(reference);
+  const refs = useMemo(() => referenceLines(referenceList), [referenceList]);
 
   const model = useMemo(() => {
     const xField = fieldOf(schema, x, rows);
@@ -119,7 +188,7 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
       x,
       yFields,
       color: split,
-      colors,
+      colors: palette,
       formatGroup: split
         ? makeFieldFormatter(fieldOf(schema, split, allRows), { locale, timeZone })
         : undefined,
@@ -135,7 +204,7 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
     const xsRaw = order.map((i) => pivot.xsRaw[i]);
     const series = pivot.series.map((s) => ({ ...s, values: order.map((i) => s.values[i]) }));
     return { xField, yFields, xsRaw, series };
-  }, [rows, schema, x, y, split, colors, sort, allRows, locale, timeZone]);
+  }, [rows, schema, x, y, split, palette, sort, allRows, locale, timeZone]);
 
   const { xField, xsRaw, series } = model;
   const valueField = series[0]?.field ?? model.yFields[0];
@@ -162,8 +231,8 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
   const shown = series.filter((s) => !hidden.has(s.key));
   // A linked filter may remove every visible group. Keep surviving groups discoverable.
   const visible = shown.length ? shown : series;
-  const showLegend = legend ?? series.length > 1;
-  const plotHeight = showLegend ? height - LEGEND_H : height;
+  const side = legendPlacement(legend, series.length > 1, 'bottom');
+  const plotHeight = side === 'top' || side === 'bottom' ? height - LEGEND_H : height;
 
   const picker = useToggleSelect(sel, x, source, onSelect);
   const { selecting } = picker;
@@ -182,7 +251,7 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
   );
   const summary = useMemo(() => {
     if (xsRaw.length === 0) return '';
-    return series
+    const bars = series
       .map((s) => {
         const observed = s.values.flatMap((value, i) => (value == null ? [] : [{ value, i }]));
         if (!observed.length) return `${s.label}: no data.`;
@@ -192,7 +261,9 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
         return `${series.length > 1 ? `${s.label}: ` : ''}${xsRaw.length} bars. Highest ${fmtX(xsRaw[hi.i])} at ${fmt(hi.value)}; lowest ${fmtX(xsRaw[lo.i])} at ${fmt(lo.value)}.`;
       })
       .join(' ');
-  }, [xsRaw, series, fmtX, formats]);
+    const fmtAxis = readOut(fmtY, formats.get(series[0]?.key)?.axis ?? fmtY);
+    return [bars, describeReferences(refs, fmtAxis)].filter(Boolean).join(' ');
+  }, [xsRaw, series, fmtX, fmtY, formats, refs]);
 
   const table = useMemo<ChartTable>(() => {
     const withTotal = stack && series.length > 1;
@@ -217,7 +288,16 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
       table={table}
       {...frame}
     >
-      {({ width }) => {
+      {({ width: frameWidth }) => {
+        const beside = side === 'left' || side === 'right';
+        const legendWidth = beside
+          ? sideLegendWidth(
+              series.map((s) => s.label),
+              frameWidth,
+            )
+          : 0;
+        const width = beside ? Math.max(1, frameWidth - legendWidth - 12) : frameWidth;
+        const pad = marginSides(margin);
         const stacks = stack ? stackSeries(visible) : null;
         const values = stacks
           ? stacks.flatMap((s) => [...s.y0, ...s.y1])
@@ -230,31 +310,66 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
         let catRange: [number, number];
         let valRange: [number, number];
         let labelW = 0;
-        const vMargin = { top: 10, bottom: 24 };
+        // Value labels above vertical bars need a line of room over the tallest one.
+        const vMargin = {
+          top: pad.top ?? (valueLabels && !horizontal ? 18 : 10),
+          bottom: pad.bottom ?? (xAxis ? 24 : 8),
+        };
         if (horizontal) {
           const labels = xsRaw.map((v) => fmtXTick(v));
-          labelW = Math.min(
-            width * 0.4,
-            Math.ceil(Math.max(...labels.map((l) => l.length * 6.6), 24)) + 12,
-          );
+          labelW =
+            pad.left ??
+            (xAxis
+              ? Math.min(
+                  width * 0.4,
+                  Math.ceil(Math.max(...labels.map((l) => l.length * 6.6), 24)) + 12,
+                )
+              : 0);
           const valueLabelW =
-            Math.ceil(Math.max(...values.map((v) => monoTextWidth(fmtTick(v))), 16)) + 10;
-          catRange = [4, plotHeight - 4];
+            pad.right ??
+            (valueLabels === false
+              ? 8
+              : Math.ceil(Math.max(...values.map((v) => monoTextWidth(fmtTick(v))), 16)) + 10);
+          // A reference rule's text sits in a band above the first bar.
+          catRange = [pad.top ?? (refs.length ? 18 : 4), plotHeight - (pad.bottom ?? 4)];
           valRange = [labelW, Math.max(labelW + 10, width - valueLabelW)];
         } else {
           catRange = [0, width];
           valRange = [plotHeight - vMargin.bottom, vMargin.top];
         }
-        const vScale = valueScale(values.length ? values : [0], valRange);
-        const yTickVals = vScale.ticks(4);
+        const axis = valueAxis([...values, ...refs.map((r) => r.value)], valRange, {
+          ticks: yTickCount === undefined ? undefined : tickCount(yTickCount, 4),
+          min: yMin,
+          max: yMax,
+          anchored: true,
+          chart: 'BarChart',
+        });
+        const vScale = axis.scale;
+        const yTickVals = axis.ticks;
         const left = horizontal
           ? 0
-          : Math.ceil(Math.max(...yTickVals.map((v) => monoTextWidth(fmtTick(v))), 16)) + 12;
-        if (!horizontal) catRange = [left, width - 4];
+          : (pad.left ??
+            (yAxis
+              ? Math.ceil(Math.max(...yTickVals.map((v) => monoTextWidth(fmtTick(v))), 16)) + 12
+              : 4));
+        // The text of a rule across vertical bars sits beside the plot, where no bar can be
+        // under it; with a right margin the author made too narrow, it sits on the rule.
+        const refTexts = refs.map((r) => r.label ?? fmtTick(r.value));
+        const refRoom = horizontal ? 0 : referenceRoom(refTexts);
+        const refsOutside = !horizontal && (pad.right === undefined || pad.right >= refRoom);
+        if (!horizontal) catRange = [left, width - (pad.right ?? Math.max(4, refRoom))];
+        const refMarks = refs
+          .map((r, i) => ({ at: vScale(r.value), text: refTexts[i] }))
+          .filter(
+            (m) =>
+              m.at >= Math.min(valRange[0], valRange[1]) - 0.5 &&
+              m.at <= Math.max(valRange[0], valRange[1]) + 0.5,
+          );
+        const ruleAt = refMarks.map((m) => m.at);
         const band = bandScale(
           xsRaw.map((_, i) => String(i)),
           catRange,
-          grouped ? 0.3 : 0.28,
+          bandPadding ?? (grouped ? 0.3 : 0.28),
         );
         const inner = scaleBand<string>()
           .domain(groupKeys)
@@ -282,7 +397,7 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
                 const value = next.values[i] ?? 0;
                 return value !== 0 && value < 0 === negative;
               });
-            const r = outer ? 2 : 0;
+            const r = outer ? cornerRadius : 0;
             const d = horizontal
               ? barPath(Math.min(a, b), c0, Math.abs(b - a), bw, r, true, negative)
               : barPath(c0, Math.min(a, b), bw, Math.abs(b - a), r, false, negative);
@@ -294,14 +409,82 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
           ? xsRaw.map((_, i) => i)
           : spacedIndices(
               xsRaw.length,
-              Math.max(
-                2,
-                Math.floor(
-                  (catRange[1] - catRange[0]) /
-                    (Math.max(...xsRaw.map((v) => monoTextWidth(fmtXTick(v)))) + 12),
+              labelCount(
+                xTickCount,
+                Math.max(
+                  2,
+                  Math.floor(
+                    (catRange[1] - catRange[0]) /
+                      (Math.max(...xsRaw.map((v) => monoTextWidth(fmtXTick(v)))) + 12),
+                  ),
                 ),
               ),
             );
+        const lines = gridLines(grid, { x: false, y: true });
+        const refYs = spreadLabels(ruleAt, 13, vMargin.top + 4, plotHeight - vMargin.bottom - 4);
+
+        // Direct labels: one per bar, or the total on a stack. A label wider than its slot is
+        // left out rather than printed over its neighbor.
+        type ValueLabel = { key: string; i: number; x: number; y: number; text: string };
+        const valueTexts: ValueLabel[] = [];
+        const perBar = valueLabels === true && (!horizontal || grouped);
+        if (perBar && stacks && !horizontal) {
+          xsRaw.forEach((_, i) => {
+            const text = fmtTick(visible.reduce((sum, s) => sum + (s.values[i] ?? 0), 0));
+            if (monoTextWidth(text) > band.step() + 2) return;
+            valueTexts.push({
+              key: `t-${i}`,
+              i,
+              x: (band(String(i)) ?? 0) + band.bandwidth() / 2,
+              y: clearOfRules(
+                vScale(Math.max(0, ...stacks.map((st) => st.y1[i]))) - 5,
+                ruleAt,
+                11,
+                4,
+                -1,
+              ),
+              text,
+            });
+          });
+        } else if (perBar) {
+          const slot = grouped ? inner.step() : band.step();
+          visible.forEach((s) => {
+            xsRaw.forEach((_, i) => {
+              const raw = s.values[i];
+              if (raw == null) return;
+              const text = formats.get(s.key)!.axis(raw);
+              const c0 = (band(String(i)) ?? 0) + (grouped ? (inner(s.key) ?? 0) : 0);
+              if (horizontal) {
+                valueTexts.push({
+                  key: `${s.key}-${i}`,
+                  i,
+                  x: clearOfRules(
+                    vScale(Math.max(0, raw)) + 6,
+                    ruleAt,
+                    5,
+                    monoTextWidth(text) + 2,
+                    1,
+                  ),
+                  y: c0 + bw / 2,
+                  text,
+                });
+                return;
+              }
+              if (monoTextWidth(text) > slot + 2) return;
+              valueTexts.push({
+                key: `${s.key}-${i}`,
+                i,
+                x: c0 + bw / 2,
+                // A label a rule would run through stands just past the rule instead.
+                y:
+                  raw < 0
+                    ? clearOfRules(vScale(raw) + 13, ruleAt, 11, 4, 1)
+                    : clearOfRules(vScale(raw) - 5, ruleAt, 11, 4, -1),
+                text,
+              });
+            });
+          });
+        }
 
         const indexAt = (e: MouseEvent<HTMLDivElement>) => {
           const rect = e.currentTarget.getBoundingClientRect();
@@ -348,8 +531,45 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
         const hl = tip != null ? band(String(tip)) : undefined;
 
         return (
-          <>
-            <div style={{ position: 'relative', height: plotHeight }}>
+          <LegendLayout
+            side={side}
+            legend={
+              <Legend
+                className="q-trends-legend"
+                position={typeof legend === 'string' && side ? side : undefined}
+                style={beside ? { width: legendWidth } : undefined}
+                items={series.map((s) => ({
+                  key: s.key,
+                  label: s.label,
+                  color: s.color,
+                  inactive: shown.length > 0 && hidden.has(s.key),
+                }))}
+                onToggle={
+                  series.length > 1
+                    ? (key) =>
+                        setHidden((h) => {
+                          const n = new Set(
+                            shown.length
+                              ? series.filter((s) => h.has(s.key)).map((s) => s.key)
+                              : [],
+                          );
+                          if (n.has(key)) n.delete(key);
+                          else if (n.size < series.length - 1) n.add(key);
+                          return n;
+                        })
+                    : undefined
+                }
+              />
+            }
+          >
+            <div
+              ref={plotRef}
+              style={
+                beside
+                  ? { position: 'relative', height: plotHeight, width, flex: 'none' }
+                  : { position: 'relative', height: plotHeight }
+              }
+            >
               <svg
                 width={width}
                 height={plotHeight}
@@ -367,11 +587,15 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
                   </g>
                 ) : (
                   <>
-                    <GridRows ys={yTickVals.map((v) => vScale(v))} x0={left} x1={catRange[1]} />
-                    <AxisLeft
-                      ticks={yTickVals.map((v) => ({ y: vScale(v), label: fmtTick(v) }))}
-                      x={left - 10}
-                    />
+                    {lines.y && (
+                      <GridRows ys={yTickVals.map((v) => vScale(v))} x0={left} x1={catRange[1]} />
+                    )}
+                    {yAxis && (
+                      <AxisLeft
+                        ticks={yTickVals.map((v) => ({ y: vScale(v), label: fmtTick(v) }))}
+                        x={left - 10}
+                      />
+                    )}
                   </>
                 )}
                 {hl != null && (
@@ -400,8 +624,22 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
                     />
                   ))}
                 </g>
+                {refMarks.length > 0 && (
+                  <ReferenceRules
+                    marks={refMarks.map((m, i) => ({
+                      ...m,
+                      labelAt: refsOutside ? refYs[i] : undefined,
+                    }))}
+                    vertical={horizontal}
+                    outside={refsOutside}
+                    from={horizontal ? catRange[0] - 14 : left}
+                    to={catRange[1]}
+                    min={horizontal ? valRange[0] : vMargin.top}
+                    max={horizontal ? valRange[1] : plotHeight - vMargin.bottom}
+                  />
+                )}
                 {horizontal ? (
-                  <g className="q-bar-labels">
+                  <g className={refMarks.length ? 'q-bar-labels q-chart-haloed' : 'q-bar-labels'}>
                     {xsRaw.map((v, i) => {
                       const cy = (band(String(i)) ?? 0) + band.bandwidth() / 2;
                       const total = stacks
@@ -412,33 +650,61 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
                         : Math.max(0, total);
                       return (
                         <g key={i} data-dim={!isSelected(i) || undefined}>
-                          <text className="q-bar-category" x={0} y={cy} dy="0.32em">
-                            {fmtXTick(v)}
-                          </text>
-                          {visible.length > 0 && (stacks || visible.length === 1) && (
-                            <text
-                              className="q-bar-value"
-                              x={vScale(labelAt) + 6}
-                              y={cy}
-                              dy="0.32em"
-                            >
-                              {fmtTick(total)}
+                          {xAxis && (
+                            <text className="q-bar-category" x={0} y={cy} dy="0.32em">
+                              {fmtXTick(v)}
                             </text>
                           )}
+                          {valueLabels !== false &&
+                            visible.length > 0 &&
+                            (stacks || visible.length === 1) && (
+                              <text
+                                className="q-bar-value"
+                                x={clearOfRules(
+                                  vScale(labelAt) + 6,
+                                  ruleAt,
+                                  5,
+                                  monoTextWidth(fmtTick(total)) + 2,
+                                  1,
+                                )}
+                                y={cy}
+                                dy="0.32em"
+                              >
+                                {fmtTick(total)}
+                              </text>
+                            )}
                         </g>
                       );
                     })}
                   </g>
                 ) : (
-                  <AxisBottom
-                    ticks={catTickIdx.map((i) => ({
-                      x: (band(String(i)) ?? 0) + band.bandwidth() / 2,
-                      label: fmtXTick(xsRaw[i]),
-                    }))}
-                    y={plotHeight - vMargin.bottom + 8}
-                    x0={-Infinity}
-                    x1={Infinity}
-                  />
+                  xAxis && (
+                    <AxisBottom
+                      ticks={catTickIdx.map((i) => ({
+                        x: (band(String(i)) ?? 0) + band.bandwidth() / 2,
+                        label: fmtXTick(xsRaw[i]),
+                      }))}
+                      y={plotHeight - vMargin.bottom + 8}
+                      x0={-Infinity}
+                      x1={Infinity}
+                    />
+                  )
+                )}
+                {valueTexts.length > 0 && (
+                  <g className="q-chart-value-labels">
+                    {valueTexts.map((t) => (
+                      <text
+                        key={t.key}
+                        x={t.x}
+                        y={t.y}
+                        dy={horizontal ? '0.32em' : undefined}
+                        textAnchor={horizontal ? 'start' : 'middle'}
+                        data-dim={!isSelected(t.i) || undefined}
+                      >
+                        {t.text}
+                      </text>
+                    ))}
+                  </g>
                 )}
                 {!horizontal && (
                   <line
@@ -490,33 +756,7 @@ export function BarChart<R extends Row = Row>(props: BarChartProps<R>) {
                   : ''}
               </div>
             </div>
-            {showLegend && (
-              <Legend
-                className="q-trends-legend"
-                items={series.map((s) => ({
-                  key: s.key,
-                  label: s.label,
-                  color: s.color,
-                  inactive: shown.length > 0 && hidden.has(s.key),
-                }))}
-                onToggle={
-                  series.length > 1
-                    ? (key) =>
-                        setHidden((h) => {
-                          const n = new Set(
-                            shown.length
-                              ? series.filter((s) => h.has(s.key)).map((s) => s.key)
-                              : [],
-                          );
-                          if (n.has(key)) n.delete(key);
-                          else if (n.size < series.length - 1) n.add(key);
-                          return n;
-                        })
-                    : undefined
-                }
-              />
-            )}
-          </>
+          </LegendLayout>
         );
       }}
     </ChartFrame>

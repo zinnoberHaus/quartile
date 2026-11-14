@@ -17,7 +17,7 @@ import {
 } from '@quartile/react/query';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from '../../router';
-import { Wordmark } from '../../shell/Logo';
+import { ExamplesBrand } from '../../shell/Brand';
 import { links } from '../../shell/links';
 import { REGIONS, SAMPLE_SEED, SAMPLE_SIZES } from './data';
 import { loadWorkerSource, type ScaleSession } from './database';
@@ -528,14 +528,12 @@ export function ScaleWorkbench() {
   return (
     <QuartileProvider theme={dark ? 'dark' : 'light'} className="scale-page">
       <header className="scale-header">
-        <Link to="/">
-          <Wordmark />
-        </Link>
+        <ExamplesBrand />
         <nav aria-label="Examples">
           <Link to="/examples/storefront">Storefront</Link>
           <Link to="/examples/operations">Operations</Link>
           <Link to="/examples/scale">Worker queries</Link>
-          <Link to="/studio">App Studio</Link>
+          <Link to="/examples/studio">App Studio</Link>
         </nav>
         <a href={links.docs}>Docs</a>
       </header>

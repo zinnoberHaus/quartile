@@ -6,6 +6,7 @@
 import type { DataInput, Dataset } from '../data/types';
 import { type CompiledBlock, compileBlock } from './compile';
 import type { Diagnostic } from './diagnostics';
+import { dict } from './dict';
 
 /** Info-string languages read as Quartile blocks. Hosts may add aliases such as `chart`. */
 export const DEFAULT_LANGUAGES: readonly string[] = ['quartile'];
@@ -79,8 +80,8 @@ export interface DocumentScan {
   blocks: ScannedBlock[];
   /** Datasets defined by `data` blocks, plus the host's. */
   datasets: Record<string, DataInput>;
-  /** URLs the document asks the host to load. */
-  sources: { name: string; url: string }[];
+  /** URLs the document asks the host to load, with each block's `path:` and `refresh:`. */
+  sources: { name: string; url: string; path?: string; refresh?: number }[];
   diagnostics: { line: number; diagnostics: Diagnostic[] }[];
 }
 
@@ -95,7 +96,7 @@ export interface ScanOptions {
 /** Compiles every block of a document with the datasets the whole document defines. */
 export function scanDocument(markdown: string, options: ScanOptions = {}): DocumentScan {
   const fenced = findFencedBlocks(markdown, options.languages);
-  const datasets: Record<string, DataInput> = { ...options.datasets };
+  const datasets: Record<string, DataInput> = dict(options.datasets);
   const sources: DocumentScan['sources'] = [];
   // Pass 1: named datasets, wherever they appear.
   for (const block of fenced) {
@@ -106,8 +107,8 @@ export function scanDocument(markdown: string, options: ScanOptions = {}): Docum
     if (compiled.type === 'data' && compiled.defines) {
       datasets[compiled.defines.name] = compiled.defines.dataset as Dataset;
     }
-    for (const s of compiled.sources) {
-      if (!sources.some((x) => x.name === s.name)) sources.push({ name: s.name, url: s.url });
+    for (const { line: _line, ...source } of compiled.sources) {
+      if (!sources.some((x) => x.name === source.name)) sources.push(source);
     }
   }
   // Pass 2: every block against the complete set.

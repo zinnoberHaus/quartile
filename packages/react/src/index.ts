@@ -28,6 +28,9 @@ export * from './icons';
 // Markdown chart language: parse and compile blocks (also available without React at /lang).
 export type { CompiledBlock, CompileOptions, Diagnostic, DocumentScan, FencedBlock } from './lang';
 export { compileBlock, findFencedBlocks, parseBlock, scanDocument } from './lang';
+// A bounded, allowlisted loader for `src:` URLs, for `QuartileDocument loadSource`.
+export type { SourceLoader, SourceLoaderOptions, SourceValue } from './lang/source';
+export { createSourceLoader } from './lang/source';
 export { cx } from './lib/cx';
 export type { FloatingOptions, Placement } from './lib/floating';
 export { Portal, useDismiss, useFloating } from './lib/floating';

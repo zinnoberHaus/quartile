@@ -33,6 +33,37 @@ describe('quartilePrompt', () => {
     }
   });
 
+  it('teaches optional lines that compile without warnings', () => {
+    const prompt = quartilePrompt({ actions: true });
+    const section = prompt.split('## Optional lines')[1].split('\n## ')[0];
+    const lines = [...section.matchAll(/`([a-z.]+: [^`]+)`/g)].map((m) => m[1]);
+    expect(lines).toHaveLength(10);
+    const c = compileBlock(
+      `line revenue by month and region\n${lines.join('\n')}\n---\nmonth,region,revenue\n2026-01,EMEA,40\n2026-01,APAC,30\n2026-02,EMEA,55\n2026-02,APAC,35\n`,
+    );
+    expect(c.diagnostics.filter((d) => d.severity !== 'info')).toEqual([]);
+    expect(c.spec).toMatchObject({
+      colors: ['signal', '#f26b3a'],
+      yMin: 0,
+      yMax: 100,
+      legend: 'bottom',
+      labels: true,
+      reference: { value: 1000000, label: 'Target' },
+      source: 'World Bank',
+      asOf: '2026-11-01',
+      actions: ['rows', 'download'],
+    });
+  });
+
+  it('teaches actions only when the host asks, and stays compact', () => {
+    expect(quartilePrompt()).not.toContain('actions:');
+    expect(quartilePrompt({ actions: true })).toContain('`actions: rows, download`');
+    expect(quartilePrompt().length).toBeLessThan(4000);
+    expect(quartilePrompt({ actions: true }).length).toBeLessThan(4100);
+    // The styling rule no longer forbids what the optional lines teach.
+    expect(quartilePrompt()).not.toMatch(/Do not add[^\n]*styling/);
+  });
+
   it('lists host datasets so the model references them instead of pasting rows', () => {
     const prompt = quartilePrompt({
       datasets: [

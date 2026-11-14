@@ -1,12 +1,18 @@
 /**
- * Prerenders the gallery after `vite build` (site + chunk manifest) and `vite build --ssr`
+ * Prerenders the examples app after `vite build` (site + chunk manifest) and `vite build --ssr`
  * (dist/.server/entry-server.js). For every route in src/routes.ts it writes dist/<route>.html
- * (dist/index.html for /) with the page's markup, head tags and stylesheets; Vercel serves them
- * through cleanUrls. It also writes robots.txt, sitemap.xml and llms.txt, then removes the
- * server bundle and manifest so they are not deployed.
+ * (dist/examples.html for /examples) with the page's markup, head tags and stylesheets; Vercel
+ * serves them through cleanUrls. It also writes examples/sitemap.xml and examples/llms.txt, then
+ * removes the server bundle and manifest so they are not deployed.
+ *
+ * Everything the app serves is under /examples, because the documentation site proxies that
+ * path to this app. Two files sit outside it, for this app's own origin only: index.html, the
+ * app shell that answers paths without a page of their own, and robots.txt, which keeps the
+ * origin out of search indexes (the pages are indexed at the documentation site's URLs).
  */
+import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -19,16 +25,51 @@ const repo = join(gallery, '../..');
 const dist = join(gallery, 'dist');
 const serverEntry = join(dist, '.server/entry-server.js');
 const manifestFile = join(dist, '.vite/manifest.json');
-const EMBED_DEMO = { path: '/embed/demo', file: 'apps/gallery/public/embed/demo.html' };
 
 const server = await import(pathToFileURL(serverEntry).href);
-const { routes, PAGE_MODULES, headTags, SITE_URL, SITE_NAME, REPOSITORY_URL } = server;
+const {
+  routes,
+  staticPages,
+  pagesInGroup,
+  GROUPS,
+  EXAMPLES_PATH,
+  LEGACY_REDIRECTS,
+  PAGE_MODULES,
+  headTags,
+  links,
+  SITE_URL,
+  SITE_NAME,
+  REPOSITORY_URL,
+} = server;
 
 const site = new URL(SITE_URL);
 if (!['http:', 'https:'].includes(site.protocol) || site.pathname !== '/' || site.search) {
   throw new Error(`VITE_SITE_URL must be an http(s) origin without a path, got "${SITE_URL}".`);
 }
 const absolute = (path) => `${SITE_URL}${path}`;
+
+// --- The path contract ---------------------------------------------------------------------
+
+for (const { path } of [...routes, ...staticPages]) {
+  if (path !== EXAMPLES_PATH && !path.startsWith(`${EXAMPLES_PATH}/`)) {
+    throw new Error(`${path} is outside ${EXAMPLES_PATH}; the documentation site proxies only it.`);
+  }
+}
+const unlisted = routes.filter((route) => route.page !== 'index' && !route.group);
+if (unlisted.length) {
+  throw new Error(`No index section lists ${unlisted.map((route) => route.path).join(', ')}.`);
+}
+// The deployment's redirects for the pre-/examples paths, and the client's copy of them.
+const vercel = JSON.parse(await readFile(join(gallery, 'vercel.json'), 'utf8'));
+assert.deepEqual(
+  vercel.redirects,
+  LEGACY_REDIRECTS.map(({ from, to, subpaths }) => ({
+    source: subpaths ? `${from}/:path*` : from,
+    destination: subpaths ? `${to}/:path*` : to,
+    permanent: false,
+  })),
+  'vercel.json redirects differ from LEGACY_REDIRECTS in src/routes.ts',
+);
 
 // --- Template and chunks -------------------------------------------------------------------
 
@@ -46,6 +87,11 @@ for (const [label, pattern] of [
 }
 
 const manifest = JSON.parse(await readFile(manifestFile, 'utf8'));
+// The component catalog and the scratch page are for local development (see src/App.tsx).
+const devOnly = Object.keys(manifest).filter((key) => /^src\/(design-system|dev)\//.test(key));
+if (devOnly.length) {
+  throw new Error(`Development-only modules are in the production build: ${devOnly.join(', ')}.`);
+}
 /** A page module's own chunk, its static imports and their stylesheets, minus the entry's. */
 function pageAssets(module) {
   if (!manifest[module]) throw new Error(`${module} is not a chunk in the Vite manifest.`);
@@ -141,21 +187,34 @@ for (const route of routes) {
       () =>
         `<div id="root" data-prerendered-path="${escapeAttr(route.path)}" data-prerender="${route.render}">${html}</div>`,
     );
-  const file = route.path === '/' ? 'index.html' : `${route.path.slice(1)}.html`;
+  const file = `${route.path.slice(1)}.html`;
   await mkdir(dirname(join(dist, file)), { recursive: true });
   await writeFile(join(dist, file), page);
   written.push(file);
   sitemap.push({ loc: absolute(route.path), lastmod: modified });
 }
-// A plain static page, not a React route. With cleanUrls it is served at /embed/demo.
-sitemap.push({ loc: absolute(EMBED_DEMO.path), lastmod: lastModified([EMBED_DEMO.file]) });
+// Plain static pages, not React routes. With cleanUrls they are served without ".html".
+for (const page of staticPages) {
+  await stat(join(dist, `${page.path.slice(1)}.html`));
+  sitemap.push({ loc: absolute(page.path), lastmod: lastModified(page.sources) });
+}
+
+// The app shell: answers /examples paths without a file of their own (vercel.json rewrites
+// them here; `vite preview` falls back to it), then the client router renders the page or a
+// not-found view. It carries no page markup and is not for search indexes.
+await writeFile(
+  join(dist, 'index.html'),
+  template.replace(DESCRIPTION, () => '\n    <meta name="robots" content="noindex" />'),
+);
+written.push('index.html');
 
 // --- Discovery files --------------------------------------------------------------------------
 
 const xml = (value) =>
   value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const examples = join(dist, EXAMPLES_PATH.slice(1));
 await writeFile(
-  join(dist, 'sitemap.xml'),
+  join(examples, 'sitemap.xml'),
   `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${sitemap
@@ -167,59 +226,50 @@ ${sitemap
 </urlset>
 `,
 );
-await writeFile(
-  join(dist, 'robots.txt'),
-  `User-agent: *\nAllow: /\n\nSitemap: ${absolute('/sitemap.xml')}\n`,
-);
+// For this app's own origin. Behind the documentation site, that site's robots.txt applies.
+await writeFile(join(dist, 'robots.txt'), 'User-agent: *\nDisallow: /\n');
 
-const link = (route) => `- [${route.name}](${absolute(route.path)}): ${route.description}`;
-const byPage = (...pages) => routes.filter((r) => pages.includes(r.page));
 const doc = (path) => `${REPOSITORY_URL}/blob/main/${path}`;
 await writeFile(
-  join(dist, 'llms.txt'),
-  `# ${SITE_NAME}
+  join(examples, 'llms.txt'),
+  `# ${SITE_NAME} examples
 
-> ${SITE_NAME} is an open-source React and TypeScript toolkit of charts, tables and interface controls that share one theme, one data model and one selection state. It is a 0.1 preview: it builds, is tested and renders this gallery, but it is not published to npm and its API may change before 0.1.0 is released.
+> Runnable example pages for ${SITE_NAME}, an open-source chart block for Markdown, AI answers and web pages: a few lines of text become an interactive chart, KPI, table or dashboard. ${SITE_NAME} is a 0.1 preview that is not on npm yet; the block language and the APIs may change before 0.1.0 is released.
 
-This site is the design system and component gallery, rendered from the repository's source (Apache-2.0). Example pages start from fictional, deterministic sample data; App Studio loads public APIs. To use the preview in another app, build and pack it locally as the [installation guide](${doc('docs/guides/installation.md')}) describes; there is no npm release yet.
+The pages render from the repository's source (Apache-2.0). They start from fictional, deterministic sample data; App Studio loads public APIs. To use ${SITE_NAME} in your own project, install the preview build from GitHub Releases as the [installation guide](${links.docs}/docs/installation) describes. The registry install does not exist yet.
 
-## Design system and Markdown
-
-${byPage('design-system', 'language', 'ai-answer', 'markdown-report').map(link).join('\n')}
-
-## Example apps
-
-${byPage('storefront', 'workbench', 'scale', 'formatting').map(link).join('\n')}
-
-## Data science and AI workbenches
-
-${byPage('science', 'assistant').map(link).join('\n')}
-
-## Studio
-
-${byPage('studio').map(link).join('\n')}
-
-## Docs
-
-- [README](${doc('README.md')}): What Quartile is, its status, a code sample and what is not built yet.
-- [Quartile language](${doc('docs/language.md')}): Reference for quartile Markdown blocks.
-- [Implementation guides](${doc('docs/guides/README.md')}): Installation, data, selection, integration, accessibility and performance.
+${GROUPS.map(
+  (group) =>
+    `## ${group.title}\n\n${pagesInGroup(group.id)
+      .map((page) => `- [${page.name}](${absolute(page.path)}): ${page.description}`)
+      .join('\n')}`,
+).join('\n\n')}
 
 ## Optional
 
-- [Plain-HTML embed demo](${absolute(EMBED_DEMO.path)}): One script tag turns quartile code blocks on an ordinary HTML page into charts.
+- [Documentation](${links.docs}): Installation, guides and component reference. Its own index for language models is at ${links.docs}/llms.txt.
+- [Quartile language](${doc('docs/language.md')}): Reference for quartile Markdown blocks.
 - [Source code](${REPOSITORY_URL}): The repository, Apache-2.0.
 `,
 );
-written.push('sitemap.xml', 'robots.txt', 'llms.txt');
+written.push('examples/sitemap.xml', 'robots.txt', 'examples/llms.txt');
 
 await rm(join(dist, '.server'), { recursive: true, force: true });
 await rm(join(dist, '.vite'), { recursive: true, force: true });
+
+// Nothing else may be deployed outside /examples: behind the proxy it would not be reachable.
+const expected = ['examples', 'examples.html', 'index.html', 'robots.txt'];
+const stray = (await readdir(dist)).filter((entry) => !expected.includes(entry));
+if (stray.length) {
+  throw new Error(
+    `dist has files outside ${EXAMPLES_PATH}: ${stray.join(', ')}. Public files belong in public/examples.`,
+  );
+}
 
 const sizes = await Promise.all(written.map(async (file) => (await stat(join(dist, file))).size));
 console.log(
   `Prerendered ${routes.length} routes for ${SITE_URL}${history ? '' : ' (no git history: sitemap without lastmod)'}:`,
 );
 for (const [i, file] of written.entries()) {
-  console.log(`  dist/${file.padEnd(36)} ${(sizes[i] / 1024).toFixed(1).padStart(7)} kB`);
+  console.log(`  dist/${file.padEnd(40)} ${(sizes[i] / 1024).toFixed(1).padStart(7)} kB`);
 }

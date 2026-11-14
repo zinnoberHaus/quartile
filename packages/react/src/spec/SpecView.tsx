@@ -1,15 +1,33 @@
-import { type ComponentType, type CSSProperties, type ReactNode, useMemo } from 'react';
+import {
+  type ComponentType,
+  type CSSProperties,
+  type ReactNode,
+  useId,
+  useMemo,
+  useState,
+} from 'react';
 import * as Charts from '../charts';
+import { specColors } from '../charts/core/colors';
+import { FigureDescriptionContext } from '../charts/core/figure-context';
+import { originOf } from '../data/origin';
 import { applyPredicates, type Predicate } from '../data/predicates';
 import { dataset, resolveData } from '../data/schema';
 import type { DataInput, FieldOverride, Row } from '../data/types';
 import * as DataDisplay from '../data-display';
 import { aggregateRows } from '../data-display/shared';
+import { parseSort } from '../data-display/table-model';
 import { IconAlertCircle } from '../icons';
+import { dict } from '../lang/dict';
 import { cx } from '../lib/cx';
+import { useQuartile } from '../provider/QuartileProvider';
 import { AppliedPredicatesContext } from '../selection/appliedPredicates';
 import { Selection, useSelection } from '../selection/Selection';
+import type { SelectionChange } from '../selection/store';
+import { SelectionWatch } from '../selection/watch';
+import { csvFileName, knownActions, resolveActions, type ViewAction } from './actions';
+import { formatAsOf, hostOf, httpUrl, type Provenance, provenanceText } from './provenance';
 import type { ComponentSpec, DashboardSpec, SpecComponentName } from './schema';
+import { RowsPanel, ViewToolbar } from './ViewActions';
 import { isDashboardSpec, type SpecError, validateSpec } from './validate';
 
 export interface SpecViewProps {
@@ -22,6 +40,18 @@ export interface SpecViewProps {
    * nearest enclosing Selection instead, sharing filters with views outside the spec.
    */
   linked?: boolean;
+  /**
+   * Called after every change of the selection the spec's views use: a Dashboard's own
+   * selection, or the nearest enclosing one (with `linked`, and for a single component).
+   * `group` is that selection's id; name a Dashboard's with `selection` to keep it stable.
+   */
+  onSelectionChange?: (change: SelectionChange) => void;
+  /**
+   * Controls the views may show: `table`, `rows`, `download`. A list is the default for views
+   * that do not set `actions` themselves; `false` shows none whatever a view asks. Without it,
+   * a view shows only the actions its own spec lists.
+   */
+  actions?: readonly ViewAction[] | false;
   className?: string;
   style?: CSSProperties;
 }
@@ -71,10 +101,21 @@ const SHAPES: Record<
     span: 3,
   },
   DataTable: { dims: ['groupBy', 'select'], measures: [], frame: 'bare', span: 12 },
+  DataExplorer: { dims: ['groupBy'], measures: [], frame: 'bare', span: 12 },
   FilterBar: { dims: [], measures: [], frame: 'bare', span: 12 },
 };
 
-const META_KEYS = new Set(['component', 'data', 'title', 'description', 'span']);
+const META_KEYS = new Set([
+  'component',
+  'data',
+  'title',
+  'description',
+  'span',
+  'source',
+  'sourceUrl',
+  'asOf',
+  'actions',
+]);
 
 function isComponent(v: unknown): v is AnyComponent {
   return (
@@ -124,7 +165,7 @@ function useSpecProps(spec: ComponentSpec, input: DataInput | undefined) {
   return useMemo(() => {
     const props: Record<string, unknown> = {};
     const appliedPredicates = new Set<Predicate>();
-    const overrides: Record<string, Exclude<FieldOverride, string>> = {};
+    const overrides: Record<string, Exclude<FieldOverride, string>> = dict();
     const dims = new Set<string>();
     const measures: Encoded[] = [];
     for (const [key, raw] of Object.entries(spec)) {
@@ -132,7 +173,8 @@ function useSpecProps(spec: ComponentSpec, input: DataInput | undefined) {
       const isDim = shape.dims.includes(key);
       const isMeasure = shape.measures.includes(key);
       if (!isDim && !isMeasure) {
-        props[key] = raw;
+        // `colors`, and `color` where it is not a field, are colors: only tokens and hex pass.
+        props[key] = key === 'colors' || key === 'color' ? specColors(raw) : raw;
         continue;
       }
       if (Array.isArray(raw)) {
@@ -188,7 +230,7 @@ function useSpecProps(spec: ComponentSpec, input: DataInput | undefined) {
         for (const m of measures) row[m.field] = aggregateRows(g, m.field, m.aggregate ?? how);
         out.push(row);
       }
-      const fields: Record<string, Exclude<FieldOverride, string>> = {};
+      const fields: Record<string, Exclude<FieldOverride, string>> = dict();
       for (const name of [...dimList, ...measures.map((m) => m.field)]) {
         if (schema[name]) {
           const { name: _n, ...def } = schema[name];
@@ -202,7 +244,7 @@ function useSpecProps(spec: ComponentSpec, input: DataInput | undefined) {
       rows = dataset(out, fields);
     } else if (input && Object.keys(overrides).length) {
       const { rows: raw, schema } = resolveData(input);
-      const fields: Record<string, Exclude<FieldOverride, string>> = {};
+      const fields: Record<string, Exclude<FieldOverride, string>> = dict();
       for (const [name, def] of Object.entries(schema)) {
         const { name: _n, ...rest } = def;
         fields[name] = rest;
@@ -211,7 +253,26 @@ function useSpecProps(spec: ComponentSpec, input: DataInput | undefined) {
       rows = dataset(raw, fields);
     }
     if (rows !== undefined) props.data = rows;
-    if (spec.component === 'DataTable') {
+    if (spec.component === 'DataExplorer') {
+      // The explorer keeps its state itself: what a spec sets is where a reader starts.
+      const { pageSize, sort, groupBy, search, export: exportable, ...rest } = props;
+      for (const key of Object.keys(props)) delete props[key];
+      const first = parseSort(typeof sort === 'string' ? sort : null);
+      const order = new Map(resolveData(input).rows.map((row, index) => [row as object, index]));
+      Object.assign(props, rest, {
+        defaultView: {
+          ...(typeof pageSize === 'number' ? { pageSize } : null),
+          ...(first ? { sorts: [first] } : null),
+          ...(typeof groupBy === 'string' ? { groupBy } : null),
+        },
+        searchable: search !== false,
+        exportable: exportable !== false,
+        exportFileName: csvFileName(spec.title),
+        // Rows carry no key of their own in a block: their place in the dataset identifies them.
+        rowKey: (row: Row, index: number) => String(order.get(row) ?? index),
+      });
+    }
+    if (spec.component === 'DataTable' || spec.component === 'DataExplorer') {
       if (spec.title !== undefined) props.title = spec.title;
       if (spec.description !== undefined && props.caption === undefined)
         props.caption = spec.description;
@@ -252,14 +313,47 @@ function ErrorCard({
   );
 }
 
+/**
+ * "Source: … · As of …" under a view or a dashboard. The words are rendered as text; the link
+ * is shown only for an http(s) address and is never requested by the library.
+ */
+function SourceNote({ spec, id }: { spec: Provenance; id?: string }) {
+  const { locale, timeZone } = useQuartile();
+  const source = typeof spec.source === 'string' ? spec.source.trim() : '';
+  const href = httpUrl(spec.sourceUrl);
+  const asOf = formatAsOf(spec.asOf, { locale, timeZone });
+  const named = source !== '' || href !== null;
+  if (!named && !asOf) return null;
+  return (
+    <p className="q-spec-source" id={id}>
+      {named ? (
+        <span>
+          Source:{' '}
+          {href ? (
+            <a href={href} rel="noopener noreferrer">
+              {source || hostOf(href)}
+            </a>
+          ) : (
+            source
+          )}
+        </span>
+      ) : null}
+      {named && asOf ? ' · ' : null}
+      {asOf ? <span>As of {asOf}</span> : null}
+    </p>
+  );
+}
+
 function SpecItem({
   spec,
   data,
   errors,
+  actions,
 }: {
   spec: ComponentSpec;
   data: Record<string, DataInput>;
   errors: SpecError[];
+  actions?: readonly ViewAction[] | false;
 }) {
   const name = typeof spec?.component === 'string' ? spec.component : undefined;
   if (errors.length > 0) {
@@ -292,36 +386,178 @@ function SpecItem({
       />
     );
   }
-  return <SpecComponent spec={spec} Comp={Comp} input={spec.data ? data[spec.data] : undefined} />;
+  return (
+    <SpecComponent
+      spec={spec}
+      Comp={Comp}
+      input={spec.data ? data[spec.data] : undefined}
+      hostActions={actions}
+    />
+  );
 }
 
 function SpecComponent({
   spec,
   Comp,
   input,
+  hostActions,
 }: {
   spec: ComponentSpec;
   Comp: AnyComponent;
   input: DataInput | undefined;
+  hostActions?: readonly ViewAction[] | false;
 }) {
   const { props, appliedPredicates } = useSpecProps(spec, input);
   const shape = SHAPES[spec.component];
+  const noteId = useId();
+  const panelId = useId();
+  // Both start as the spec says, on the server and on the first client render alike.
+  const [tableChoice, setTableChoice] = useState<boolean | null>(null);
+  const [rowsOpen, setRowsOpen] = useState(false);
+  const actions =
+    input === undefined ? [] : resolveActions(spec.component, spec.actions, hostActions);
+  const asTable = tableChoice ?? spec.view === 'table';
+  const name =
+    typeof spec.title === 'string' && spec.title
+      ? spec.title
+      : spec.component === 'KPI' && typeof spec.label === 'string'
+        ? spec.label
+        : undefined;
+  const shown = actions.includes('table') ? { ...props, view: asTable ? 'table' : 'chart' } : props;
+  const note = provenanceText(spec) ? <SourceNote spec={spec} id={noteId} /> : null;
+  const toolbar =
+    actions.length > 0 && input !== undefined ? (
+      <ViewToolbar
+        name={name}
+        actions={actions}
+        table={asTable}
+        onTable={() => setTableChoice(!asTable)}
+        rows={rowsOpen}
+        onRows={() => setRowsOpen((open) => !open)}
+        panelId={panelId}
+        input={input}
+      />
+    ) : null;
+  const panel =
+    rowsOpen && input !== undefined && actions.includes('rows') ? (
+      <RowsPanel id={panelId} name={name} input={input} />
+    ) : null;
   const node = (
     <AppliedPredicatesContext.Provider value={appliedPredicates}>
-      <Comp {...props} />
+      <FigureDescriptionContext.Provider value={note ? noteId : undefined}>
+        <Comp {...shown} />
+      </FigureDescriptionContext.Provider>
     </AppliedPredicatesContext.Provider>
   );
-  if (shape.frame === 'bare') return node;
+  if (shape.frame === 'bare') {
+    if (!note && !toolbar) return node;
+    return (
+      <div className="q-spec-noted">
+        {node}
+        {toolbar}
+        {panel}
+        {note}
+      </div>
+    );
+  }
+  const head =
+    spec.title || spec.description ? (
+      <div className="q-spec-card-head">
+        {spec.title && <div className="q-spec-card-title">{spec.title}</div>}
+        {spec.description && <div className="q-spec-card-desc">{spec.description}</div>}
+      </div>
+    ) : null;
   return (
     <div className="q-spec-card">
-      {(spec.title || spec.description) && (
-        <div className="q-spec-card-head">
-          {spec.title && <div className="q-spec-card-title">{spec.title}</div>}
-          {spec.description && <div className="q-spec-card-desc">{spec.description}</div>}
+      {toolbar ? (
+        <div className="q-spec-card-top">
+          {head}
+          {toolbar}
         </div>
+      ) : (
+        head
       )}
       {node}
+      {panel}
+      {note}
     </div>
+  );
+}
+
+/**
+ * The dataset every view of a dashboard is drawn from, or undefined when they read several.
+ * Views drawn from working copies of one dataset share it.
+ */
+function sharedDataset(
+  layout: readonly ComponentSpec[],
+  data: Record<string, DataInput>,
+): DataInput | undefined {
+  let shared: DataInput | undefined;
+  for (const item of layout) {
+    const name = item?.data;
+    if (typeof name !== 'string' || !Object.hasOwn(data, name)) continue;
+    const origin = originOf(data[name]);
+    if (shared !== undefined && shared !== origin) return undefined;
+    shared = origin;
+  }
+  return shared;
+}
+
+/**
+ * A dashboard's heading, its views and, when it has actions of its own, one toolbar beside the
+ * heading and one rows panel under the grid: the rows of the dataset its views share, under
+ * the dashboard's selection. Rendered inside that selection.
+ */
+function DashboardFrame({
+  title,
+  description,
+  actions,
+  input,
+  children,
+}: {
+  title?: string;
+  description?: string;
+  actions: readonly ViewAction[];
+  input: DataInput | undefined;
+  children: ReactNode;
+}) {
+  const panelId = useId();
+  // Closed on the server and on the first client render alike.
+  const [rowsOpen, setRowsOpen] = useState(false);
+  const head =
+    title || description ? (
+      <div className="q-spec-head">
+        {title && <h2 className="q-spec-title">{title}</h2>}
+        {description && <p className="q-spec-desc">{description}</p>}
+      </div>
+    ) : null;
+  if (actions.length === 0 || input === undefined) {
+    return (
+      <>
+        {head}
+        {children}
+      </>
+    );
+  }
+  return (
+    <>
+      <div className="q-spec-top">
+        {head}
+        <ViewToolbar
+          name={title}
+          kind="dashboard"
+          actions={actions}
+          rows={rowsOpen}
+          onRows={() => setRowsOpen((open) => !open)}
+          panelId={panelId}
+          input={input}
+        />
+      </div>
+      {children}
+      {rowsOpen && actions.includes('rows') ? (
+        <RowsPanel id={panelId} name={title} kind="dashboard" input={input} />
+      ) : null}
+    </>
   );
 }
 
@@ -336,12 +572,27 @@ function errorsUnder(errors: SpecError[], prefix: string): SpecError[] {
  * validated first; invalid items, unknown components and missing datasets render an inline
  * error card in their place instead of throwing.
  */
-export function SpecView({ spec, data, linked, className, style }: SpecViewProps) {
+export function SpecView({
+  spec,
+  data,
+  linked,
+  onSelectionChange,
+  actions,
+  className,
+  style,
+}: SpecViewProps) {
   const result = useMemo(() => validateSpec(spec), [spec]);
+  const watch = onSelectionChange ? <SelectionWatch onChange={onSelectionChange} /> : null;
   if (!isDashboardSpec(spec)) {
     return (
       <div className={cx('q-spec', className)} style={style}>
-        <SpecItem spec={spec as ComponentSpec} data={data} errors={result.errors} />
+        {watch}
+        <SpecItem
+          spec={spec as ComponentSpec}
+          data={data}
+          errors={result.errors}
+          actions={actions}
+        />
       </div>
     );
   }
@@ -350,6 +601,19 @@ export function SpecView({ spec, data, linked, className, style }: SpecViewProps
   const description = typeof dash.description === 'string' ? dash.description : undefined;
   const layout = Array.isArray(dash.layout) ? dash.layout : [];
   const topErrors = result.errors.filter((e) => !/^\/layout\/\d+(\/|$)/.test(e.path));
+  // Over one dataset, its rows and their download belong to the dashboard: one toolbar, and a
+  // view shows its own only when its spec asks. Over several, there is no one set of rows, so
+  // the dashboard's list (or the host's) is the default for each view instead.
+  const shared = topErrors.length === 0 ? sharedDataset(layout, data) : undefined;
+  const ownActions = shared ? resolveActions('Dashboard', dash.actions, actions) : [];
+  const viewActions =
+    actions === false
+      ? false
+      : shared
+        ? []
+        : Array.isArray(dash.actions)
+          ? knownActions(dash.actions)
+          : actions;
   let body: ReactNode;
   if (topErrors.length > 0 || layout.length === 0) {
     body = <ErrorCard title="This dashboard spec is not valid" errors={topErrors} />;
@@ -368,6 +632,7 @@ export function SpecView({ spec, data, linked, className, style }: SpecViewProps
                 spec={item as ComponentSpec}
                 data={data}
                 errors={errorsUnder(result.errors, `/layout/${i}`)}
+                actions={viewActions}
               />
             </div>
           );
@@ -375,21 +640,25 @@ export function SpecView({ spec, data, linked, className, style }: SpecViewProps
       </div>
     );
   }
+  const frame = (
+    <DashboardFrame title={title} description={description} actions={ownActions} input={shared}>
+      {body}
+    </DashboardFrame>
+  );
   return (
     <div className={cx('q-spec', 'q-spec-dashboard', className)} style={style}>
-      {(title || description) && (
-        <div className="q-spec-head">
-          {title && <h2 className="q-spec-title">{title}</h2>}
-          {description && <p className="q-spec-desc">{description}</p>}
-        </div>
-      )}
       {linked ? (
-        body
+        <>
+          {watch}
+          {frame}
+        </>
       ) : (
         <Selection id={typeof dash.selection === 'string' ? dash.selection : undefined}>
-          {body}
+          {watch}
+          {frame}
         </Selection>
       )}
+      <SourceNote spec={dash} />
     </div>
   );
 }

@@ -5,6 +5,8 @@
  */
 import type { FieldOverride, Row } from '../data/types';
 import { type Diagnostic, error, info, warning } from './diagnostics';
+import { dict } from './dict';
+import { keyList, pathNote, resolveDataPath } from './path';
 
 export type TableFormat = 'csv' | 'tsv' | 'semicolon' | 'markdown' | 'json';
 export type FieldMeta = Exclude<FieldOverride, string>;
@@ -18,6 +20,8 @@ export interface ParsedTable {
   diagnostics: Diagnostic[];
   /** Streaming: a trailing record was held back because it may still be incomplete. */
   truncated: boolean;
+  /** How many rows the data held, when `maxRows` cut it; `rows` are the first of them. */
+  rowsTotal?: number;
 }
 
 export interface TableOptions {
@@ -27,6 +31,14 @@ export interface TableOptions {
   partial?: boolean;
   /** Keep at most this many rows. Defaults to 5,000. */
   maxRows?: number;
+  /**
+   * Where the rows are inside a JSON document: keys and array positions separated by dots, e.g.
+   * `data.items` or `results.0.series`. Without it, an object with exactly one list of rows is
+   * read from that key.
+   */
+  path?: string;
+  /** Line of the `path:` setting, so its diagnostics point at it. Defaults to `firstLine`. */
+  pathLine?: number;
 }
 
 export const DEFAULT_MAX_ROWS = 5000;
@@ -412,8 +424,9 @@ function typeColumn(name: string, raw: (string | null)[]): ColumnResult {
     } else if (currencies.size === 1) {
       const currency = [...currencies][0];
       meta = { format: compact ? 'currency-compact' : 'currency', currency, unit: currency };
-      if (!compact && values.every((v) => v === null || Number.isInteger(v))) {
-        Object.assign(meta, wholeCurrency(currency));
+      if (!compact) {
+        const whole = values.every((v) => v === null || Number.isInteger(v));
+        Object.assign(meta, whole ? wholeCurrency(currency) : exactCurrency(currency));
       }
     } else if (currencies.size > 1) {
       note = `“${name}” mixes currencies (${[...currencies].join(', ')}); values are shown without a currency.`;
@@ -464,6 +477,18 @@ export function wholeCurrency(currency: string): FieldMeta {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     },
+    axisFormat: 'currency-compact',
+  };
+}
+
+/**
+ * Amounts with cents ("$1,200.50") display in full wherever a value is read. The named
+ * `currency` format prints the same, but ranked lists and donuts shorten it by default to keep
+ * a narrow column; an amount a block asked for or wrote out is shown as it is. Axes stay compact.
+ */
+export function exactCurrency(currency: string): FieldMeta {
+  return {
+    format: { type: 'number', style: 'currency', currency },
     axisFormat: 'currency-compact',
   };
 }
@@ -553,33 +578,187 @@ function partialJsonArray(text: string): unknown[] | null {
   return items;
 }
 
-function rowsFromJson(value: unknown): { rows: Row[]; problem?: string } {
-  if (Array.isArray(value)) {
-    if (value.every((v) => v && typeof v === 'object' && !Array.isArray(v))) {
-      return { rows: value as Row[] };
+interface JsonRows {
+  rows: Row[];
+  problem?: string;
+  hint?: string;
+  /** The key the rows were read from, when the document wraps them. */
+  key?: string;
+  /** The key beside the rows that their column names were read from. */
+  header?: string;
+  /** Column names of a list of arrays, which outlive its rows: a header with nothing under it. */
+  names?: string[];
+  warning?: string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+/** A list that can be rows: objects, or arrays under a header row. */
+function isRowList(value: unknown): value is unknown[] {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    (value.every(isRecord) || value.every(Array.isArray))
+  );
+}
+
+/** Keys APIs keep their rows under, in the order they are preferred when several lists exist. */
+const ROW_KEYS = ['rows', 'data', 'results', 'items', 'records'];
+
+/** The first conventional key that holds a list of rows, or an empty list. */
+function conventionalKey(entries: [string, unknown][]): string | undefined {
+  for (const name of ROW_KEYS) {
+    const hit = entries.find(
+      ([k, v]) => k.toLowerCase() === name && Array.isArray(v) && (v.length === 0 || isRowList(v)),
+    );
+    if (hit) return hit[0];
+  }
+  return undefined;
+}
+
+/** Keys that hold a table's column names beside its rows, in the order they are tried. */
+const HEADER_KEYS = ['columns', 'cols', 'fields', 'schema'];
+
+/** A column's name as an API lists it: the name itself, or the `name` of its description. */
+function headerName(entry: unknown): string | undefined {
+  // `name` first; the other spellings only for a description that has no `name` at all.
+  const name = !isRecord(entry)
+    ? entry
+    : Object.hasOwn(entry, 'name')
+      ? entry.name
+      : (entry.display_name ?? entry.field ?? entry.label);
+  if (typeof name === 'string') return name;
+  return typeof name === 'number' && Number.isFinite(name) ? String(name) : undefined;
+}
+
+/**
+ * Column names kept beside a list of bare arrays, as query APIs return them
+ * (`{ "cols": [...], "rows": [[...]] }`). They count only when there are exactly as many as the
+ * first array has values; otherwise the list is read under its own first array, as before.
+ */
+function headerBeside(
+  holder: Record<string, unknown>,
+  own: string | undefined,
+  width: number,
+): { names: string[]; key: string } | undefined {
+  const entries = Object.entries(holder);
+  for (const wanted of HEADER_KEYS) {
+    const hit = entries.find(([k]) => k !== own && k.toLowerCase() === wanted);
+    if (!hit) continue;
+    let [key, list] = hit;
+    // `schema: { fields: [...] }`
+    if (wanted === 'schema' && isRecord(list)) {
+      key = `${key}.fields`;
+      list = list.fields;
     }
+    if (!Array.isArray(list) || list.length !== width) continue;
+    const names = list.map(headerName);
+    if (names.every((n) => n !== undefined)) return { names: names as string[], key };
+  }
+  return undefined;
+}
+
+function rowsFromColumns(entries: [string, unknown[]][]): Row[] {
+  const length = Math.max(0, ...entries.map(([, v]) => v.length));
+  return Array.from({ length }, (_, i) =>
+    Object.fromEntries(entries.map(([k, v]) => [k, v[i] ?? null])),
+  );
+}
+
+/**
+ * Rows of a parsed JSON value. `at` is the path already followed to it, for hints; `holder` is
+ * the object a list was found in, under the key `own`, where its column names may be kept.
+ */
+function rowsFromJson(
+  value: unknown,
+  at?: string,
+  holder?: Record<string, unknown>,
+  own?: string,
+): JsonRows {
+  if (Array.isArray(value)) {
+    if (value.every(isRecord)) return { rows: value as Row[] };
     if (value.every((v) => Array.isArray(v)) && value.length > 0) {
-      const [head, ...body] = value as unknown[][];
-      const names = columnNames(head.map(String));
+      const lists = value as unknown[][];
+      const beside = holder ? headerBeside(holder, own, lists[0].length) : undefined;
+      // Names kept beside the list leave every array a row; otherwise the first is the header.
+      const names = columnNames(beside ? beside.names : lists[0].map(String));
       return {
-        rows: body.map((r) => Object.fromEntries(names.map((n, i) => [n, r[i] ?? null]))),
+        rows: (beside ? lists : lists.slice(1)).map((r) =>
+          Object.fromEntries(names.map((n, i) => [n, r[i] ?? null])),
+        ),
+        header: beside?.key,
+        names,
       };
     }
     return { rows: [], problem: 'Expected an array of objects or an array of arrays.' };
   }
-  if (value && typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>);
-    if (entries.length && entries.every(([, v]) => Array.isArray(v))) {
-      const length = Math.max(...entries.map(([, v]) => (v as unknown[]).length));
+  if (isRecord(value)) {
+    const entries = Object.entries(value);
+    // Columns hold plain values. A key holding a list of objects is an envelope around rows
+    // (`{ "data": [...] }`), not a column of objects.
+    const columns =
+      entries.length > 0 &&
+      entries.every(
+        ([, v]) => Array.isArray(v) && v.every((x) => x === null || typeof x !== 'object'),
+      );
+    const lengths = new Set(entries.map(([, v]) => (Array.isArray(v) ? v.length : -1)));
+    if (columns && lengths.size === 1) {
+      return { rows: rowsFromColumns(entries as [string, unknown[]][]) };
+    }
+    const candidates = entries.filter(([, v]) => isRowList(v)).map(([k]) => k);
+    // The key an API conventionally keeps its rows under is the table, whether or not it has
+    // rows right now: an empty `results` beside `errors` is no rows, not the errors.
+    const named = conventionalKey(entries);
+    const namedList = named === undefined ? [] : (value[named] as unknown[]);
+    const namedEmpty = named !== undefined && namedList.length === 0;
+    if (candidates.length === 1 && !namedEmpty) {
+      const key = candidates[0];
+      return { ...rowsFromJson(value[key], undefined, value, key), key };
+    }
+    if (candidates.length >= 1) {
+      // Among several lists, objects under a conventional key are taken. Arrays are taken only
+      // with their column names beside them: without, the header row they need may be one of
+      // the other lists.
+      if (named !== undefined) {
+        const read = rowsFromJson(namedList, undefined, value, named);
+        if (namedList.every(isRecord) || read.header !== undefined) return { ...read, key: named };
+      }
+      // The example names a list of rows rather than the descriptions of its columns.
+      const pick =
+        named ?? candidates.find((k) => !HEADER_KEYS.includes(k.toLowerCase())) ?? candidates[0];
+      const example = at === undefined ? pick : `${at}.${pick}`;
       return {
-        rows: Array.from({ length }, (_, i) =>
-          Object.fromEntries(entries.map(([k, v]) => [k, (v as unknown[])[i] ?? null])),
-        ),
+        rows: [],
+        problem: `Several keys hold rows: ${candidates.map((k) => `\`${k}\``).join(', ')}.`,
+        hint:
+          `Choose one with \`path:\`, e.g. \`path: ${example}\`.` +
+          (named === undefined
+            ? ''
+            : ' A list of arrays is read with its first array as the header.'),
       };
     }
-    if (Array.isArray((value as { rows?: unknown }).rows)) {
-      return rowsFromJson((value as { rows: unknown }).rows);
+    if (named !== undefined) return { rows: [], key: named };
+    if (columns) {
+      return {
+        rows: rowsFromColumns(entries as [string, unknown[]][]),
+        warning: 'Columns have different lengths; the shorter ones end with missing values.',
+      };
     }
+    // An API that found nothing still answers with its envelope.
+    const empty = entries.filter(([, v]) => Array.isArray(v) && v.length === 0).map(([k]) => k);
+    if (empty.length === 1) return { rows: [], key: empty[0] };
+    return {
+      rows: [],
+      problem: 'Expected an array of rows or an object of columns.',
+      hint:
+        entries.length === 0
+          ? undefined
+          : at === undefined
+            ? `This object has the keys ${keyList(value)}. Name the one that holds the rows with \`path:\`, e.g. \`path: data.items\`.`
+            : `\`${at}\` has the keys ${keyList(value)}. Extend the path to the one that holds the rows.`,
+    };
   }
   return { rows: [], problem: 'Expected an array of rows or an object of columns.' };
 }
@@ -601,7 +780,7 @@ function typeJsonRows(rows: Row[]): {
       }
     }
   }
-  const fields: ParsedTable['fields'] = {};
+  const fields: ParsedTable['fields'] = dict();
   const notes: string[] = [];
   const out = rows.map((r) => ({ ...r }));
   for (const c of columns) {
@@ -634,47 +813,109 @@ export function detectTableFormat(text: string): TableFormat {
   return detectDelimiter(first).format;
 }
 
-export function parseTable(text: string, options: TableOptions = {}): ParsedTable {
+/** Reads CSV, TSV, semicolon-separated text, a Markdown table or JSON text. */
+export function parseTable(text: string, options?: TableOptions): ParsedTable;
+/** Reads JSON that is already parsed, e.g. what `response.json()` returned. */
+export function parseTable(json: unknown, options?: TableOptions): ParsedTable;
+export function parseTable(input: unknown, options: TableOptions = {}): ParsedTable {
   const firstLine = options.firstLine ?? 1;
   const maxRows = options.maxRows ?? DEFAULT_MAX_ROWS;
   const diagnostics: Diagnostic[] = [];
-  const format = detectTableFormat(text);
+  const text = typeof input === 'string' ? input : '';
+  const format = typeof input === 'string' ? detectTableFormat(input) : 'json';
   let truncated = false;
 
   if (format === 'json') {
-    let value: unknown;
-    try {
-      value = JSON.parse(text);
-    } catch (e) {
-      if (options.partial) {
-        value = partialJsonArray(text) ?? [];
-        truncated = true;
-      } else {
-        diagnostics.push(
-          error(
-            `The data is not valid JSON: ${(e as Error).message}`,
-            firstLine,
-            'Use CSV with a header row, a Markdown table, or a JSON array of objects.',
-          ),
-        );
-        return { format, columns: [], rows: [], fields: {}, diagnostics, truncated };
+    const pathLine = options.pathLine ?? firstLine;
+    let value: unknown = input;
+    let path = options.path;
+    // The object that holds the list of rows, the list's key in it, and the path to that object.
+    let holder: Record<string, unknown> | undefined;
+    let own: string | undefined;
+    let holderPath: string | undefined;
+    if (typeof input === 'string') {
+      try {
+        value = JSON.parse(input);
+      } catch (e) {
+        if (options.partial) {
+          // A path cannot be followed through half a document; its rows wait for the rest.
+          value = path === undefined ? (partialJsonArray(input) ?? []) : [];
+          path = undefined;
+          truncated = true;
+        } else {
+          diagnostics.push(
+            error(
+              `The data is not valid JSON: ${(e as Error).message}`,
+              firstLine,
+              'Use CSV with a header row, a Markdown table, or a JSON array of objects.',
+            ),
+          );
+          return { format, columns: [], rows: [], fields: {}, diagnostics, truncated };
+        }
       }
     }
-    const { rows, problem } = rowsFromJson(value);
-    if (problem) diagnostics.push(error(problem, firstLine));
+    if (path !== undefined) {
+      const resolved = resolveDataPath(value, path);
+      const note = pathNote(resolved.path);
+      if (note) diagnostics.push(info(note, pathLine));
+      if (!resolved.ok) {
+        diagnostics.push(error(resolved.problem.message, pathLine, resolved.problem.hint));
+        return { format, columns: [], rows: [], fields: {}, diagnostics, truncated };
+      }
+      value = resolved.value;
+      // From here on the path is its dotted form; `$` alone is the document, like no path.
+      path = resolved.path.dotted || undefined;
+      // A path that ends at the list itself: its column names may be kept beside it.
+      if (Array.isArray(value) && isRecord(resolved.parent)) {
+        holder = resolved.parent;
+        own = resolved.path.segments.at(-1);
+        holderPath = resolved.path.segments.slice(0, -1).join('.') || undefined;
+      }
+    }
+    const read = rowsFromJson(value, path, holder, own);
+    const { rows } = read;
+    if (read.problem) {
+      diagnostics.push(
+        path === undefined
+          ? error(read.problem, firstLine, read.hint)
+          : error(`\`${path}\` does not hold rows. ${read.problem}`, pathLine, read.hint),
+      );
+    }
+    if (read.warning) diagnostics.push(warning(read.warning, firstLine));
+    if (read.key !== undefined) {
+      const at = path === undefined ? read.key : `${path}.${read.key}`;
+      diagnostics.push(info(`Read rows from \`${at}\`.`, firstLine));
+      holderPath = path;
+    }
+    if (read.header !== undefined) {
+      const at = holderPath === undefined ? read.header : `${holderPath}.${read.header}`;
+      diagnostics.push(info(`Read column names from \`${at}\`.`, firstLine));
+    }
     const typed = typeJsonRows(rows.slice(0, maxRows));
     if (rows.length > maxRows) {
       diagnostics.push(warning(`Kept the first ${maxRows} of ${rows.length} rows.`, firstLine));
     }
     for (const note of typed.notes) diagnostics.push(info(note, firstLine));
+    // A header with no rows under it still says which columns exist.
+    const bare = rows.length === 0 ? read.names : undefined;
     return {
       format,
-      columns: typed.columns,
+      columns: bare ?? typed.columns,
       rows: typed.rows,
-      fields: typed.fields,
+      fields: bare ? Object.fromEntries(bare.map((name) => [name, {}])) : typed.fields,
       diagnostics,
       truncated,
+      ...(rows.length > maxRows ? { rowsTotal: rows.length } : {}),
     };
+  }
+
+  if (options.path !== undefined) {
+    diagnostics.push(
+      warning(
+        '`path:` applies to JSON; this data is a table already, so it was ignored.',
+        options.pathLine ?? firstLine,
+      ),
+    );
   }
 
   let body = text;
@@ -711,8 +952,10 @@ export function parseTable(text: string, options: TableOptions = {}): ParsedTabl
   const width = columns.length;
   const raw: (string | null)[][] = columns.map(() => []);
   let kept = 0;
+  let rowsTotal: number | undefined;
   for (const rec of data) {
     if (kept >= maxRows) {
+      rowsTotal = data.length;
       diagnostics.push(
         warning(
           `Kept the first ${maxRows} rows; ${data.length - maxRows} more were ignored.`,
@@ -745,14 +988,24 @@ export function parseTable(text: string, options: TableOptions = {}): ParsedTabl
   }
 
   const rows: Row[] = Array.from({ length: kept }, () => ({}));
-  const fields: ParsedTable['fields'] = {};
+  const fields: ParsedTable['fields'] = dict();
   columns.forEach((name, c) => {
     const typed = typeColumn(name, raw[c]);
     typed.values.forEach((v, r) => {
       rows[r][name] = v;
     });
     if (typed.meta) fields[name] = typed.meta;
+    // A header with no rows under it still says which columns exist.
+    else if (kept === 0) fields[name] = {};
     if (typed.note) diagnostics.push(info(typed.note, head.line));
   });
-  return { format, columns, rows, fields, diagnostics, truncated };
+  return {
+    format,
+    columns,
+    rows,
+    fields,
+    diagnostics,
+    truncated,
+    ...(rowsTotal === undefined ? {} : { rowsTotal }),
+  };
 }

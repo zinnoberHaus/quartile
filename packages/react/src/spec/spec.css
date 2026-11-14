@@ -71,6 +71,108 @@
   color: var(--q-text-3);
 }
 
+/* A dashboard's own controls sit beside its heading; its rows open under the grid. */
+.q-spec-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.q-spec-top > .q-spec-head {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+/* A view's own controls: beside the card title, or under a view that has no card. */
+.q-spec-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.q-spec-card-top > .q-spec-card-head {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.q-spec-actions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.q-spec-actions > .q-btn[aria-pressed="true"] {
+  --q-btn-bg: var(--q-subtle);
+  --q-btn-fg: var(--q-text);
+}
+
+/* The rows a view is drawn from. */
+.q-spec-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--q-line);
+}
+
+.q-spec-rows-count {
+  margin: 0;
+  font-size: 12px;
+  color: var(--q-text-3);
+}
+
+.q-spec-dashboard > .q-spec-rows {
+  margin-top: 12px;
+}
+
+/* Where the data came from: one muted line under a view or a dashboard. */
+.q-spec-source {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--q-text-3);
+  overflow-wrap: anywhere;
+}
+
+.q-spec-source a {
+  border-radius: var(--q-radius-xs);
+  color: var(--q-text-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.q-spec-source a:hover {
+  color: var(--q-text);
+}
+
+.q-spec-source a:focus-visible {
+  outline: none;
+  box-shadow: var(--q-focus-ring);
+}
+
+.q-spec-dashboard > .q-spec-source {
+  margin-top: 12px;
+}
+
+/* A view without a card (KPI, table) and the lines that belong to it. */
+.q-spec-noted {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  height: 100%;
+}
+
+.q-spec-noted > .q-kpi {
+  flex: 1 1 auto;
+}
+
 .q-spec-error {
   min-width: 0;
   padding: 14px 16px;

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { resolve } from 'node:path';
+import { watchRequests } from '../../../scripts/examples-only.mjs';
 
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const origin = process.argv[2] || 'http://127.0.0.1:4178';
@@ -11,6 +12,7 @@ const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
 const page = await context.newPage();
 const errors = [];
+const outsideExamples = watchRequests(context, origin);
 const checks = [];
 let slowResponse;
 let notifySlow;
@@ -354,6 +356,7 @@ try {
   }
   checked('All four workflows fit a 375px viewport with contained table scrolling.');
   assert.deepEqual(errors, []);
+  assert.deepEqual(outsideExamples(), [], 'requests outside /examples');
   await writeFile(
     `${output}/report.json`,
     `${JSON.stringify({ origin, checks, errors }, null, 2)}\n`,

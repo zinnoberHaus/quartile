@@ -1,7 +1,8 @@
-import { type CSSProperties, type ReactNode, useRef, useState } from 'react';
+import { type CSSProperties, type ReactNode, useContext, useRef, useState } from 'react';
 import { cx } from '../../lib/cx';
 import { useElementSize } from '../../lib/useElementSize';
 import { useQuartile } from '../../provider/QuartileProvider';
+import { FigureDescriptionContext } from './figure-context';
 
 export type ChartStatus = 'ready' | 'loading' | 'empty' | 'error';
 
@@ -85,6 +86,7 @@ export function ChartFrame({
   const ref = useRef<HTMLDivElement>(null);
   const { width: measured } = useElementSize(ref);
   const { initialWidth } = useQuartile();
+  const describedBy = useContext(FigureDescriptionContext);
   // Before measurement (server rendering, static export, the first client render) draw at the
   // assumed width; CSS scales that drawing to the container until the measured redraw.
   const width = measured > 0 ? measured : initialWidth;
@@ -102,6 +104,7 @@ export function ChartFrame({
       style={{ height, ...style }}
       role="figure"
       aria-label={ariaLabel ?? kind}
+      aria-describedby={describedBy}
       aria-busy={status === 'loading' || undefined}
     >
       {toggle && (

@@ -2,6 +2,7 @@
  * Compiles a parsed Quartile block into the existing JSON spec (`QuartileSpec`) plus the datasets
  * it references, so the language and the JSON contract always render through the same SpecView.
  */
+import { derivedFrom } from '../data/origin';
 import { dataset, humanize, resolveData } from '../data/schema';
 import type { DataInput, Dataset, FieldDef, Formatter, Row } from '../data/types';
 import {
@@ -12,7 +13,9 @@ import {
   type SpecComponentName,
 } from '../spec/schema';
 import { type SpecError, validateSpec } from '../spec/validate';
+import { article, parseActions, supportedActions } from './actions';
 import { type Diagnostic, error, hasErrors, info, warning } from './diagnostics';
+import { dict } from './dict';
 import { readFormat } from './formats';
 import { KINDS, type KindDef, PROPERTY_ALIASES, type ViewKind } from './kinds';
 import {
@@ -24,7 +27,10 @@ import {
   parseFieldExpr,
   type ViewNode,
 } from './parse';
-import { type FieldMeta, parseTable, wholeCurrency } from './table';
+import { checkSourceUrl, isProvenanceKey, legacyDataSource, readProvenance } from './provenance';
+import { markRowLimit, readSourceSettings, rowLimitOf, SOURCE_KEYS, sourceDataset } from './source';
+import { finishStyle, isReferenceKey, readStyleSetting, styleJsonSpec, styleState } from './style';
+import { exactCurrency, type FieldMeta, parseTable, wholeCurrency } from './table';
 
 export interface CompileOptions extends ParseOptions {
   /** Datasets the block may reference by name: host data and `data` blocks elsewhere. */
@@ -33,6 +39,16 @@ export interface CompileOptions extends ParseOptions {
   pendingDatasets?: readonly string[];
   /** Keep at most this many inline rows. Defaults to 5,000. */
   maxRows?: number;
+  /**
+   * The host's shortest refresh interval in seconds. A block asking for a shorter `refresh:` is
+   * raised to it with a note. Without it the block's value is recorded as written.
+   */
+  minRefresh?: number;
+  /**
+   * Let blocks set chart colors (`colors:`, `color: #2f45e8`). Defaults to true; false drops
+   * them with a note, for hosts whose charts must keep the page's own palette.
+   */
+  blockColors?: boolean;
 }
 
 export interface CompiledBlock {
@@ -43,8 +59,11 @@ export interface CompiledBlock {
   data: Record<string, DataInput>;
   /** A `data <name>` block's dataset. */
   defines?: { name: string; dataset: Dataset };
-  /** URLs the block asks the host to load (`src:`). Nothing is fetched by the compiler. */
-  sources: { name: string; url: string; line: number }[];
+  /**
+   * URLs the block asks the host to load (`src:`), with where the rows are in a JSON response
+   * (`path:`) and how often to reload, in seconds (`refresh:`). Nothing is fetched by the compiler.
+   */
+  sources: { name: string; url: string; line: number; path?: string; refresh?: number }[];
   /** Selection group shared with other blocks in a document; null when the block stands alone. */
   link: string | null;
   title?: string;
@@ -53,6 +72,14 @@ export interface CompiledBlock {
   complete: boolean;
   /** Waiting for rows: a streaming block without data yet, or a source that is loading. */
   pending: boolean;
+  /**
+   * The data has no rows and the block leaves its fields to be inferred from them, so there is
+   * nothing to draw yet and nothing wrong. A view that names its fields keeps its `spec` and
+   * renders its own empty state instead.
+   */
+  empty?: boolean;
+  /** Datasets drawn in part, because at most `kept` of their `total` rows were kept. */
+  rowLimits?: { data: string; kept: number; total: number }[];
 }
 
 type JsonSchema = Record<string, unknown>;
@@ -78,6 +105,7 @@ const SPANS: Record<ViewKind, number> = {
   funnel: 4,
   filters: 12,
   table: 12,
+  explorer: 12,
   calendar: 12,
   sankey: 12,
   line: 6,
@@ -177,9 +205,11 @@ interface FieldResolver {
   type(name: string): FieldDef['type'];
 }
 
-function makeResolver(schema: Record<string, FieldDef>): FieldResolver {
+function makeResolver(schema: Record<string, FieldDef>, open = false): FieldResolver {
   const columns = Object.keys(schema);
   const resolve = (name: string, line: number | undefined, diagnostics: Diagnostic[]) => {
+    // No rows and no header: there is nothing to check a name against, so it stands as written.
+    if (open) return name;
     if (Object.hasOwn(schema, name)) return name;
     const lower = columns.find((c) => c.toLowerCase() === name.toLowerCase());
     if (lower) return lower;
@@ -232,7 +262,7 @@ function isPercentField(def: FieldDef | undefined): boolean {
 /* ------------------------------------------------------------------------------------------ */
 
 function definitions(schema: Record<string, FieldDef>): Record<string, FieldMeta> {
-  const out: Record<string, FieldMeta> = {};
+  const out: Record<string, FieldMeta> = dict();
   for (const [name, def] of Object.entries(schema)) {
     const { name: _n, ...rest } = def;
     out[name] = rest;
@@ -246,7 +276,7 @@ function fieldMetaFrom(
   columns: string[],
   diagnostics: Diagnostic[],
 ): Record<string, FieldMeta> {
-  const out: Record<string, FieldMeta> = {};
+  const out: Record<string, FieldMeta> = dict();
   for (const p of props) {
     const dot = p.key.lastIndexOf('.');
     if (dot <= 0) continue;
@@ -259,6 +289,8 @@ function fieldMetaFrom(
     if (['x', 'y', 'color', 'value', 'size', 'category', 'group', 'target'].includes(fieldName)) {
       continue;
     }
+    // `reference.label` names a reference line, unless a column carries that name.
+    if (isReferenceKey(fieldName, columns)) continue;
     const column =
       columns.find((c) => c === fieldName) ??
       columns.find((c) => c.toLowerCase() === fieldName.toLowerCase());
@@ -356,35 +388,80 @@ function checkVersion(p: PropEntry, diagnostics: Diagnostic[]) {
   }
 }
 
-function isWholeCurrency(format: unknown): boolean {
-  return (
-    !!format &&
-    typeof format === 'object' &&
-    (format as Intl.NumberFormatOptions).style === 'currency' &&
-    (format as Intl.NumberFormatOptions).maximumFractionDigits === 0
-  );
+/** True when `name` holds amounts and every one of them is a whole number. */
+function wholeAmounts(rows: readonly Row[], name: string): boolean {
+  let seen = false;
+  for (const r of rows) {
+    const v = r[name];
+    if (v == null) continue;
+    if (typeof v !== 'number' || !Number.isInteger(v)) return false;
+    seen = true;
+  }
+  return seen;
 }
 
-/** Currency fields holding only whole numbers display without cents. */
-function wholeCurrencyFields(input: DataInput, only?: Iterable<string>): Record<string, FieldMeta> {
+/** Named formats that leave a number what it was, so a unit inferred from it still holds. */
+const PLAIN_NUMBERS = new Set(['number', 'integer', 'compact', 'scientific', 'engineering']);
+
+/**
+ * What a format a block declares for a field says besides the format itself.
+ *
+ * `currency` means the full amount wherever a value is read, without cents when every amount is
+ * whole and with them otherwise; only axes shorten it. The named format alone would not say that:
+ * ranked lists and donuts shorten it by default, for application data.
+ *
+ * The unit a KPI tags follows the format: the currency, a rate, or nothing for a format that is
+ * not a plain number, where "COUNT" was only inferred from whole values. A unit the block states
+ * itself stands.
+ */
+function declareFormat(
+  meta: FieldMeta,
+  field: FieldDef | undefined,
+  rows: readonly Row[],
+  name: string,
+): FieldMeta {
+  const format = meta.format;
+  if (format === undefined) return meta;
+  const currency = meta.currency ?? field?.currency ?? 'USD';
+  const shape = typeof format === 'object' ? (format as { style?: string; type?: string }) : {};
+  const out: FieldMeta =
+    format === 'currency'
+      ? {
+          ...meta,
+          ...(wholeAmounts(rows, name) ? wholeCurrency(currency) : exactCurrency(currency)),
+          currency,
+        }
+      : meta;
+  if (meta.unit !== undefined) return out;
+  if (format === 'currency' || format === 'currency-compact' || shape.style === 'currency') {
+    return { ...out, unit: currency };
+  }
+  if (format === 'percent' || shape.style === 'percent') return { ...out, unit: 'RATE' };
+  const plain =
+    typeof format === 'string'
+      ? PLAIN_NUMBERS.has(format)
+      : shape.type === undefined || shape.type === 'number';
+  return plain || field?.unit !== 'COUNT' ? out : { ...out, unit: undefined };
+}
+
+/**
+ * Display of the currency fields of a block's own rows: those whose format the block declared
+ * (`declared`), and those that are currency by their name or by how their values were written,
+ * which display without cents when every amount is whole.
+ */
+function wholeCurrencyFields(
+  input: DataInput,
+  declared: Record<string, FieldMeta> = {},
+): Record<string, FieldMeta> {
   const { rows, schema } = resolveData(input);
-  const out: Record<string, FieldMeta> = {};
-  const names = only ? [...only] : Object.keys(schema);
-  for (const name of names) {
-    const def = schema[name];
-    if (def?.format !== 'currency') continue;
-    let seen = false;
-    let whole = true;
-    for (const r of rows) {
-      const v = r[name];
-      if (v == null) continue;
-      seen = true;
-      if (typeof v !== 'number' || !Number.isInteger(v)) {
-        whole = false;
-        break;
-      }
+  const out: Record<string, FieldMeta> = dict();
+  for (const [name, def] of Object.entries(schema)) {
+    if (Object.hasOwn(declared, name)) {
+      const meta = declareFormat(declared[name], def, rows, name);
+      if (meta !== declared[name]) out[name] = meta;
+    } else if (def.format === 'currency' && wholeAmounts(rows, name)) {
+      out[name] = wholeCurrency(def.currency ?? 'USD');
     }
-    if (seen && whole) out[name] = wholeCurrency(def.currency ?? 'USD');
   }
   return out;
 }
@@ -410,6 +487,9 @@ interface ViewContext {
   inDashboard: boolean;
   complete: boolean;
   diagnostics: Diagnostic[];
+  blockColors: boolean;
+  /** Reports, once per dataset, that a view draws rows the host's limit cut. */
+  rowLimit(name: string, rows: readonly Row[], line?: number): void;
 }
 
 interface CompiledView {
@@ -417,6 +497,9 @@ interface CompiledView {
   dataName?: string;
   pending: boolean;
   link: string | null;
+  /** No rows to infer the view's fields from; `title` is what it is called meanwhile. */
+  empty?: boolean;
+  title?: string;
 }
 
 function lookupDataset(ctx: ViewContext, name: string): DataInput | undefined {
@@ -598,15 +681,24 @@ function fieldsOfProp(value: unknown): string[] {
 function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
   const def = KINDS[view.kind];
   const component = def.component;
+  // Tables and explorers share their column, sort and grouping settings.
+  const tabular = component === 'DataTable' || component === 'DataExplorer';
   const schemaProps = componentProps(component);
   const diagnostics = ctx.diagnostics;
   const lines = new Map<string, number>();
   const spec: ComponentSpec = { component };
 
-  // 1. The dataset this view reads.
-  const dataProp = view.props.find(
-    (p) => p.norm === 'data' || p.norm === 'dataset' || p.norm === 'source',
-  );
+  // 1. The dataset this view reads. `source:` states provenance, except in a view without
+  // other data, where it may still name a dataset as it used to.
+  const dataProp =
+    view.props.find((p) => p.norm === 'data' || p.norm === 'dataset') ??
+    (ctx.defaultData === undefined
+      ? legacyDataSource(
+          view.props,
+          (name) => lookupDataset(ctx, name) !== undefined || ctx.pending.has(name),
+          diagnostics,
+        )
+      : undefined);
   let dataName = dataProp ? unquote(dataProp.value) : ctx.defaultData;
   if (!dataName) {
     const names = [...new Set([...Object.keys(ctx.local), ...Object.keys(ctx.datasets)])];
@@ -640,8 +732,12 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
   }
   const { rows, schema } = resolveData(input);
   if (rows.length === 0 && !ctx.complete) return { pending: true, dataName, link: null };
+  ctx.rowLimit(dataName, rows, dataProp?.line ?? view.line);
+  // No rows is an answer, not a mistake: the view draws its empty state. Field names are
+  // checked only against a header that came without rows.
+  const empty = rows.length === 0;
   const errorsBefore = diagnostics.filter((d) => d.severity === 'error').length;
-  const resolver = makeResolver(schema);
+  const resolver = makeResolver(schema, empty && Object.keys(schema).length === 0);
   const used = new Set<string>();
   const resolve = (name: string | null, line?: number) => {
     if (name === null) return null;
@@ -656,11 +752,24 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
     resolver.columns,
     diagnostics,
   );
-  const channelMeta: Record<string, FieldMeta> = {};
+  const channelMeta: Record<string, FieldMeta> = dict();
   let link: string | null | undefined;
   let hasCountMeasure = false;
   let viewFormat: { format: Formatter; currency?: string; line: number } | undefined;
-  for (const p of view.props) {
+  const style = styleState({
+    component,
+    kind: view.kind,
+    props: schemaProps,
+    spec,
+    lines,
+    diagnostics,
+    columns: resolver.columns,
+    blockColors: ctx.blockColors,
+  });
+  for (const entry of view.props) {
+    if (isProvenanceKey(entry.norm)) continue;
+    const p = readStyleSetting(entry, style);
+    if (!p) continue;
     const dot = p.key.lastIndexOf('.');
     if (dot > 0) {
       const head = p.key.slice(0, dot).trim();
@@ -693,8 +802,9 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
       }
       continue; // field metadata, handled above
     }
-    if (p.norm === 'data' || p.norm === 'dataset' || p.norm === 'source' || p.norm === 'src')
-      continue;
+    if (p.norm === 'data' || p.norm === 'dataset' || p.norm === 'src') continue;
+    // Read with the block's `src:`. A view inside a dashboard has no source of its own.
+    if (SOURCE_KEYS.has(p.norm) && !ctx.inDashboard) continue;
     if (p.norm === 'version') {
       checkVersion(p, diagnostics);
       continue;
@@ -702,6 +812,14 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
     if (p.norm === 'link') {
       const b = parseBool(p.value);
       link = b === false ? null : b === true ? undefined : unquote(p.value);
+      continue;
+    }
+    if (p.norm === 'actions') {
+      spec.actions = supportedActions(parseActions(p, diagnostics), component, {
+        kind: view.kind,
+        line: p.line,
+        diagnostics,
+      });
       continue;
     }
     if (
@@ -721,7 +839,15 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
       continue;
     }
     let key = canonicalProp(p.norm, component);
-    if (key === 'kind') continue;
+    if (key === 'kind') {
+      // `view: table` reaches a view only as a display choice; a table is already one.
+      if (p.norm === 'view' && !tabular && /^table$/i.test(p.value.trim())) {
+        diagnostics.push(
+          warning(`${article(view.kind)} has no table view; “view” was ignored.`, p.line),
+        );
+      }
+      continue;
+    }
     if (key === 'x.label' || key === 'y.label' || key === 'x.format') {
       const [channel, attr] = key.split('.');
       const target = channelProp(channel, def);
@@ -767,7 +893,7 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
       );
       continue;
     }
-    if (component === 'DataTable' && key === 'sort') {
+    if (tabular && key === 'sort') {
       const desc = /^-|\s+desc(ending)?$/i.test(p.value.trim());
       const name = p.value
         .trim()
@@ -806,7 +932,9 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
       for (const f of fieldsOfProp(r.value)) if (resolver.columns.includes(f)) used.add(f);
     }
   }
+  Object.assign(spec, readProvenance(view.props, diagnostics, dataProp));
   for (const [k, v] of Object.entries(view.implied)) if (spec[k] === undefined) spec[k] = v;
+  finishStyle(style);
 
   // 3. The sentence: measures, dimensions and the `vs` field.
   const s = view.sentence;
@@ -922,12 +1050,12 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
   }
 
   // 4. Fill encodings the author left out from the columns' types.
-  inferEncodings(view.kind, spec, resolver, used, rows, diagnostics, view.line);
+  inferEncodings(view.kind, spec, resolver, used, rows, empty ? [] : diagnostics, view.line);
 
   // 5. Derived data: row counts, explicit order for categories on a continuous axis.
   let viewInput: DataInput = input;
   let derivedRows: Row[] | null = null;
-  const derivedFields: Record<string, FieldMeta> = {};
+  const derivedFields: Record<string, FieldMeta> = dict();
   const ensureRows = () => (derivedRows ??= rows.map((r) => ({ ...r })));
 
   const countName = (() => {
@@ -955,7 +1083,7 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
       // BarList, DonutChart, Heatmap and CalendarHeatmap count rows when `value` is omitted.
       delete spec[def.measure];
       if (component === 'Heatmap' || component === 'CalendarHeatmap') spec.countLabel ??= 'Rows';
-    } else if (component === 'DataTable') {
+    } else if (tabular) {
       const group = typeof spec.groupBy === 'string' ? spec.groupBy : undefined;
       spec.columns = (spec.columns as Record<string, unknown>[]).map((c) => {
         if (c.field !== '__count__') return c;
@@ -1017,7 +1145,7 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
   }
 
   // Lines and areas need a continuous x. Categories keep the order they appear in.
-  if (def.continuousX && typeof spec.x === 'string') {
+  if (def.continuousX && typeof spec.x === 'string' && !empty) {
     const x = spec.x;
     const type = (fieldMeta[x]?.type ?? resolver.type(x)) as FieldDef['type'];
     if (type !== 'quantitative' && type !== 'temporal') {
@@ -1042,6 +1170,11 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
             : '',
       };
       spec.x = orderName;
+      if (Array.isArray(spec.annotations)) {
+        spec.annotations = (spec.annotations as { x?: unknown }[]).map((a) =>
+          a && order.has(String(a.x)) ? { ...a, x: order.get(String(a.x)) } : a,
+        );
+      }
       delete channelMeta.x;
       if (spec.brush) {
         diagnostics.push(
@@ -1059,7 +1192,7 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
       const field = typeof m === 'string' ? m : m?.field;
       spec.label =
         spec.title ??
-        (typeof m === 'object' && m?.label) ??
+        (typeof m === 'object' ? m?.label : undefined) ??
         (field === countName
           ? 'Rows'
           : field
@@ -1072,7 +1205,7 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
   if (
     ctx.inDashboard &&
     spec.title === undefined &&
-    !['KPI', 'DataTable', 'FilterBar'].includes(component)
+    !['KPI', 'DataTable', 'DataExplorer', 'FilterBar'].includes(component)
   ) {
     const labelOf = (f: string) =>
       f === countName
@@ -1091,7 +1224,16 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
       spec.title = dims.length ? `${what} by ${dims.join(' and ')}` : what;
     }
   }
-  if (ctx.inDashboard && def.link && spec[def.link] === undefined && def.link in schemaProps) {
+  // The view's selection group: `link: name`, else its named dataset; null when it stands alone.
+  const group =
+    link === null
+      ? null
+      : (link ??
+        (Object.hasOwn(ctx.datasets, dataName) || ctx.pending.has(dataName) ? dataName : null));
+  // A view in a named group publishes like one in a dashboard, so blocks over one dataset
+  // filter each other. A block with its own rows publishes only when it asks.
+  const publishes = ctx.inDashboard || group !== null;
+  if (publishes && def.link && spec[def.link] === undefined && def.link in schemaProps) {
     if (!(def.link === 'brush' && spec.brush === false)) spec[def.link] = true;
   }
 
@@ -1115,7 +1257,10 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
     }
     return m;
   };
-  if (def.measureType !== 'columns') spec[def.measure] = simplify(stripLabels(spec[def.measure]));
+  // Table columns and filter fields are lists of objects; only measures collapse to plain names.
+  if (def.measureType !== 'columns' && def.measureType !== 'fields') {
+    spec[def.measure] = simplify(stripLabels(spec[def.measure]));
+  }
   if (spec[def.measure] === undefined) delete spec[def.measure];
 
   if (viewFormat) {
@@ -1140,18 +1285,12 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
 
   if (derivedRows || Object.keys(derivedFields).length) {
     const base = definitions(schema);
-    for (const [k, v] of Object.entries(derivedFields)) base[k] = { ...base[k], ...v };
-    // A view that restates `format: currency` keeps the whole-amount display its rows had.
-    for (const f of Object.keys(derivedFields)) {
-      const before = schema[f]?.format;
-      if (base[f]?.format === 'currency' && isWholeCurrency(before)) {
-        base[f] = {
-          ...base[f],
-          ...wholeCurrency(base[f]?.currency ?? schema[f]?.currency ?? 'USD'),
-        };
-      }
+    // A format the view states (`format:`, `revenue.format:`, `y.format:`) is declared for the
+    // field: currency in full outside axes, and the unit a KPI tags.
+    for (const [k, v] of Object.entries(derivedFields)) {
+      base[k] = { ...base[k], ...declareFormat(v, schema[k], derivedRows ?? rows, k) };
     }
-    viewInput = dataset(derivedRows ?? rows, base);
+    viewInput = derivedFrom(dataset(derivedRows ?? rows, base), input);
     const derivedName = freeName(`${dataName}__${view.kind}`, { ...ctx.local, ...ctx.datasets });
     ctx.local[derivedName] = viewInput;
     spec.data = derivedName;
@@ -1165,16 +1304,16 @@ function compileView(view: ViewNode, ctx: ViewContext): CompiledView {
 
   // 6. Validate against the JSON schema and point errors at source lines.
   const result = validateSpec(spec);
+  // Without rows the fields the author left out cannot be inferred: the view waits for them.
+  const missing = (e: SpecError) => e.message.startsWith('Missing required property');
+  if (empty && result.errors.length > 0 && result.errors.every(missing)) {
+    const title = [spec.title, spec.label].find((t): t is string => typeof t === 'string');
+    return { pending: false, empty: true, dataName, link: group, title };
+  }
   for (const e of result.errors) diagnostics.push(specError(e, lines, view.line, view.kind));
   if (!result.valid) return { pending: false, dataName, link: null };
 
-  const named = Object.hasOwn(ctx.datasets, dataName) || ctx.pending.has(dataName);
-  return {
-    spec,
-    dataName,
-    pending: false,
-    link: link === null ? null : (link ?? (named ? dataName : null)),
-  };
+  return { spec, dataName, pending: false, link: group };
 }
 
 /** Drops undefined keys and writes `{ field }` as the plain field name. */
@@ -1323,6 +1462,7 @@ function inferEncodings(
       pick('value', quantitative(), 'first numeric column');
       break;
     case 'table':
+    case 'explorer':
       if (spec.columns === undefined) {
         const columns =
           typeof spec.groupBy === 'string'
@@ -1442,7 +1582,7 @@ function compileJson(block: BlockNode, options: CompileOptions): CompiledBlock {
     return base;
   }
   const obj = { ...(json as Record<string, unknown>) };
-  const data: Record<string, DataInput> = {};
+  const data: Record<string, DataInput> = dict();
   const datasets = (obj.datasets ?? obj.data_sets) as Record<string, unknown> | undefined;
   delete obj.datasets;
   delete obj.data_sets;
@@ -1482,7 +1622,17 @@ function compileJson(block: BlockNode, options: CompileOptions): CompiledBlock {
     inline(obj, 'data');
     spec = obj as unknown as ComponentSpec;
   }
-  const all = { ...options.datasets, ...data };
+  // A link that is not http(s) is dropped with a warning instead of failing the whole spec.
+  checkSourceUrl(spec as Record<string, unknown>, diagnostics);
+  if (Array.isArray((spec as DashboardSpec).layout)) {
+    for (const item of (spec as DashboardSpec).layout) checkSourceUrl(item, diagnostics);
+  }
+  const all = dict(options.datasets, data);
+  for (const item of Array.isArray((spec as DashboardSpec).layout)
+    ? (spec as DashboardSpec).layout
+    : [spec as ComponentSpec]) {
+    styleJsonSpec(item, diagnostics, options.blockColors !== false);
+  }
   const result = validateSpec(spec);
   for (const e of result.errors) diagnostics.push(error(`${e.path || '/'}: ${e.message}`));
   const isDash = Array.isArray((spec as DashboardSpec).layout);
@@ -1520,9 +1670,9 @@ export function compileBlock(
   if (block.type === 'json') return compileJson(block, options);
   const diagnostics: Diagnostic[] = [...block.diagnostics];
   const complete = block.complete;
-  const datasets = { ...(options.datasets ?? {}) };
+  const datasets = dict(options.datasets);
   const pending = new Set(options.pendingDatasets ?? []);
-  const local: Record<string, DataInput> = {};
+  const local: Record<string, DataInput> = dict();
   const sources: CompiledBlock['sources'] = [];
   const result: CompiledBlock = {
     type: block.type === 'empty' ? 'empty' : block.type === 'data' ? 'data' : block.type,
@@ -1537,10 +1687,34 @@ export function compileBlock(
     result.pending = !complete;
     return result;
   }
+  // A dataset cut to the host's row limit is recorded once, with what the reader is shown.
+  const rowLimit = (name: string, rows: readonly Row[], line?: number) => {
+    const cut = rowLimitOf(rows);
+    if (!cut || result.rowLimits?.some((l) => l.data === name)) return;
+    result.rowLimits ??= [];
+    result.rowLimits.push({ data: name, kept: cut.kept, total: cut.total });
+    // Rows written in the block were reported where they were read.
+    if (cut.loaded) {
+      diagnostics.push(
+        warning(
+          `Kept the first ${cut.kept} of ${cut.total} rows.`,
+          line,
+          'The page keeps a limited number of rows from a source; its host can raise `maxRows`.',
+        ),
+      );
+    }
+  };
+  // The block's own rows could not be read: that is the one thing to report.
+  let dataFailed = false;
 
   // Inline rows after `---`.
   const blockProps = block.type === 'view' ? (block.views[0]?.props ?? []) : block.props;
   const srcProp = blockProps.find((p) => p.norm === 'src' || p.norm === 'url');
+  const settings = readSourceSettings(
+    blockProps,
+    { inline: !!block.data, src: !!srcProp, minRefresh: options.minRefresh },
+    diagnostics,
+  );
   let inlineName: string | undefined;
   let sourceName: string | undefined;
   if (block.data) {
@@ -1548,25 +1722,36 @@ export function compileBlock(
       firstLine: block.data.line,
       partial: !complete,
       maxRows: options.maxRows,
+      path: settings.path,
+      pathLine: settings.pathLine,
     });
     diagnostics.push(...table.diagnostics);
+    dataFailed = hasErrors(table.diagnostics);
+    if (table.rowsTotal !== undefined) markRowLimit(table.rows, table.rowsTotal);
     inlineName = block.type === 'data' && block.name ? block.name : 'data';
     const meta = fieldMetaFrom(
       block.type === 'dashboard' || block.type === 'data' ? block.props : [],
       table.columns,
       diagnostics,
     );
-    const fields: Record<string, FieldMeta> = { ...table.fields };
+    const fields: Record<string, FieldMeta> = dict(table.fields);
     for (const [k, v] of Object.entries(meta)) fields[k] = { ...fields[k], ...v };
     const inline = dataset(table.rows, fields);
-    const whole = wholeCurrencyFields(inline);
+    const whole = wholeCurrencyFields(inline, meta);
     local[inlineName] = Object.keys(whole).length ? withFields(inline, whole) : inline;
   } else if (srcProp) {
     const url = unquote(srcProp.value);
     // A named dataset is registered under its name; a chart's own source under its URL.
-    const name = block.type === 'data' && block.name ? block.name : `url:${url}`;
+    const name =
+      block.type === 'data' && block.name ? block.name : sourceDataset(url, settings.path);
     sourceName = name;
-    sources.push({ name, url, line: srcProp.line });
+    sources.push({
+      name,
+      url,
+      line: srcProp.line,
+      ...(settings.path === undefined ? {} : { path: settings.path }),
+      ...(settings.refresh === undefined ? {} : { refresh: settings.refresh }),
+    });
     if (Object.hasOwn(datasets, name) && block.type === 'data') {
       // The host already loaded this source.
       const meta = fieldMetaFrom(
@@ -1575,7 +1760,7 @@ export function compileBlock(
         diagnostics,
       );
       const described = withFields(datasets[name], meta);
-      const whole = wholeCurrencyFields(described);
+      const whole = wholeCurrencyFields(described, meta);
       local[name] = Object.keys(whole).length ? withFields(described, whole) : described;
       inlineName = name;
     } else if (!Object.hasOwn(datasets, name)) {
@@ -1599,8 +1784,15 @@ export function compileBlock(
         title: block.name,
         columns: columns.slice(0, 12).map((field) => ({ field })),
         pageSize: 10,
+        ...readProvenance(block.props, diagnostics),
       } as ComponentSpec;
       result.link = block.name;
+      rowLimit(block.name, resolveData(ds).rows, srcProp?.line);
+      // A table needs a column: a source that answered with nothing has none to show yet.
+      if (columns.length === 0) {
+        delete result.spec;
+        result.empty = true;
+      }
     } else {
       result.pending = pending.has(block.name) || !complete;
     }
@@ -1608,11 +1800,23 @@ export function compileBlock(
   }
 
   for (const p of block.props) if (p.norm === 'version') checkVersion(p, diagnostics);
+  if (dataFailed) {
+    result.pending = !complete;
+    result.data = { ...datasets, ...local };
+    return result;
+  }
 
   // Views.
   const dashboardData =
     block.type === 'dashboard'
-      ? block.props.find((p) => p.norm === 'data' || p.norm === 'dataset' || p.norm === 'source')
+      ? (block.props.find((p) => p.norm === 'data' || p.norm === 'dataset') ??
+        (block.data || srcProp
+          ? undefined
+          : legacyDataSource(
+              block.props,
+              (name) => Object.hasOwn(datasets, name) || pending.has(name),
+              diagnostics,
+            )))
       : undefined;
   const ctx: ViewContext = {
     // Inline rows already carry dashboard-level field settings.
@@ -1625,6 +1829,8 @@ export function compileBlock(
     inDashboard: block.type === 'dashboard',
     complete,
     diagnostics,
+    blockColors: options.blockColors !== false,
+    rowLimit,
   };
 
   if (block.type === 'view') {
@@ -1636,8 +1842,9 @@ export function compileBlock(
     const compiled = compileView(view, ctx);
     result.spec = compiled.spec;
     result.pending = compiled.pending;
+    if (compiled.empty) result.empty = true;
     result.link = compiled.link;
-    result.title = compiled.spec?.title as string | undefined;
+    result.title = (compiled.spec?.title as string | undefined) ?? compiled.title;
     result.data = { ...datasets, ...local };
     return result;
   }
@@ -1646,10 +1853,12 @@ export function compileBlock(
   const items: ComponentSpec[] = [];
   const kinds: { kind: ViewKind; span?: number }[] = [];
   let anyPending = false;
+  let anyEmpty = false;
   let link: string | null | undefined;
   for (const view of block.views) {
     const compiled = compileView(view, ctx);
     if (compiled.pending) anyPending = true;
+    if (compiled.empty) anyEmpty = true;
     if (compiled.spec) {
       items.push(compiled.spec);
       kinds.push({ kind: view.kind, span: compiled.spec.span as number | undefined });
@@ -1673,11 +1882,22 @@ export function compileBlock(
   result.title = title;
   result.link = link ?? null;
   result.pending = anyPending && items.length === 0;
+  if (anyEmpty && !anyPending && items.length === 0) result.empty = true;
   result.data = { ...datasets, ...local };
   if (items.length) {
     const dash: DashboardSpec = { layout: items };
     if (title) dash.title = title;
     if (description) dash.description = description;
+    Object.assign(dash, readProvenance(block.props, diagnostics, dashboardData));
+    // Written before the first view, actions are the dashboard's own: one toolbar for its rows.
+    const actionsProp = block.props.find((p) => p.norm === 'actions');
+    if (actionsProp) {
+      dash.actions = supportedActions(parseActions(actionsProp, diagnostics), 'Dashboard', {
+        kind: 'dashboard',
+        line: actionsProp.line,
+        diagnostics,
+      }).filter((action) => action !== 'table');
+    }
     result.spec = dash;
   }
   return result;

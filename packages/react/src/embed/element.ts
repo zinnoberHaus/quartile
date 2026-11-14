@@ -16,7 +16,16 @@ import {
   type HostTheme,
   type ThemeSetting,
 } from '../provider/QuartileProvider';
+import type { SelectionChange, SelectionStore } from '../selection/store';
+import { knownActions, type ViewAction } from '../spec/actions';
 import { type EmbedOptions, pageScope } from './scope';
+import { actingElement, elementStore, type QuartileSelectDetail } from './selection';
+
+declare global {
+  interface GlobalEventHandlersEventMap {
+    'quartile-select': CustomEvent<QuartileSelectDetail>;
+  }
+}
 
 let cssText = '';
 let sheet: CSSStyleSheet | null | undefined;
@@ -71,7 +80,26 @@ const THEMES = new Set<ThemeSetting>(['light', 'dark', 'system', 'auto']);
 let counter = 0;
 
 /** Page-wide defaults for elements without their own attributes. */
-const defaults: { theme: ThemeSetting; host?: HostTheme; accent?: string } = { theme: 'auto' };
+const defaults: {
+  theme: ThemeSetting;
+  host?: HostTheme;
+  accent?: string;
+  actions?: readonly ViewAction[] | false;
+  blockColors?: boolean;
+} = { theme: 'auto' };
+
+/**
+ * Reads an actions setting written as text, as on `data-actions="rows download"`: a list of
+ * actions is the page's default, and `none`, `off` or `false` turns every toolbar off.
+ */
+export function readActionsSetting(value: string): ViewAction[] | false {
+  const words = value
+    .toLowerCase()
+    .split(/[\s,]+/)
+    .filter(Boolean);
+  if (words.some((w) => w === 'none' || w === 'off' || w === 'false')) return false;
+  return knownActions(words);
+}
 
 export function setElementDefaults(options: Partial<typeof defaults>) {
   Object.assign(defaults, options);
@@ -94,7 +122,11 @@ export class QuartileChartElement extends HTMLElement {
   #mount: HTMLDivElement | null = null;
   #source: string | null = null;
   #unsubscribe: (() => void) | null = null;
-  #owner = `qe${++counter}`;
+  #number = ++counter;
+  #owner = `qe${this.#number}`;
+  /** The selection group of a block that stands alone: elements are numbered as created. */
+  #group = `block-${this.#number}`;
+  #stores = new Map<string, SelectionStore>();
   #defined: string | null = null;
   /** The loaded rows this element last described, so a reload re-registers exactly once. */
   #described: unknown = null;
@@ -196,6 +228,32 @@ export class QuartileChartElement extends HTMLElement {
     return dedent(this.textContent ?? '');
   }
 
+  /** The page's store for a group, with this element recorded as the place the reader acted. */
+  #store = (group: string): SelectionStore => {
+    let store = this.#stores.get(group);
+    if (!store) {
+      // The element's own group was named by the page, not the author: give it an unnamed id.
+      store = elementStore(group, this, group === this.#group ? `selection:${group}` : undefined);
+      this.#stores.set(group, store);
+    }
+    return store;
+  };
+
+  /**
+   * Tells the page that this element's selection group changed. Every element of the group
+   * dispatches the event; `origin` is true only where the reader acted, so a listener on the
+   * document can handle each action once.
+   */
+  #announce = (change: SelectionChange) => {
+    this.dispatchEvent(
+      new CustomEvent<QuartileSelectDetail>('quartile-select', {
+        bubbles: true,
+        composed: true,
+        detail: { ...change, origin: actingElement() === this },
+      }),
+    );
+  };
+
   /** Page data changed: describe newly loaded rows of this element's data block, then render. */
   #onScope() {
     const name = this.#sourceName;
@@ -225,8 +283,6 @@ export class QuartileChartElement extends HTMLElement {
     if (this.#defined && this.#defined !== name) scope.unregister(this.#defined, this.#owner);
     if (name && compiled.defines) scope.register(name, compiled.defines.dataset, this.#owner);
     this.#defined = name ?? null;
-    // Sources load once for the whole page, so every element over the dataset can use it.
-    for (const s of compiled.sources) scope.requestSource(s.name, s.url);
     this.#render();
   }
 
@@ -244,8 +300,11 @@ export class QuartileChartElement extends HTMLElement {
         {
           data: scope.datasets,
           pending: scope.pending,
-          stores: scope.store,
-          loadSource: scope.loader() ? (url: string) => scope.load(url) : undefined,
+          stores: this.#store,
+          onSelectionChange: this.#announce,
+          actions: defaults.actions,
+          // Sources load once for the whole page, so every element over a dataset can use it.
+          sourceStore: scope.sources,
           languages: scope.options.languages ?? DEFAULT_LANGUAGES,
           theme: theme && THEMES.has(theme) ? theme : defaults.theme,
           host: host && (HOST_THEMES as readonly string[]).includes(host) ? host : defaults.host,
@@ -254,6 +313,7 @@ export class QuartileChartElement extends HTMLElement {
           locale: this.getAttribute('locale') ?? undefined,
           timeZone: this.getAttribute('time-zone') ?? undefined,
           initialWidth: Number.isFinite(width) && width > 0 ? width : undefined,
+          blockColors: defaults.blockColors,
           // Pages restyle the chart with `quartile-chart::part(root) { --q-signal: … }`.
           part: 'root',
           dataDisplay:
@@ -264,6 +324,7 @@ export class QuartileChartElement extends HTMLElement {
         createElement(QuartileBlock, {
           source: this.source,
           streaming: this.#streaming || undefined,
+          group: this.#group,
         }),
       ),
     );
@@ -369,15 +430,27 @@ export function observeBlocks(root: ParentNode = document, options: EmbedOptions
   };
 }
 
-/** Page-wide settings: source policy, languages, and defaults for theme, host and accent. */
+/**
+ * Page-wide settings: source policy, languages, defaults for theme, host and accent, the
+ * actions views may show (`actions`: a default list, or false for none), and whether blocks
+ * may set chart colors (`blockColors`, default true).
+ */
 export function configureEmbed(
-  options: EmbedOptions & { theme?: ThemeSetting; host?: HostTheme; accent?: string },
+  options: EmbedOptions & {
+    theme?: ThemeSetting;
+    host?: HostTheme;
+    accent?: string;
+    actions?: readonly ViewAction[] | false;
+    blockColors?: boolean;
+  },
 ) {
-  const { theme, host, accent, ...rest } = options;
+  const { theme, host, accent, actions, blockColors, ...rest } = options;
   Object.assign(pageScope().options, rest);
   setElementDefaults({
     ...(theme ? { theme } : {}),
     ...(host ? { host } : {}),
     ...(accent ? { accent } : {}),
+    ...(actions !== undefined ? { actions: actions && knownActions(actions) } : {}),
+    ...(blockColors !== undefined ? { blockColors } : {}),
   });
 }

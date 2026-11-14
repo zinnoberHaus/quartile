@@ -18,10 +18,36 @@ import { useLinkedRows, useSourceId } from '../selection/Selection';
 import { useChartKeyboard } from './core/a11y';
 import { type ChartBaseProps, ChartFrame, type ChartTable, statusOf } from './core/ChartFrame';
 import { type BoxStats, boxStats, clamp, orderedKeys } from './core/dist-stats';
-import { AxisLeft, ChartTooltip, GridRows, type TooltipRow } from './core/guides';
+import { AxisLeft, ChartTooltip, GridColumns, GridRows, type TooltipRow } from './core/guides';
+import {
+  type ChartPresentationProps,
+  closestTicks,
+  gridLines,
+  marginSides,
+  tickCount,
+} from './core/options';
 import { monoTextWidth, tickFormatter } from './core/scales';
 
-export interface BoxPlotProps<R extends Row = Row> extends ChartBaseProps {
+/**
+ * Axis settings follow the drawing: horizontal boxes (the default) put values on the x axis, so
+ * `xMin`, `xMax` and `xTicks` shape the value axis and `yAxis` shows the category names;
+ * vertical boxes use `yMin`, `yMax`, `yTicks` and `xAxis`.
+ */
+export interface BoxPlotProps<R extends Row = Row>
+  extends ChartBaseProps,
+    Pick<
+      ChartPresentationProps,
+      | 'margin'
+      | 'yMin'
+      | 'yMax'
+      | 'xMin'
+      | 'xMax'
+      | 'yTicks'
+      | 'xTicks'
+      | 'grid'
+      | 'xAxis'
+      | 'yAxis'
+    > {
   /** Rows to summarize, or a dataset with a schema attached. */
   data: DataInput<R>;
   /** Categorical field: one box per value. */
@@ -73,6 +99,16 @@ export function BoxPlot<R extends Row = Row>(props: BoxPlotProps<R>) {
     zero,
     format,
     select = false,
+    margin,
+    yMin,
+    yMax,
+    xMin,
+    xMax,
+    yTicks: yTickCount,
+    xTicks: xTickCount,
+    grid,
+    xAxis = true,
+    yAxis = true,
     id,
     selection,
     onSelect,
@@ -239,21 +275,50 @@ export function BoxPlot<R extends Row = Row>(props: BoxPlotProps<R>) {
     >
       {({ width }) => {
         const fmtTick = tickFormatter(valueField, locale, timeZone, format);
-        const scale = scaleLinear().domain(domain).nice(4);
-        const ticks = scale.ticks(4);
+        const pad = marginSides(margin);
+        const tickSetting = horizontal ? xTickCount : yTickCount;
+        const count = tickCount(tickSetting, 4);
+        /** The value axis niced for `nice` ticks, with the author's bounds over the niced ends. */
+        const valueScale = (nice: number) => {
+          const s = scaleLinear().domain(domain).nice(nice);
+          const [d0, d1] = s.domain();
+          const lower = (horizontal ? xMin : yMin) ?? d0;
+          const upper = (horizontal ? xMax : yMax) ?? d1;
+          if (lower < upper) s.domain([lower, upper]);
+          return s;
+        };
+        // No setting: four ticks, as always. A setting: the tidy set closest to the count asked for.
+        const axis =
+          tickSetting === undefined || count === 0
+            ? ((s) => ({ scale: s, ticks: count === 0 ? [] : s.ticks(4) }))(valueScale(4))
+            : closestTicks(count, valueScale);
+        const linear = axis.scale;
+        const ticks = axis.ticks;
         const tickLabels = ticks.map((t) => fmtTick(t));
+        // With an axis bound, a box or whisker that reaches past it ends at the plot edge.
+        const scale = (v: number) => {
+          const [r0, r1] = linear.range();
+          return Math.max(Math.min(r0, r1), Math.min(Math.max(r0, r1), linear(v)));
+        };
+        const [b0, b1] = linear.domain();
+        const within = (v: number) => v >= b0 && v <= b1;
 
         if (horizontal) {
           const longest = Math.max(...groups.map((g) => fmtCAxis(g.raw).length), 4);
           const labelW = clamp(Math.ceil(longest * SANS_CHAR), 48, Math.max(48, width * 0.36));
-          const x0 = labelW + 10;
-          const x1 = width - Math.ceil(monoTextWidth(tickLabels[tickLabels.length - 1] ?? '') / 2);
-          scale.range([x0, x1]);
-          const rowH = (height - AXIS_H) / Math.max(groups.length, 1);
-          const cy = (i: number) => i * rowH + rowH / 2;
+          const x0 = pad.left ?? (yAxis ? labelW + 10 : 4);
+          const x1 =
+            width -
+            (pad.right ?? Math.ceil(monoTextWidth(tickLabels[tickLabels.length - 1] ?? '') / 2));
+          linear.range([x0, x1]);
+          const topPad = pad.top ?? 0;
+          const axisH = pad.bottom ?? (xAxis ? AXIS_H : 4);
+          const rowH = (height - axisH - topPad) / Math.max(groups.length, 1);
+          const cy = (i: number) => topPad + i * rowH + rowH / 2;
+          const lines = gridLines(grid, { x: false, y: false }, 'x');
           const indexAt = (e: PointerEvent<HTMLDivElement> | MouseEvent<HTMLDivElement>) => {
             const rect = e.currentTarget.getBoundingClientRect();
-            const i = Math.floor((e.clientY - rect.top) / rowH);
+            const i = Math.floor((e.clientY - rect.top - topPad) / rowH);
             return i >= 0 && i < groups.length ? i : null;
           };
           const g = focus != null ? groups[focus] : null;
@@ -265,11 +330,14 @@ export function BoxPlot<R extends Row = Row>(props: BoxPlotProps<R>) {
                 viewBox={`0 0 ${width} ${height}`}
                 aria-hidden="true"
               >
+                {lines.x && (
+                  <GridColumns xs={ticks.map((t) => scale(t))} y0={topPad} y1={height - axisH} />
+                )}
                 {focus != null && (
                   <rect
                     className="q-boxplot-hover"
                     x={0}
-                    y={focus * rowH}
+                    y={topPad + focus * rowH}
                     width={width}
                     height={rowH}
                     rx={6}
@@ -280,9 +348,11 @@ export function BoxPlot<R extends Row = Row>(props: BoxPlotProps<R>) {
                   const y = cy(i);
                   return (
                     <g key={gr.key} className="q-boxplot-group" data-muted={muted(gr) || undefined}>
-                      <text className="q-boxplot-label" x={0} y={y} dy="0.34em">
-                        {truncate(fmtCAxis(gr.raw), labelW)}
-                      </text>
+                      {yAxis && (
+                        <text className="q-boxplot-label" x={0} y={y} dy="0.34em">
+                          {truncate(fmtCAxis(gr.raw), labelW)}
+                        </text>
+                      )}
                       <line
                         className="q-boxplot-whisker"
                         x1={scale(s.lo)}
@@ -311,31 +381,35 @@ export function BoxPlot<R extends Row = Row>(props: BoxPlotProps<R>) {
                         width={2}
                         height={16}
                       />
-                      {s.outliers.map((o, k) => (
-                        <circle
-                          key={k}
-                          className="q-boxplot-outlier"
-                          cx={scale(o)}
-                          cy={y}
-                          r={2.75}
-                        />
-                      ))}
+                      {s.outliers.map((o, k) =>
+                        within(o) ? (
+                          <circle
+                            key={k}
+                            className="q-boxplot-outlier"
+                            cx={scale(o)}
+                            cy={y}
+                            r={2.75}
+                          />
+                        ) : null,
+                      )}
                     </g>
                   );
                 })}
-                <g className="q-chart-axis">
-                  {ticks.map((t, k) => (
-                    <text
-                      key={t}
-                      x={scale(t)}
-                      y={height - AXIS_H + 6}
-                      dy="0.9em"
-                      textAnchor="middle"
-                    >
-                      {tickLabels[k]}
-                    </text>
-                  ))}
-                </g>
+                {xAxis && (
+                  <g className="q-chart-axis">
+                    {ticks.map((t, k) => (
+                      <text
+                        key={t}
+                        x={scale(t)}
+                        y={height - axisH + 6}
+                        dy="0.9em"
+                        textAnchor="middle"
+                      >
+                        {tickLabels[k]}
+                      </text>
+                    ))}
+                  </g>
+                )}
               </svg>
               <div
                 className="q-chart-plot"
@@ -368,11 +442,14 @@ export function BoxPlot<R extends Row = Row>(props: BoxPlotProps<R>) {
         }
 
         // Vertical
-        const left = Math.ceil(Math.max(16, ...tickLabels.map((l) => monoTextWidth(l)))) + 12;
-        const right = width - 4;
-        const top = 8;
-        const bottom = height - AXIS_H;
-        scale.range([bottom, top]);
+        const left =
+          pad.left ??
+          (yAxis ? Math.ceil(Math.max(16, ...tickLabels.map((l) => monoTextWidth(l)))) + 12 : 4);
+        const right = width - (pad.right ?? 4);
+        const top = pad.top ?? 8;
+        const bottom = height - (pad.bottom ?? (xAxis ? AXIS_H : 4));
+        linear.range([bottom, top]);
+        const lines = gridLines(grid, { x: false, y: true });
         const band = (right - left) / Math.max(groups.length, 1);
         const boxW = Math.max(6, Math.min(28, band * 0.5));
         const cx = (i: number) => left + band * i + band / 2;
@@ -390,11 +467,13 @@ export function BoxPlot<R extends Row = Row>(props: BoxPlotProps<R>) {
               viewBox={`0 0 ${width} ${height}`}
               aria-hidden="true"
             >
-              <GridRows ys={ticks.map((t) => scale(t))} x0={left} x1={right} />
-              <AxisLeft
-                ticks={ticks.map((t, k) => ({ y: scale(t), label: tickLabels[k] }))}
-                x={left - 10}
-              />
+              {lines.y && <GridRows ys={ticks.map((t) => scale(t))} x0={left} x1={right} />}
+              {yAxis && (
+                <AxisLeft
+                  ticks={ticks.map((t, k) => ({ y: scale(t), label: tickLabels[k] }))}
+                  x={left - 10}
+                />
+              )}
               {focus != null && (
                 <rect
                   className="q-boxplot-hover"
@@ -438,18 +517,28 @@ export function BoxPlot<R extends Row = Row>(props: BoxPlotProps<R>) {
                       width={boxW + 4}
                       height={2}
                     />
-                    {s.outliers.map((o, k) => (
-                      <circle key={k} className="q-boxplot-outlier" cx={x} cy={scale(o)} r={2.75} />
-                    ))}
-                    <text
-                      className="q-boxplot-label"
-                      x={x}
-                      y={bottom + 8}
-                      dy="0.9em"
-                      textAnchor="middle"
-                    >
-                      {truncate(fmtCAxis(gr.raw), band - 6)}
-                    </text>
+                    {s.outliers.map((o, k) =>
+                      within(o) ? (
+                        <circle
+                          key={k}
+                          className="q-boxplot-outlier"
+                          cx={x}
+                          cy={scale(o)}
+                          r={2.75}
+                        />
+                      ) : null,
+                    )}
+                    {xAxis && (
+                      <text
+                        className="q-boxplot-label"
+                        x={x}
+                        y={bottom + 8}
+                        dy="0.9em"
+                        textAnchor="middle"
+                      >
+                        {truncate(fmtCAxis(gr.raw), band - 6)}
+                      </text>
+                    )}
                   </g>
                 );
               })}

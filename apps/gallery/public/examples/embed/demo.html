@@ -8,7 +8,7 @@
       name="description"
       content="A plain HTML page with one script tag: Quartile turns ```quartile code blocks into interactive charts that take the page's own colors and fonts."
     />
-    <link rel="canonical" href="https://quartile-design.vercel.app/embed/demo" />
+    <link rel="canonical" href="https://docs.usequartile.com/examples/embed/demo" />
     <style>
       /*
        * This page deliberately looks nothing like Quartile: its own fonts, colors and a dark mode.
@@ -93,6 +93,27 @@
       html[data-mode="dark"] a {
         color: #4493f8;
       }
+      .heard {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 16px;
+        border: 1px solid var(--page-rule);
+        border-radius: 6px;
+        font: 14px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      }
+      /* The page's own script, displayed: what you read below is the code that runs. */
+      script.shown {
+        display: block;
+        overflow: auto;
+        padding: 14px 16px;
+        border-radius: 6px;
+        background: var(--page-code);
+        font: 13px/1.55 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        white-space: pre;
+      }
     </style>
   </head>
   <body>
@@ -110,18 +131,27 @@
       </p>
 
       <h2>Revenue by region</h2>
-      <p>The rows come from <code>sales.csv</code> next to this page, loaded once and shared.</p>
+      <p>
+        The rows come from <code>sales.csv</code> next to this page, loaded once and shared. The
+        chart states its source, and its buttons open the rows behind it or save them as CSV.
+      </p>
       <pre><code class="language-quartile">data sales
 src: sales.csv
 revenue.format: currency USD
 </code></pre>
       <pre><code class="language-quartile">barlist sum(revenue) by region
 title: Revenue by region, Q3 2026
-select: true
+source: sales.csv, fictional sample data
+asof: 2026-09-30
+actions: rows, download
 data: sales
 </code></pre>
 
       <h2>Every chart over <code>sales</code> follows a selection</h2>
+      <p>
+        Click a region above. No setting asks for this: blocks that read one named dataset select
+        and filter each other, and the rows behind the first chart narrow with them.
+      </p>
       <pre><code class="language-quartile">line sum(revenue) by month and channel
 title: Revenue by channel
 data: sales
@@ -131,6 +161,16 @@ data: sales
 kpi sum(revenue) as "Revenue"
 kpi sum(orders) as "Orders"
 </code></pre>
+
+      <h2>What the page hears</h2>
+      <p>
+        A chart dispatches a <code>quartile-select</code> event when its selection changes. The
+        page's own script, shown at the end of this page, prints the latest one here.
+      </p>
+      <div class="heard">
+        <output id="heard">Nothing selected yet.</output>
+        <button type="button" id="clear">Clear</button>
+      </div>
 
       <h2>Inline data</h2>
       <pre><code class="language-quartile">donut sum(tickets) by priority
@@ -142,14 +182,52 @@ High,41
 Normal,128
 </code></pre>
 
+      <h2>An API response</h2>
+      <p>
+        <code>tickets.json</code> next to this page is shaped like an API response: a status, the
+        rows under <code>data.results</code> and a request id. <code>path</code> says where the
+        rows are.
+      </p>
+      <pre><code class="language-quartile">bar sum(tickets) by week and priority
+title: Support tickets opened per week
+stacked: yes
+src: tickets.json
+path: data.results
+</code></pre>
+
       <h2>How this page is wired</h2>
+      <p>One script tag, which also says what blocks may load:</p>
       <pre>&lt;script src="quartile.global.js"
   data-theme="auto"
   data-sources="same-origin"&gt;&lt;/script&gt;</pre>
       <p class="muted">
         <code>data-sources="same-origin"</code> lets blocks load files from this site. Without
-        it, no block fetches anything. See the
-        <a href="https://github.com/zinnoberHaus/quartile/blob/main/docs/guides/embedding.md">embedding guide</a>.
+        it, no block fetches anything.
+      </p>
+      <p>And the page's own script for the box above, displayed as it runs:</p>
+      <script class="shown">// Prints the latest selection in the box above.
+const heard = document.getElementById('heard');
+const say = (who, group, predicates) => {
+  const what = predicates.map((p) => `${p.field} ${p.op} ${[].concat(p.value).join(', ')}`);
+  heard.textContent = `${who}, in "${group}": ${what.join(' and ') || 'nothing selected'}`;
+};
+
+// Every chart of a group reports a change. `origin` is true on the one the reader used.
+document.addEventListener('quartile-select', (event) => {
+  const { origin, group, predicates } = event.detail;
+  if (origin) say('Reader', group, predicates);
+});
+
+// The page can read and change a selection by its group name, here the dataset's.
+document.getElementById('clear').addEventListener('click', () => {
+  const sales = Quartile.selection('sales');
+  sales.clear();
+  say('Page script', 'sales', sales.get());
+});</script>
+      <p class="muted">
+        See the
+        <a href="https://github.com/zinnoberHaus/quartile/blob/main/docs/guides/embedding.md">embedding guide</a>,
+        or go back to <a href="/examples">all Quartile examples</a>.
       </p>
     </main>
     <script>

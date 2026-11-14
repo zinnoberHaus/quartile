@@ -46,7 +46,9 @@ export function Dashboard({ rows }: { rows: { region: string; amount: number }[]
 }
 ```
 
-Charts draw at the provider's `initialWidth` (640 px by default) until they can measure their container, so server markup contains the chart's SVG, scaled to the container, and the client redraws at the measured width after hydration. Verify layout after hydration and when opening hidden tabs/panels. `theme="system"` is resolved by CSS from the reader's preference, so server output and the first paint are already in the right theme. See [server rendering](server-rendering.md).
+Charts draw at the provider's `initialWidth` (640 px by default) until they can measure their container, so server markup contains the chart's SVG, scaled to the container, and the client redraws at the measured width after hydration. Verify layout after hydration and when opening hidden tabs/panels. `theme="system"` is resolved by CSS from the reader's preference, so server output and the first paint are already in the right theme.
+
+Server components and route handlers can call `@quartile/react/lang` (compile or validate a block, build the model prompt). They cannot import `@quartile/react/server`: the static renderer is for Node code outside a React Server Components graph, such as a build script. See [server rendering](server-rendering.md#react-and-nextjs).
 
 ## Fetching and state
 
@@ -58,6 +60,6 @@ The [API recipes](api-data.md) show real public requests, schema normalization, 
 
 Use [DataExplorer](tables.md) for local table view state and controlled edit callbacks. Its filters/search refine its own table; shared chart predicates still live in `Selection`. Persist validated view JSON separately from source records and authorization. An edit callback must update caller data; the component has no database write capability.
 
-The [Python snapshot example](../../examples/python) adapts pandas, Polars or row dictionaries to the gallery importer. It explicitly handles dates, missing cells, IDs and unsupported nested values. Import the written file or host its snapshot for [bounded URL loading](connecting-data.md). This is a one-way handoff; Jupyter kernels and Streamlit widgets are not bundled. See [data-science workflows](data-science.md) for input bounds and the Arrow type boundary.
+The [Python snapshot example](../../examples/python) adapts pandas, Polars or row dictionaries to the dataset explorer's importer. It explicitly handles dates, missing cells, IDs and unsupported nested values. Import the written file or host its snapshot for [bounded URL loading](connecting-data.md). This is a one-way handoff; Jupyter kernels and Streamlit widgets are not bundled. See [data-science workflows](data-science.md) for input bounds and the Arrow type boundary.
 
 Import optional assistance from `@quartile/react/ai`. `AssistantPanel` and its hook belong in the client boundary. A model SDK or REST call and provider credentials belong on the server. `createHttpAssistantAdapter` talks to an application-owned endpoint; it does not select or provision a model. [AI assistance](ai-assistance.md) documents context disclosure, request shape, stale-result handling and explicit Apply. The [local backend example](../../examples/ai-server) is a runnable development integration with its own authentication/deployment limitations.

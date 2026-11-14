@@ -4,7 +4,8 @@ import rehypeStringify from 'rehype-stringify';
 import remarkParse from 'remark-parse';
 import remarkRehype from 'remark-rehype';
 import { unified } from 'unified';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { createSourceLoader } from '../lang/source';
 import {
   escapeHtml,
   markdownItQuartile,
@@ -20,7 +21,7 @@ describe('renderBlockToHTML', () => {
   it('writes the chart as SVG plus an HTML table, with the source for later upgrade', () => {
     const html = renderBlockToHTML(block);
     expect(html).toMatch(
-      /^<div class="quartile-static" data-quartile-block="view" data-quartile-source="bar sum\(amount\)/,
+      /^<div class="quartile-static not-prose" data-quartile-block="view" data-quartile-source="bar sum\(amount\)/,
     );
     expect(html).toContain('<svg');
     expect(html).toContain('viewBox="0 0 640');
@@ -89,7 +90,7 @@ describe('remarkQuartile', () => {
       .process(markdown);
     const html = String(file);
     expect(html).toContain('<h1>Report</h1>');
-    expect(html.match(/class="quartile-static"/g)).toHaveLength(3);
+    expect(html.match(/class="quartile-static not-prose"/g)).toHaveLength(3);
     expect(html).toContain('$200');
     expect(html).not.toContain('$200.00');
     expect(html).toContain('data-quartile-block="data"');
@@ -123,7 +124,7 @@ describe('markdownItQuartile', () => {
         '```',
       ].join('\n'),
     );
-    expect(html.match(/class="quartile-static"/g)).toHaveLength(2);
+    expect(html.match(/class="quartile-static not-prose"/g)).toHaveLength(2);
     expect(html).toContain('<svg');
     expect(html).toContain('<code class="language-js">const x = 1 &lt; 2;');
   });
@@ -159,5 +160,144 @@ describe('renderMarkdownBlocks', () => {
     expect(out).toHaveLength(1);
     expect(out[0]).toMatchObject({ line: 3, source: 'kpi count\n---\nid\n1\n2\n' });
     expect(out[0].html).toContain('Rows');
+  });
+});
+
+describe('sources at build time', () => {
+  const api = {
+    status: 'ok',
+    data: {
+      items: [
+        { plan: 'Team', seats: 12 },
+        { plan: 'Solo', seats: 3 },
+      ],
+    },
+  };
+  const page = [
+    '```quartile',
+    'bar sum(seats) by plan',
+    'title: Seats by plan',
+    'src: https://api.example.com/v1/seats',
+    'path: data.items',
+    'refresh: 30s',
+    '```',
+    '',
+    '```quartile',
+    'data plans',
+    'src: plans.json',
+    '```',
+    '',
+    '```quartile',
+    'kpi sum(seats) as "Seats"',
+    'data: plans',
+    'format: integer',
+    '```',
+  ].join('\n');
+
+  it('applies each block’s path to what the loader returns, text or parsed', async () => {
+    const loadSource = vi.fn(async (url: string) =>
+      url === 'plans.json' ? { data: api.data.items, meta: {} } : JSON.stringify(api),
+    );
+    const out = await renderMarkdownBlocks(page, { loadSource });
+    expect(loadSource.mock.calls.map(([url]) => url)).toEqual([
+      'https://api.example.com/v1/seats',
+      'plans.json',
+    ]);
+    expect(out[0].html).toContain('Seats by plan');
+    expect(out[0].html).toContain('<svg');
+    expect(out[0].html).toContain('Team');
+    expect(out[0].html).not.toContain('q-block-error');
+    expect(out[2].html).toContain('15');
+  });
+
+  it('reads JSONPath spellings and conventional row keys at build time', async () => {
+    const jsonPath = page.replace('path: data.items', "path: $['data'].items");
+    const loadSource = vi.fn(async (url: string) =>
+      url === 'plans.json'
+        ? { columns: [{ name: 'plan' }, { name: 'seats' }], rows: api.data.items }
+        : api,
+    );
+    const out = await renderMarkdownBlocks(jsonPath, { loadSource });
+    expect(out[0].html).toContain('<svg');
+    expect(out[0].html).not.toContain('q-block-error');
+    expect(out[2].html).toContain('15');
+  });
+
+  it('reads column names kept beside bare rows at build time', async () => {
+    const split = {
+      columns: ['plan', 'seats'],
+      index: [0, 1],
+      data: [
+        ['Team', 12],
+        ['Solo', 3],
+      ],
+    };
+    const loadSource = vi.fn(async (url: string) =>
+      url === 'plans.json'
+        ? JSON.stringify(split)
+        : { data: { cols: split.columns, rows: split.data } },
+    );
+    const out = await renderMarkdownBlocks(page.replace('path: data.items', 'path: data'), {
+      loadSource,
+    });
+    expect(out[0].html).toContain('<svg');
+    expect(out[0].html).toContain('Team');
+    expect(out[0].html).not.toContain('q-block-error');
+    expect(out[2].html).toContain('15');
+  });
+
+  it('renders an empty answer as the empty state, and says when rows were cut', async () => {
+    const warnings: string[] = [];
+    const loadSource = async (url: string) => (url === 'plans.json' ? '[]' : JSON.stringify(api));
+    const out = await renderMarkdownBlocks(page, {
+      loadSource,
+      maxRows: 1,
+      dataDisplay: 'table',
+      onDiagnostics: (diagnostics) =>
+        warnings.push(...diagnostics.filter((d) => d.severity !== 'info').map((d) => d.message)),
+    });
+    // Two plans, one kept: the chart is drawn and says what it shows.
+    expect(out[0].html).toContain('<svg');
+    expect(out[0].html).toContain('Showing the first 1 of 2 rows.');
+    expect(warnings).toEqual(['Kept the first 1 of 2 rows.']);
+    // The other source answered with nothing: no error anywhere.
+    expect(out[1].html).toContain('No data to show');
+    expect(out[2].html).toContain('Seats');
+    for (const block of out) {
+      expect(block.html).not.toContain('q-block-error');
+      expect(block.html).not.toContain('There is no column');
+    }
+  });
+
+  it('stops the build when a path does not resolve', async () => {
+    const loadSource = async () => ({ data: { rows: [] } });
+    await expect(renderMarkdownBlocks(page, { loadSource })).rejects.toThrow(
+      'Could not read https://api.example.com/v1/seats: The path `data.items` stops at `items`: there is no such key at `data`. Keys there: `rows`.',
+    );
+  });
+
+  it('accepts the packaged loader, which needs a base and a listed origin on a server', async () => {
+    const fetch = vi.fn(async (url: string) =>
+      url.endsWith('/plans.json')
+        ? new Response(JSON.stringify(api.data.items))
+        : new Response(JSON.stringify(api)),
+    );
+    const loadSource = createSourceLoader({
+      origins: ['https://api.example.com'],
+      base: 'https://api.example.com/static/',
+      fetch: fetch as unknown as typeof globalThis.fetch,
+    });
+    const out = await renderMarkdownBlocks(page, { loadSource });
+    expect(out[2].html).toContain('15');
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      'https://api.example.com/v1/seats',
+      'https://api.example.com/static/plans.json',
+    ]);
+    expect((fetch.mock.calls[0] as unknown as [string, RequestInit])[1].credentials).toBe('omit');
+
+    const sameOriginOnly = createSourceLoader({ origins: ['same-origin'], fetch: vi.fn() });
+    await expect(sameOriginOnly('https://api.example.com/v1/seats')).rejects.toThrow(
+      'This loader allows data from: same-origin; `https://api.example.com` is not allowed.',
+    );
   });
 });

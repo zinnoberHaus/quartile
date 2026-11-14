@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from 'playwright';
+import { watchRequests } from '../../../scripts/examples-only.mjs';
 
 const base = process.argv[2] ?? 'http://127.0.0.1:4184';
 const output = process.argv[3] ?? '/tmp/quartile-formatting-browser';
@@ -15,6 +16,7 @@ const context = await browser.newContext({
 const page = await context.newPage();
 const errors = [];
 page.on('pageerror', (error) => errors.push(error.message));
+const outsideExamples = watchRequests(context, base);
 const checks = [];
 const record = (name) => checks.push(name);
 try {
@@ -118,6 +120,7 @@ try {
   }
   record('Responsive layouts at 375px and 320px preserve a bounded scrollable data table');
   assert.deepEqual(errors, []);
+  assert.deepEqual(outsideExamples(), [], 'requests outside /examples');
   const result = { passed: true, checks, errors };
   await writeFile(path.join(output, 'result.json'), JSON.stringify(result, null, 2));
   console.log(JSON.stringify(result, null, 2));

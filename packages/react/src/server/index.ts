@@ -8,7 +8,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import type { DataInput } from '../data/types';
 import { type CompiledBlock, compileBlock } from '../lang/compile';
 import type { Diagnostic } from '../lang/diagnostics';
+import { dict } from '../lang/dict';
 import { DEFAULT_LANGUAGES, scanDocument } from '../lang/document';
+import { readSourceValue, type SourceValue } from '../lang/source';
 import { QuartileBlock } from '../markdown/QuartileBlock';
 import { QuartileDocument } from '../markdown/QuartileDocument';
 import type { Density } from '../provider/QuartileProvider';
@@ -26,6 +28,8 @@ export interface StaticRenderOptions {
   initialWidth?: number;
   /** How `data` blocks render. Default `summary`. */
   dataDisplay?: 'summary' | 'table' | 'hidden';
+  /** Let blocks set chart colors. Default true; false keeps the page's palette. */
+  blockColors?: boolean;
   /** Receives each block's diagnostics, e.g. to fail a docs build on errors. */
   onDiagnostics?: (diagnostics: Diagnostic[], source: string) => void;
 }
@@ -56,7 +60,10 @@ export function escapeHtml(value: string): string {
  * the embed script can replace the static drawing with the interactive one.
  */
 export function renderBlockToHTML(source: string, options: StaticRenderOptions = {}): string {
-  const compiled: CompiledBlock = compileBlock(source, { datasets: options.datasets });
+  const compiled: CompiledBlock = compileBlock(source, {
+    datasets: options.datasets,
+    blockColors: options.blockColors,
+  });
   options.onDiagnostics?.(compiled.diagnostics, source);
   const markup = renderToStaticMarkup(
     createElement(
@@ -69,12 +76,15 @@ export function renderBlockToHTML(source: string, options: StaticRenderOptions =
         timeZone: options.timeZone,
         initialWidth: options.initialWidth,
         dataDisplay: options.dataDisplay,
+        blockColors: options.blockColors,
+        // Buttons need script: the embed adds them when it upgrades this markup.
+        actions: false,
       },
       createElement(QuartileBlock, { source }),
     ),
   );
   const kind = compiled.type === 'dashboard' ? 'dashboard' : compiled.type;
-  return `<div class="quartile-static" data-quartile-block="${kind}" data-quartile-source="${escapeHtml(source)}">${markup}</div>`;
+  return `<div class="quartile-static not-prose" data-quartile-block="${kind}" data-quartile-source="${escapeHtml(source)}">${markup}</div>`;
 }
 
 export interface MarkdownRenderOptions extends StaticRenderOptions {
@@ -82,27 +92,33 @@ export interface MarkdownRenderOptions extends StaticRenderOptions {
   languages?: readonly string[];
   /**
    * Loads `src:` URLs at build time, e.g. a CSV file next to the page. Returns rows, a dataset,
-   * or CSV/JSON text. Without it, blocks naming a URL render their "no data" message.
+   * CSV/JSON text or parsed JSON; a block's `path:` is applied to it. Without it, blocks naming
+   * a URL render their "no data" message. `refresh:` has no meaning in static output.
    */
-  loadSource?: (url: string) => Promise<DataInput | string> | DataInput | string;
+  loadSource?: (url: string) => Promise<SourceValue> | SourceValue;
+  /**
+   * Rows kept from each loaded `src:` response. A longer one is cut, and the blocks drawn from
+   * it say how many of its rows they show. Default 5,000.
+   */
+  maxRows?: number;
 }
 
 async function loadSources(
   markdown: string,
   options: MarkdownRenderOptions,
 ): Promise<Record<string, DataInput>> {
-  const datasets: Record<string, DataInput> = { ...options.datasets };
+  const datasets: Record<string, DataInput> = dict(options.datasets);
   if (!options.loadSource) return datasets;
   const scan = scanDocument(markdown, { languages: options.languages, datasets });
   for (const s of scan.sources) {
     if (Object.hasOwn(datasets, s.name)) continue;
     const value = await options.loadSource(s.url);
-    if (typeof value === 'string') {
-      const { parseTable } = await import('../lang/table');
-      const { dataset } = await import('../data/schema');
-      const table = parseTable(value);
-      datasets[s.name] = dataset(table.rows, table.fields);
-    } else datasets[s.name] = value;
+    try {
+      datasets[s.name] = readSourceValue(value, { path: s.path, maxRows: options.maxRows });
+    } catch (err) {
+      // A build should stop on data it cannot read rather than publish an empty chart.
+      throw new Error(`Could not read ${s.url}: ${(err as Error).message}`);
+    }
   }
   return datasets;
 }

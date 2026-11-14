@@ -156,13 +156,18 @@ export function Legend({
   items,
   onToggle,
   className,
+  position,
+  style,
 }: {
   items: LegendItem[];
   onToggle?: (key: string) => void;
   className?: string;
+  /** Where the legend sits, when the author chose a side; styles key off `data-position`. */
+  position?: 'top' | 'bottom' | 'left' | 'right';
+  style?: CSSProperties;
 }) {
   return (
-    <div className={cx('q-legend', className)}>
+    <div className={cx('q-legend', className)} data-position={position} style={style}>
       {items.map((it) => {
         const content = (
           <>
@@ -193,5 +198,147 @@ export function Legend({
         );
       })}
     </div>
+  );
+}
+
+/** Vertical hairline gridlines at the given x positions. */
+export function GridColumns({ xs, y0, y1 }: { xs: number[]; y0: number; y1: number }) {
+  return (
+    <g className="q-chart-grid" data-axis="x" aria-hidden="true">
+      {xs.map((x) => (
+        <line key={x} x1={Math.round(x) + 0.5} x2={Math.round(x) + 0.5} y1={y0} y2={y1} />
+      ))}
+    </g>
+  );
+}
+
+export interface ReferenceMark {
+  /** Position on the value axis, in px. */
+  at: number;
+  /** Text beside the rule: the author's label, or the formatted value. */
+  text: string;
+  /** Where the text sits when it must stand clear of other labels. Defaults to `at`. */
+  labelAt?: number;
+}
+
+/**
+ * Dashed rules at reference values with their text. Horizontal rules span `from`…`to` on x;
+ * vertical rules span them on y and label the top. Rules outside `min`…`max` (the plot, along
+ * the value axis) are not drawn.
+ *
+ * With `outside`, the text of a horizontal rule sits just past `to`, in the margin the chart
+ * keeps for it (`referenceRoom`), where no mark can be under it. Otherwise it sits on the rule
+ * at the right end of the plot.
+ */
+export function ReferenceRules({
+  marks,
+  from,
+  to,
+  min,
+  max,
+  vertical = false,
+  outside = false,
+}: {
+  marks: ReferenceMark[];
+  from: number;
+  to: number;
+  min: number;
+  max: number;
+  vertical?: boolean;
+  outside?: boolean;
+}) {
+  const lo = Math.min(min, max);
+  const hi = Math.max(min, max);
+  return (
+    <g className="q-chart-reference" data-orientation={vertical ? 'vertical' : 'horizontal'}>
+      {marks.map((m, i) => {
+        if (!(m.at >= lo - 0.5 && m.at <= hi + 0.5)) return null;
+        const at = Math.round(m.at) + 0.5;
+        if (vertical) {
+          const flip = m.at > lo + (hi - lo) * 0.6;
+          return (
+            <g key={`${i}-${m.text}`}>
+              <line x1={at} x2={at} y1={from} y2={to} />
+              <text x={flip ? at - 5 : at + 5} y={from + 10} textAnchor={flip ? 'end' : 'start'}>
+                {m.text}
+              </text>
+            </g>
+          );
+        }
+        if (outside) {
+          return (
+            <g key={`${i}-${m.text}`}>
+              <line x1={from} x2={to} y1={at} y2={at} />
+              <text x={to + 8} y={m.labelAt ?? m.at} dy="0.32em">
+                {m.text}
+              </text>
+            </g>
+          );
+        }
+        // Above the rule, unless that would leave the plot.
+        const below = m.at - lo < 14;
+        return (
+          <g key={`${i}-${m.text}`}>
+            <line x1={from} x2={to} y1={at} y2={at} />
+            <text x={to - 4} y={below ? at + 12 : at - 5} textAnchor="end">
+              {m.text}
+            </text>
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+/** Direct labels beside the last point of each line, in the series color. */
+export function EndLabels({
+  labels,
+}: {
+  labels: { key: string; x: number; y: number; text: string; color: string }[];
+}) {
+  return (
+    <g className="q-chart-end-labels">
+      {labels.map((l) => (
+        <text key={l.key} x={l.x} y={l.y} dy="0.32em" style={{ fill: l.color }}>
+          {l.text}
+        </text>
+      ))}
+    </g>
+  );
+}
+
+/** A short visible remark about how the chart was drawn, e.g. a scale that could not be used. */
+export function ChartNote({ children }: { children: ReactNode }) {
+  return <div className="q-chart-note">{children}</div>;
+}
+
+/**
+ * Lays a legend out around a plot. Above or below, the two stack as before; beside the plot they
+ * share a row, and the caller draws the plot `sideLegendWidth` narrower.
+ */
+export function LegendLayout({
+  side,
+  legend,
+  children,
+}: {
+  side: 'top' | 'bottom' | 'left' | 'right' | null;
+  legend: ReactNode;
+  children: ReactNode;
+}) {
+  if (side === 'left' || side === 'right') {
+    return (
+      <div className="q-chart-side" data-legend={side}>
+        {side === 'left' && legend}
+        {children}
+        {side === 'right' && legend}
+      </div>
+    );
+  }
+  return (
+    <>
+      {side === 'top' && legend}
+      {children}
+      {side === 'bottom' && legend}
+    </>
   );
 }
